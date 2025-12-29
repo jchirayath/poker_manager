@@ -1,0 +1,46 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'profile_model.freezed.dart';
+part 'profile_model.g.dart';
+
+@freezed
+class ProfileModel with _$ProfileModel {
+  const ProfileModel._();
+  
+  const factory ProfileModel({
+    required String id,
+    required String email,
+    String? username,
+    @JsonKey(name: 'first_name') required String firstName,
+    @JsonKey(name: 'last_name') required String lastName,
+    @JsonKey(name: 'avatar_url') String? avatarUrl,
+    @JsonKey(name: 'phone_number') String? phoneNumber,
+    @JsonKey(name: 'street_address') String? streetAddress,
+    String? city,
+    @JsonKey(name: 'state_province') String? stateProvince,
+    @JsonKey(name: 'postal_code') String? postalCode,
+    required String country,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
+    @JsonKey(name: 'updated_at') DateTime? updatedAt,
+  }) = _ProfileModel;
+
+  factory ProfileModel.fromJson(Map<String, dynamic> json) =>
+      _$ProfileModelFromJson(json);
+  
+  String get fullName => '$firstName $lastName';
+
+  String get fullAddress {
+    final parts = [
+      streetAddress,
+      city,
+      stateProvince,
+      postalCode,
+      country,
+    ].where((part) => part != null && part.isNotEmpty);
+
+    return parts.join(', ');
+  }
+
+  bool get hasAddress =>
+      streetAddress != null && streetAddress!.isNotEmpty;
+}
