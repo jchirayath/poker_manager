@@ -9,6 +9,9 @@ import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../features/groups/presentation/screens/groups_list_screen.dart';
 import '../features/groups/presentation/screens/create_group_screen.dart';
+import '../features/groups/presentation/screens/group_detail_screen.dart';
+import '../features/groups/presentation/screens/manage_members_screen.dart';
+import '../features/groups/presentation/screens/edit_group_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -63,6 +66,36 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteConstants.createGroup,
         builder: (context, state) => const CreateGroupScreen(),
+      ),
+      GoRoute(
+        path: RouteConstants.groupDetail,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return GroupDetailScreen(groupId: id);
+        },
+      ),
+      GoRoute(
+        path: RouteConstants.manageMembers,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ManageMembersScreen(groupId: id);
+        },
+      ),
+      GoRoute(
+        path: '/groups/:id/edit',
+        builder: (context, state) {
+          // Note: We'll pass group data via extra or fetch it in the screen
+          final id = state.pathParameters['id']!;
+          return EditGroupScreen(
+            groupId: id,
+            name: state.extra is Map ? (state.extra as Map)['name'] ?? '' : '',
+            description: state.extra is Map ? (state.extra as Map)['description'] : null,
+            privacy: state.extra is Map ? (state.extra as Map)['privacy'] ?? 'private' : 'private',
+            currency: state.extra is Map ? (state.extra as Map)['currency'] ?? 'USD' : 'USD',
+            defaultBuyin: state.extra is Map ? (state.extra as Map)['defaultBuyin'] ?? 100.0 : 100.0,
+            additionalBuyins: state.extra is Map ? (state.extra as Map)['additionalBuyins'] ?? [] : [],
+          );
+        },
       ),
     ],
   );

@@ -35,7 +35,7 @@ class GroupController {
 
   GroupController(this._repository, this._ref);
 
-  Future<String?> createGroup({
+  Future<Result<String>> createGroup({
     required String name,
     String? description,
     required String privacy,
@@ -54,9 +54,14 @@ class GroupController {
 
     if (result is Success<GroupModel>) {
       _ref.invalidate(groupsListProvider);
-      return result.data.id;
+      return Result.success(result.data.id);
     }
-    return null;
+
+    if (result is Failure<GroupModel>) {
+      return Result.failure(result.message, exception: result.exception);
+    }
+
+    return const Result.failure('Unknown error creating group');
   }
 
   Future<bool> updateGroup({

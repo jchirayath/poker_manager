@@ -29,7 +29,7 @@ class ProfileRepository {
                 'email': email,
                 'first_name': '',
                 'last_name': '',
-                'country': 'US',
+                'country': 'United States',
               })
               .select()
               .maybeSingle();
@@ -64,15 +64,15 @@ class ProfileRepository {
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      if (username != null) updates['username'] = username;
-      if (firstName != null) updates['first_name'] = firstName;
-      if (lastName != null) updates['last_name'] = lastName;
-      if (phoneNumber != null) updates['phone_number'] = phoneNumber;
-      if (streetAddress != null) updates['street_address'] = streetAddress;
-      if (city != null) updates['city'] = city;
-      if (stateProvince != null) updates['state_province'] = stateProvince;
-      if (postalCode != null) updates['postal_code'] = postalCode;
-      if (country != null) updates['country'] = country;
+      if (username != null && username.isNotEmpty) updates['username'] = username;
+      if (firstName != null && firstName.isNotEmpty) updates['first_name'] = firstName;
+      if (lastName != null && lastName.isNotEmpty) updates['last_name'] = lastName;
+      if (phoneNumber != null && phoneNumber.isNotEmpty) updates['phone_number'] = phoneNumber;
+      if (streetAddress != null && streetAddress.isNotEmpty) updates['street_address'] = streetAddress;
+      if (city != null && city.isNotEmpty) updates['city'] = city;
+      if (stateProvince != null && stateProvince.isNotEmpty) updates['state_province'] = stateProvince;
+      if (postalCode != null && postalCode.isNotEmpty) updates['postal_code'] = postalCode;
+      if (country != null && country.isNotEmpty) updates['country'] = country;
 
       final response = await _client
           .from('profiles')
@@ -95,22 +95,34 @@ class ProfileRepository {
       final fileName = 'avatar_$userId.jpg';
       final path = '$userId/$fileName';
 
-      await _client.storage
+      final uploadResponse = await _client.storage
           .from('avatars')
           .upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
 
-      final avatarUrl = _client.storage
+      // Append a cache-busting query param so Flutter image cache fetches the new content
+      final publicUrl = _client.storage
           .from('avatars')
           .getPublicUrl(path);
+      final avatarUrl = '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
 
-      await _client
+      final updateResponse = await _client
           .from('profiles')
           .update({'avatar_url': avatarUrl})
-          .eq('id', userId);
+          .eq('id', userId)
+          .select()
+          .maybeSingle();
+
+      if (updateResponse == null) {
+        return Result.failure('Failed to update profile with avatar URL');
+      }
 
       return Result.success(avatarUrl);
+    } on StorageException catch (e) {
+      return Result.failure('Storage error: ${e.message}');
+    } on PostgrestException catch (e) {
+      return Result.failure('Database error: ${e.message}');
     } catch (e) {
-      return Result.failure('Failed to upload avatar: ${e.toString()}');
+      return Result.failure('Upload failed: ${e.toString()}');
     }
   }
 
@@ -119,7 +131,8 @@ class ProfileRepository {
       final response = await _client
           .from('profiles')
           .select()
-          .or('first_name.ilike.%$query%,last_name.ilike.%$query%,username.ilike.%$query%')
+          // Allow search by first/last/username/email
+          .or('first_name.ilike.%$query%,last_name.ilike.%$query%,username.ilike.%$query%,email.ilike.%$query%')
           .limit(20);
 
       final profiles = (response as List)

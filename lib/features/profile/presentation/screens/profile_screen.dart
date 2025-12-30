@@ -45,18 +45,48 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 CircleAvatar(
                   radius: 60,
-                  backgroundImage: user.avatarUrl != null
-                      ? NetworkImage(user.avatarUrl!)
-                      : null,
-                  child: user.avatarUrl == null && user.firstName.isNotEmpty
-                      ? Text(
-                          (user.firstName.isNotEmpty ? user.firstName[0] : '') + 
-                          (user.lastName.isNotEmpty ? user.lastName[0] : ''),
-                          style: const TextStyle(fontSize: 32),
+                  child: user.avatarUrl != null
+                      ? ClipOval(
+                          child: Image.network(
+                            user.avatarUrl!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              // Show initials if image fails to load
+                              return Container(
+                                width: 120,
+                                height: 120,
+                                color: Colors.grey[300],
+                                child: Center(
+                                  child: Text(
+                                    (user.firstName.isNotEmpty ? user.firstName[0] : '') + 
+                                    (user.lastName.isNotEmpty ? user.lastName[0] : ''),
+                                    style: const TextStyle(fontSize: 32),
+                                  ),
+                                ),
+                              );
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              );
+                            },
+                          ),
                         )
-                      : user.avatarUrl == null
-                          ? const Icon(Icons.person, size: 60)
-                          : null,
+                      : user.firstName.isNotEmpty
+                          ? Text(
+                              (user.firstName.isNotEmpty ? user.firstName[0] : '') + 
+                              (user.lastName.isNotEmpty ? user.lastName[0] : ''),
+                              style: const TextStyle(fontSize: 32),
+                            )
+                          : const Icon(Icons.person, size: 60),
                 ),
                 const SizedBox(height: 16),
                 Text(

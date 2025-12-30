@@ -4,6 +4,7 @@ import '../../../../core/services/supabase_service.dart';
 import '../../data/repositories/profile_repository.dart';
 import '../../data/models/profile_model.dart';
 import '../../../../shared/models/result.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 final profileRepositoryProvider = Provider((ref) => ProfileRepository());
 
@@ -69,6 +70,7 @@ class ProfileController {
 
     if (result is Success) {
       _ref.invalidate(currentProfileProvider);
+      _ref.invalidate(authStateProvider);
       return true;
     }
     return false;
@@ -81,6 +83,7 @@ class ProfileController {
     final result = await _repository.uploadAvatar(userId, imageFile);
 
     if (result is Success) {
+      _ref.invalidate(authStateProvider);
       _ref.invalidate(currentProfileProvider);
       return true;
     }

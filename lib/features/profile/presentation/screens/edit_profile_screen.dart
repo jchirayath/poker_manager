@@ -27,6 +27,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String? _selectedCountry;
   File? _imageFile;
   bool _isLoading = false;
+  bool _controllersInitialized = false;
 
   @override
   void initState() {
@@ -55,52 +56,89 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   Future<void> _pickImage() async {
+    debugPrint('🔵 Picking image from gallery');
     final picker = ImagePicker();
     final image = await picker.pickImage(source: ImageSource.gallery);
 
     if (image != null) {
+      debugPrint('✅ Image selected: ${image.path}');
       setState(() => _imageFile = File(image.path));
+    } else {
+      debugPrint('🔵 Image selection cancelled');
     }
   }
 
   Future<void> _saveProfile() async {
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('🔵 Saving profile');
+    if (!_formKey.currentState!.validate()) {
+      debugPrint('🔴 Form validation failed');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
-    final controller = ref.read(profileControllerProvider);
+    try {
+      final controller = ref.read(profileControllerProvider);
 
-    // Upload avatar if selected
-    if (_imageFile != null) {
-      await controller.uploadAvatar(_imageFile!);
-    }
+      // Upload avatar if selected
+      bool avatarSuccess = true;
+      if (_imageFile != null) {
+        debugPrint('🔵 Uploading avatar');
+        avatarSuccess = await controller.uploadAvatar(_imageFile!);
+        if (!avatarSuccess) {
+          debugPrint('🔴 Avatar upload failed');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to upload avatar. Continuing with other changes...'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } else {
+          debugPrint('✅ Avatar uploaded successfully');
+        }
+      }
 
-    // Update profile
-    final success = await controller.updateProfile(
-      firstName: _firstNameController.text.trim(),
-      lastName: _lastNameController.text.trim(),
-      username: _usernameController.text.trim(),
-      phoneNumber: _phoneController.text.trim(),
-      streetAddress: _streetController.text.trim(),
-      city: _cityController.text.trim(),
-      stateProvince: _stateController.text.trim(),
-      postalCode: _postalCodeController.text.trim(),
-      country: _selectedCountry,
-    );
-
-    if (!mounted) return;
-
-    setState(() => _isLoading = false);
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully')),
+      // Update profile
+      debugPrint('🔵 Updating profile fields');
+      final success = await controller.updateProfile(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        username: _usernameController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        streetAddress: _streetController.text.trim(),
+        city: _cityController.text.trim(),
+        stateProvince: _stateController.text.trim(),
+        postalCode: _postalCodeController.text.trim(),
+        country: _selectedCountry,
       );
-      context.pop();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update profile')),
-      );
+
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      if (success) {
+        debugPrint('✅ Profile updated successfully');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated successfully')),
+        );
+        context.pop();
+      } else {
+        debugPrint('🔴 Profile update failed');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update profile')),
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('🔴 Error saving profile: $e');
+      debugPrintStack(stackTrace: stack);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -132,16 +170,33 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             return const Center(child: Text('No profile found'));
           }
 
-          // Initialize controllers with current values
-          _firstNameController.text = profile.firstName;
-          _lastNameController.text = profile.lastName;
-          _usernameController.text = profile.username ?? '';
-          _phoneController.text = profile.phoneNumber ?? '';
-          _streetController.text = profile.streetAddress ?? '';
-          _cityController.text = profile.city ?? '';
-          _stateController.text = profile.stateProvince ?? '';
-          _postalCodeController.text = profile.postalCode ?? '';
-          _selectedCountry ??= profile.country;
+          // Initialize controllers with current values only once
+          if (!_controllersInitialized) {
+            _firstNameController.text = profile.firstName;
+            _lastNameController.text = profile.lastName;
+            _usernameController.text = profile.username ?? '';
+            _phoneController.text = profile.phoneNumber ?? '';
+            _streetController.text = profile.streetAddress ?? '';
+            _cityController.text = profile.city ?? '';
+            _stateController.text = profile.stateProvince ?? '';
+            _postalCodeController.text = profile.postalCode ?? '';
+            // Map common country abbreviations to full names
+            String mappedCountry = profile.country;
+            if (mappedCountry == 'US' || mappedCountry == 'USA' || mappedCountry == 'U.S.' || mappedCountry == 'U.S.A.') {
+              mappedCountry = 'United States';
+            } else if (mappedCountry == 'UK' || mappedCountry == 'GB') {
+              mappedCountry = 'United Kingdom';
+            } else if (mappedCountry == 'CA') {
+              mappedCountry = 'Canada';
+            }
+            // Only set if the country exists in our dropdown list
+            if (AppConstants.countries.contains(mappedCountry)) {
+              _selectedCountry = mappedCountry;
+            } else {
+              _selectedCountry = 'United States'; // Default fallback
+            }
+            _controllersInitialized = true;
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -156,26 +211,66 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: 60,
-                          backgroundImage: _imageFile != null
-                              ? FileImage(_imageFile!)
-                              : (profile.avatarUrl != null
-                                  ? NetworkImage(profile.avatarUrl!)
-                                  : null) as ImageProvider?,
-                          child: profile.avatarUrl == null && _imageFile == null
-                              ? Builder(
-                                  builder: (_) {
-                                    final fn = (profile.firstName).trim();
-                                    final ln = (profile.lastName).trim();
-                                    final i1 = fn.isNotEmpty ? fn.substring(0, 1) : '';
-                                    final i2 = ln.isNotEmpty ? ln.substring(0, 1) : '';
-                                    final initials = (i1 + i2).isNotEmpty ? (i1 + i2) : '?';
-                                    return Text(
-                                      initials,
-                                      style: const TextStyle(fontSize: 32),
-                                    );
-                                  },
+                          child: _imageFile != null
+                              ? ClipOval(
+                                  child: Image.file(
+                                    _imageFile!,
+                                    width: 120,
+                                    height: 120,
+                                    fit: BoxFit.cover,
+                                  ),
                                 )
-                              : null,
+                              : profile.avatarUrl != null
+                                  ? ClipOval(
+                                      child: Image.network(
+                                        profile.avatarUrl!,
+                                        width: 120,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          final fn = (profile.firstName).trim();
+                                          final ln = (profile.lastName).trim();
+                                          final i1 = fn.isNotEmpty ? fn.substring(0, 1) : '';
+                                          final i2 = ln.isNotEmpty ? ln.substring(0, 1) : '';
+                                          final initials = (i1 + i2).isNotEmpty ? (i1 + i2) : '?';
+                                          return Container(
+                                            width: 120,
+                                            height: 120,
+                                            color: Colors.grey[300],
+                                            child: Center(
+                                              child: Text(
+                                                initials,
+                                                style: const TextStyle(fontSize: 32),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value: loadingProgress.expectedTotalBytes != null
+                                                  ? loadingProgress.cumulativeBytesLoaded /
+                                                      loadingProgress.expectedTotalBytes!
+                                                  : null,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    )
+                                  : Builder(
+                                      builder: (_) {
+                                        final fn = (profile.firstName).trim();
+                                        final ln = (profile.lastName).trim();
+                                        final i1 = fn.isNotEmpty ? fn.substring(0, 1) : '';
+                                        final i2 = ln.isNotEmpty ? ln.substring(0, 1) : '';
+                                        final initials = (i1 + i2).isNotEmpty ? (i1 + i2) : '?';
+                                        return Text(
+                                          initials,
+                                          style: const TextStyle(fontSize: 32),
+                                        );
+                                      },
+                                    ),
                         ),
                         Positioned(
                           bottom: 0,
@@ -197,6 +292,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   const Text(
                     'Basic Information',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email (read-only)
+                  TextFormField(
+                    initialValue: profile.email,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -310,10 +416,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             labelText: 'Country *',
                             border: OutlineInputBorder(),
                           ),
+                          isExpanded: true,
                           items: AppConstants.countries.map((country) {
                             return DropdownMenuItem(
                               value: country,
-                              child: Text(country),
+                              child: Text(
+                                country,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             );
                           }).toList(),
                           onChanged: (value) {
