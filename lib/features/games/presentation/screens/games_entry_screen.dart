@@ -31,14 +31,24 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
   }
 
   void _scrollToSection(GlobalKey key) {
-    final context = key.currentContext;
-    if (context != null) {
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
-      );
-    }
+    // Wait for the next frame to ensure widgets are laid out
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        final context = key.currentContext;
+        if (context != null) {
+          // Use Scrollable.ensureVisible with proper delay
+          // This ensures the widget is visible in the scroll area
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+            alignment: 0.05, // Position target near the top
+          );
+        }
+      } catch (e) {
+        debugPrint('Scroll error: $e');
+      }
+    });
   }
 
   @override
@@ -94,6 +104,13 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 _NavigationChip(
+                  label: 'Create',
+                  icon: Icons.add_circle,
+                  color: Theme.of(context).primaryColor,
+                  onTap: () => _scrollToSection(_createGameKey),
+                ),
+                const SizedBox(width: 8),
+                _NavigationChip(
                   label: 'Active',
                   icon: Icons.play_circle,
                   color: Colors.green,
@@ -119,13 +136,6 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                   icon: Icons.cancel,
                   color: Colors.grey,
                   onTap: () => _scrollToSection(_cancelledGamesKey),
-                ),
-                const SizedBox(width: 8),
-                _NavigationChip(
-                  label: 'Create',
-                  icon: Icons.add_circle,
-                  color: Theme.of(context).primaryColor,
-                  onTap: () => _scrollToSection(_createGameKey),
                 ),
               ],
             ),
@@ -168,68 +178,74 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Active Games Section
-                  if (inProgressGames.isNotEmpty) ...[
-                    Padding(
-                      key: _activeGamesKey,
-                      padding: const EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        'Active Games',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
+                  SizedBox(
+                    key: _activeGamesKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (inProgressGames.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 8),
+                            child: Text(
+                              'Active Games',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
-                      ),
+                          ),
+                          ...inProgressGames.map((gwg) => _GameCard(
+                                gameWithGroup: gwg,
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => GameDetailScreen(
+                                        gameId: gwg.game.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )),
+                          const SizedBox(height: 24),
+                        ] else
+                          const SizedBox.shrink(),
+                      ],
                     ),
-                    ...inProgressGames.map((gwg) => _GameCard(
-                          gameWithGroup: gwg,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => GameDetailScreen(
-                                  gameId: gwg.game.id,
-                                ),
-                              ),
-                            );
-                          },
-                        )),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                   
                   // Start Games Section (scheduled)
-                  if (scheduledGames.isNotEmpty) ...[
-                    Padding(
-                      key: _scheduledGamesKey,
-                      padding: const EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        'Start Games',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
+                  SizedBox(
+                    key: _scheduledGamesKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (scheduledGames.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 8),
+                            child: Text(
+                              'Start Games',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
-                      ),
+                          ),
+                          ...limitedScheduledGames.map((gwg) => _GameCard(
+                                gameWithGroup: gwg,
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => GameDetailScreen(
+                                        gameId: gwg.game.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )),
+                          const SizedBox(height: 24),
+                        ] else
+                          const SizedBox.shrink(),
+                      ],
                     ),
-                    ...limitedScheduledGames.map((gwg) => _GameCard(
-                          gameWithGroup: gwg,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => GameDetailScreen(
-                                  gameId: gwg.game.id,
-                                ),
-                              ),
-                            );
-                          },
-                        )),
-                    const SizedBox(height: 24),
-                  ],
-                  
-                  if (inProgressGames.isEmpty && limitedScheduledGames.isEmpty) ...[
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text('No active or scheduled games.'),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ],
               );
             },
@@ -267,53 +283,52 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                   .where((gwg) => gwg.game.status == 'completed')
                   .toList();
               
-              if (completedGames.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    key: _completedGamesKey,
-                    padding: const EdgeInsets.only(left: 4, bottom: 8),
-                    child: Text(
-                      'Completed Games',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  ...completedGames.take(10).map((gwg) => _GameCard(
-                        gameWithGroup: gwg,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => GameDetailScreen(
-                                gameId: gwg.game.id,
-                              ),
-                            ),
-                          );
-                        },
-                      )),
-                  if (completedGames.length > 10)
+              return SizedBox(
+                key: _completedGamesKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Center(
-                        child: TextButton(
-                          onPressed: () {
+                      padding: const EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text(
+                        'Completed Games',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                    if (completedGames.isNotEmpty) ...
+                      completedGames.take(10).map((gwg) => _GameCard(
+                          gameWithGroup: gwg,
+                          onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => const ActiveGamesScreen(),
+                                builder: (context) => GameDetailScreen(
+                                  gameId: gwg.game.id,
+                                ),
                               ),
                             );
                           },
-                          child: Text('View All ${completedGames.length} Completed Games'),
+                        )),
+                    if (completedGames.length > 10)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Center(
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const ActiveGamesScreen(),
+                                ),
+                              );
+                            },
+                            child: Text('View All ${completedGames.length} Completed Games'),
+                          ),
                         ),
                       ),
-                    ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               );
             },
           ),
@@ -327,83 +342,89 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                   .where((gwg) => gwg.game.status == 'cancelled')
                   .toList();
               
-              if (cancelledGames.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    key: _cancelledGamesKey,
-                    padding: const EdgeInsets.only(left: 4, bottom: 8),
-                    child: Text(
-                      'Cancelled Games',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  ...cancelledGames.take(10).map((gwg) => _GameCard(
-                        gameWithGroup: gwg,
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => GameDetailScreen(
-                                gameId: gwg.game.id,
-                              ),
-                            ),
-                          );
-                        },
-                      )),
-                  if (cancelledGames.length > 10)
+              return SizedBox(
+                key: _cancelledGamesKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Center(
-                        child: TextButton(
-                          onPressed: () {
+                      padding: const EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text(
+                        'Cancelled Games',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                    if (cancelledGames.isNotEmpty) ...
+                      cancelledGames.take(10).map((gwg) => _GameCard(
+                          gameWithGroup: gwg,
+                          onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => const ActiveGamesScreen(),
+                                builder: (context) => GameDetailScreen(
+                                  gameId: gwg.game.id,
+                                ),
                               ),
                             );
                           },
-                          child: Text('View All ${cancelledGames.length} Cancelled Games'),
+                        )),
+                    if (cancelledGames.length > 10)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Center(
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const ActiveGamesScreen(),
+                                ),
+                              );
+                            },
+                            child: Text('View All ${cancelledGames.length} Cancelled Games'),
+                          ),
                         ),
                       ),
-                    ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               );
             },
           ),
           
           // Create New Group or Game
-          Padding(
+          SizedBox(
             key: _createGameKey,
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              'Create New Group or Game',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'Create New Group or Game',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
+                ),
+                _EntryCard(
+                  icon: Icons.add_circle,
+                  title: 'Create New Game',
+                  subtitle: 'Start a new poker game in a group.',
+                  onTap: () {
+                    _showCreateGameOptions(context);
+                  },
+                ),
+                _EntryCard(
+                  icon: Icons.group_add,
+                  title: 'Create New Group',
+                  subtitle: 'Set up a new poker group.',
+                  onTap: () {
+                    context.push('/groups/create');
+                  },
+                ),
+              ],
             ),
-          ),
-          _EntryCard(
-            icon: Icons.add_circle,
-            title: 'Create New Game',
-            subtitle: 'Start a new poker game in a group.',
-            onTap: () {
-              _showCreateGameOptions(context);
-            },
-          ),
-          _EntryCard(
-            icon: Icons.group_add,
-            title: 'Create New Group',
-            subtitle: 'Set up a new poker group.',
-            onTap: () {
-              context.push('/groups/create');
-            },
           ),
                 ],
               ),
