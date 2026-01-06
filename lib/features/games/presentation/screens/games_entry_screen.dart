@@ -61,22 +61,25 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
     final dateTimeCard = Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              dateFormatter.format(now),
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              timeFormatter.format(now),
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                dateFormatter.format(now),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                timeFormatter.format(now),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -94,331 +97,323 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
         icon: const Icon(Icons.add),
         label: const Text('Create Game'),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: dateTimeCard,
-          ),
-          const SizedBox(height: 4),
-          // Navigation Chips
-          Container(
-            height: 56,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _NavigationChip(
-                  label: 'Active',
-                  icon: Icons.play_circle,
-                  color: Colors.green,
-                  onTap: () => _scrollToSection(_activeGamesKey),
-                ),
-                const SizedBox(width: 8),
-                _NavigationChip(
-                  label: 'Scheduled',
-                  icon: Icons.schedule,
-                  color: Colors.orange,
-                  onTap: () => _scrollToSection(_scheduledGamesKey),
-                ),
-                const SizedBox(width: 8),
-                _NavigationChip(
-                  label: 'Completed',
-                  icon: Icons.check_circle,
-                  color: Colors.blue,
-                  onTap: () => _scrollToSection(_completedGamesKey),
-                ),
-                const SizedBox(width: 8),
-                _NavigationChip(
-                  label: 'Cancelled',
-                  icon: Icons.cancel,
-                  color: Colors.grey,
-                  onTap: () => _scrollToSection(_cancelledGamesKey),
-                ),
-              ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(activeGamesProvider);
+          ref.invalidate(pastGamesProvider);
+        },
+        child: ListView(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+              child: dateTimeCard,
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(activeGamesProvider);
-                ref.invalidate(pastGamesProvider);
-              },
+            Container(
+              height: 56,
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(16),
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
-          const SizedBox(height: 8),
-          
-          // Create New Group or Game
-          SizedBox(
-            key: _createGameKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    'Create New Game',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  _NavigationChip(
+                    label: 'Active',
+                    icon: Icons.play_circle,
+                    color: Colors.green,
+                    onTap: () => _scrollToSection(_activeGamesKey),
                   ),
-                ),
-                _EntryCard(
-                  icon: Icons.add_circle,
-                  title: 'Create New Game',
-                  subtitle: 'Start a new poker game in a group.',
-                  onTap: () {
-                    _showCreateGameOptions(context);
-                  },
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  _NavigationChip(
+                    label: 'Scheduled',
+                    icon: Icons.schedule,
+                    color: Colors.orange,
+                    onTap: () => _scrollToSection(_scheduledGamesKey),
+                  ),
+                  const SizedBox(width: 8),
+                  _NavigationChip(
+                    label: 'Completed',
+                    icon: Icons.check_circle,
+                    color: Colors.blue,
+                    onTap: () => _scrollToSection(_completedGamesKey),
+                  ),
+                  const SizedBox(width: 8),
+                  _NavigationChip(
+                    label: 'Cancelled',
+                    icon: Icons.cancel,
+                    color: Colors.grey,
+                    onTap: () => _scrollToSection(_cancelledGamesKey),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Active Games (in_progress)
-          activeGamesAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stack) => Center(
-              child: Text('Error loading games: $error'),
-            ),
-            data: (allGames) {
-              final inProgressGames = allGames
-                  .where((gwg) => gwg.game.status == 'in_progress')
-                  .toList();
-              
-              // Show all scheduled games, sorted by most recent date
-              final allScheduledGames = allGames
-                  .where((gwg) => gwg.game.status == 'scheduled')
-                  .toList()
-                ..sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
-
-              return Column(
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            
+            // Create New Group or Game
+            SizedBox(
+              key: _createGameKey,
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Active Games Section
-                  SizedBox(
-                    key: _activeGamesKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (inProgressGames.isNotEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, bottom: 8),
-                            child: Text(
-                              'Active Games',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 8),
+                    child: Text(
+                      'Create New Game',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
                           ),
-                          ...inProgressGames.map((gwg) => _GameCard(
-                                gameWithGroup: gwg,
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => GameDetailScreen(
-                                        gameId: gwg.game.id,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )),
-                          const SizedBox(height: 24),
-                        ] else
-                          const SizedBox.shrink(),
-                      ],
                     ),
                   ),
+                  _EntryCard(
+                    icon: Icons.add_circle,
+                    title: 'Create New Game',
+                    subtitle: 'Start a new poker game in a group.',
+                    onTap: () {
+                      _showCreateGameOptions(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // Active Games (in_progress)
+            activeGamesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(
+                child: Text('Error loading games: $error'),
+              ),
+              data: (allGames) {
+                final inProgressGames = allGames
+                    .where((gwg) => gwg.game.status == 'in_progress')
+                    .toList();
+                
+                // Show all scheduled games, sorted by most recent date
+                final allScheduledGames = allGames
+                    .where((gwg) => gwg.game.status == 'scheduled')
+                    .toList()
+                  ..sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Active Games Section
+                    SizedBox(
+                      key: _activeGamesKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (inProgressGames.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4, bottom: 8),
+                              child: Text(
+                                'Active Games',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
+                            ...inProgressGames.map((gwg) => _GameCard(
+                                  gameWithGroup: gwg,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => GameDetailScreen(
+                                          gameId: gwg.game.id,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )),
+                            const SizedBox(height: 24),
+                          ] else
+                            const SizedBox.shrink(),
+                        ],
+                      ),
+                    ),
+                    
+                    // Start Games Section (scheduled)
+                    SizedBox(
+                      key: _scheduledGamesKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (allScheduledGames.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4, bottom: 8),
+                              child: Text(
+                                'Scheduled Games',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
+                            ...allScheduledGames.map((gwg) => _GameCard(
+                                  gameWithGroup: gwg,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => GameDetailScreen(
+                                          gameId: gwg.game.id,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )),
+                            const SizedBox(height: 24),
+                          ] else
+                            const SizedBox.shrink(),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            
+            // Select group for game
+            _EntryCard(
+              icon: Icons.group,
+              title: 'Select group for game',
+              subtitle: 'Pick a group to view its games or start a new one.',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const GamesGroupSelectorScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            
+            // Completed Games Section
+            SizedBox(
+              key: _completedGamesKey,
+              child: pastGamesAsync.when(
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                error: (error, stack) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text('Error loading past games: $error'),
+                ),
+                data: (allPastGames) {
+                  final completedGames = allPastGames
+                      .where((gwg) => gwg.game.status == 'completed')
+                      .toList();
                   
-                  // Start Games Section (scheduled)
-                  SizedBox(
-                    key: _scheduledGamesKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (allScheduledGames.isNotEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, bottom: 8),
-                            child: Text(
-                              'Scheduled Games',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 8),
+                        child: Text(
+                          'Completed Games',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                      if (completedGames.isNotEmpty) ...
+                        completedGames.take(10).map((gwg) => _GameCard(
+                            gameWithGroup: gwg,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => GameDetailScreen(
+                                    gameId: gwg.game.id,
                                   ),
-                            ),
-                          ),
-                          ...allScheduledGames.map((gwg) => _GameCard(
-                                gameWithGroup: gwg,
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => GameDetailScreen(
-                                        gameId: gwg.game.id,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              )),
-                          const SizedBox(height: 24),
-                        ] else
-                          const SizedBox.shrink(),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          
-          // Select group for game
-          _EntryCard(
-            icon: Icons.group,
-            title: 'Select group for game',
-            subtitle: 'Pick a group to view its games or start a new one.',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const GamesGroupSelectorScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          
-          // Completed Games Section
-          SizedBox(
-            key: _completedGamesKey,
-            child: pastGamesAsync.when(
-              loading: () => const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
-                ),
-              ),
-              error: (error, stack) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Error loading past games: $error'),
-              ),
-              data: (allPastGames) {
-                final completedGames = allPastGames
-                    .where((gwg) => gwg.game.status == 'completed')
-                    .toList();
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        'Completed Games',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                    if (completedGames.isNotEmpty) ...
-                      completedGames.take(10).map((gwg) => _GameCard(
-                          gameWithGroup: gwg,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => GameDetailScreen(
-                                  gameId: gwg.game.id,
-                                ),
-                              ),
-                            );
-                          },
-                        )),
-                    if (completedGames.length > 10)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Center(
-                          child: TextButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const ActiveGamesScreen(),
                                 ),
                               );
                             },
-                            child: Text('View All ${completedGames.length} Completed Games'),
+                          )),
+                      if (completedGames.length > 10)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Center(
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => const ActiveGamesScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text('View All ${completedGames.length} Completed Games'),
+                            ),
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
+                      const SizedBox(height: 24),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-          
-          // Cancelled Games Section
-          SizedBox(
-            key: _cancelledGamesKey,
-            child: pastGamesAsync.when(
-              loading: () => const SizedBox.shrink(),
-              error: (error, stack) => const SizedBox.shrink(),
-              data: (allPastGames) {
-                final cancelledGames = allPastGames
-                    .where((gwg) => gwg.game.status == 'cancelled')
-                    .toList();
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4, bottom: 8),
-                      child: Text(
-                        'Cancelled Games',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                    if (cancelledGames.isNotEmpty) ...
-                      cancelledGames.take(10).map((gwg) => _GameCard(
-                          gameWithGroup: gwg,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => GameDetailScreen(
-                                  gameId: gwg.game.id,
-                                ),
-                              ),
-                            );
-                          },
-                        )),
-                    if (cancelledGames.length > 10)
+            
+            // Cancelled Games Section
+            SizedBox(
+              key: _cancelledGamesKey,
+              child: pastGamesAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (error, stack) => const SizedBox.shrink(),
+                data: (allPastGames) {
+                  final cancelledGames = allPastGames
+                      .where((gwg) => gwg.game.status == 'cancelled')
+                      .toList();
+                  
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Center(
-                          child: TextButton(
-                            onPressed: () {
+                        padding: const EdgeInsets.only(left: 4, bottom: 8),
+                        child: Text(
+                          'Cancelled Games',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                      if (cancelledGames.isNotEmpty) ...
+                        cancelledGames.take(10).map((gwg) => _GameCard(
+                            gameWithGroup: gwg,
+                            onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => const ActiveGamesScreen(),
+                                  builder: (context) => GameDetailScreen(
+                                    gameId: gwg.game.id,
+                                  ),
                                 ),
                               );
                             },
-                            child: Text('View All ${cancelledGames.length} Cancelled Games'),
+                          )),
+                      if (cancelledGames.length > 10)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Center(
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => const ActiveGamesScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text('View All ${cancelledGames.length} Cancelled Games'),
+                            ),
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-            ),
-          ),
-                ],
+                      const SizedBox(height: 24),
+                    ],
+                  );
+                },
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
