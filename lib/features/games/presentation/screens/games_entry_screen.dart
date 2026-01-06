@@ -8,6 +8,7 @@ import 'active_games_screen.dart';
 import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
 import '../providers/games_provider.dart';
+import '../../../locations/presentation/providers/locations_provider.dart';
 
 class GamesEntryScreen extends ConsumerStatefulWidget {
   const GamesEntryScreen({super.key});
@@ -88,6 +89,11 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
         title: const Text('Games'),
         centerTitle: true,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateGameOptions(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Create Game'),
+      ),
       body: Column(
         children: [
           Padding(
@@ -103,13 +109,6 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                _NavigationChip(
-                  label: 'Create',
-                  icon: Icons.add_circle,
-                  color: Theme.of(context).primaryColor,
-                  onTap: () => _scrollToSection(_createGameKey),
-                ),
-                const SizedBox(width: 8),
                 _NavigationChip(
                   label: 'Active',
                   icon: Icons.play_circle,
@@ -153,6 +152,34 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                 children: [
           const SizedBox(height: 8),
           
+          // Create New Group or Game
+          SizedBox(
+            key: _createGameKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 8),
+                  child: Text(
+                    'Create New Game',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+                _EntryCard(
+                  icon: Icons.add_circle,
+                  title: 'Create New Game',
+                  subtitle: 'Start a new poker game in a group.',
+                  onTap: () {
+                    _showCreateGameOptions(context);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          
           // Active Games (in_progress)
           activeGamesAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -164,15 +191,11 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                   .where((gwg) => gwg.game.status == 'in_progress')
                   .toList();
               
-              // Filter scheduled games within next 3 days, sort by upcoming date, max 5
-              final threeDaysFromNow = DateTime.now().add(const Duration(days: 3));
-              final scheduledGames = allGames
-                  .where((gwg) => 
-                      gwg.game.status == 'scheduled' &&
-                      gwg.game.gameDate.isBefore(threeDaysFromNow))
+              // Show all scheduled games, sorted by most recent date
+              final allScheduledGames = allGames
+                  .where((gwg) => gwg.game.status == 'scheduled')
                   .toList()
-                ..sort((a, b) => a.game.gameDate.compareTo(b.game.gameDate));
-              final limitedScheduledGames = scheduledGames.take(5).toList();
+                ..sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,17 +241,17 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (scheduledGames.isNotEmpty) ...[
+                        if (allScheduledGames.isNotEmpty) ...[
                           Padding(
                             padding: const EdgeInsets.only(left: 4, bottom: 8),
                             child: Text(
-                              'Start Games',
+                              'Scheduled Games',
                               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                             ),
                           ),
-                          ...limitedScheduledGames.map((gwg) => _GameCard(
+                          ...allScheduledGames.map((gwg) => _GameCard(
                                 gameWithGroup: gwg,
                                 onTap: () {
                                   Navigator.of(context).push(
@@ -267,25 +290,25 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
           const SizedBox(height: 24),
           
           // Completed Games Section
-          pastGamesAsync.when(
-            loading: () => const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
+          SizedBox(
+            key: _completedGamesKey,
+            child: pastGamesAsync.when(
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
               ),
-            ),
-            error: (error, stack) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text('Error loading past games: $error'),
-            ),
-            data: (allPastGames) {
-              final completedGames = allPastGames
-                  .where((gwg) => gwg.game.status == 'completed')
-                  .toList();
-              
-              return SizedBox(
-                key: _completedGamesKey,
-                child: Column(
+              error: (error, stack) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('Error loading past games: $error'),
+              ),
+              data: (allPastGames) {
+                final completedGames = allPastGames
+                    .where((gwg) => gwg.game.status == 'completed')
+                    .toList();
+                
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
@@ -328,23 +351,23 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                       ),
                     const SizedBox(height: 24),
                   ],
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
           
           // Cancelled Games Section
-          pastGamesAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (error, stack) => const SizedBox.shrink(),
-            data: (allPastGames) {
-              final cancelledGames = allPastGames
-                  .where((gwg) => gwg.game.status == 'cancelled')
-                  .toList();
-              
-              return SizedBox(
-                key: _cancelledGamesKey,
-                child: Column(
+          SizedBox(
+            key: _cancelledGamesKey,
+            child: pastGamesAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (error, stack) => const SizedBox.shrink(),
+              data: (allPastGames) {
+                final cancelledGames = allPastGames
+                    .where((gwg) => gwg.game.status == 'cancelled')
+                    .toList();
+                
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
@@ -387,43 +410,8 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                       ),
                     const SizedBox(height: 24),
                   ],
-                ),
-              );
-            },
-          ),
-          
-          // Create New Group or Game
-          SizedBox(
-            key: _createGameKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 8),
-                  child: Text(
-                    'Create New Group or Game',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
-                _EntryCard(
-                  icon: Icons.add_circle,
-                  title: 'Create New Game',
-                  subtitle: 'Start a new poker game in a group.',
-                  onTap: () {
-                    _showCreateGameOptions(context);
-                  },
-                ),
-                _EntryCard(
-                  icon: Icons.group_add,
-                  title: 'Create New Group',
-                  subtitle: 'Set up a new poker group.',
-                  onTap: () {
-                    context.push('/groups/create');
-                  },
-                ),
-              ],
+                );
+              },
             ),
           ),
                 ],
@@ -657,21 +645,9 @@ class _GameCard extends StatelessWidget {
             ),
             if (game.location?.isNotEmpty == true) ...[
               const SizedBox(height: 2),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 12),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      game.location!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              _LocationDisplay(
+                location: game.location!,
+                groupId: gameWithGroup.groupId,
               ),
             ],
           ],
@@ -709,6 +685,100 @@ class _EntryCard extends StatelessWidget {
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
+    );
+  }
+}
+
+class _LocationDisplay extends ConsumerWidget {
+  final String location;
+  final String groupId;
+
+  const _LocationDisplay({
+    required this.location,
+    required this.groupId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Check if location looks like a UUID
+    final isUuid = location.length == 36 && location.contains('-');
+    
+    if (!isUuid) {
+      // Already a readable address
+      return Row(
+        children: [
+          const Icon(Icons.location_on, size: 12),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              location,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Need to look up the location
+    final locationsAsync = ref.watch(groupLocationsProvider(groupId));
+    
+    return locationsAsync.when(
+      loading: () => Row(
+        children: [
+          const Icon(Icons.location_on, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            'Loading...',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (locations) {
+        try {
+          final foundLocation = locations.firstWhere(
+            (loc) => loc.id == location,
+          );
+          
+          // Build address string manually
+          final parts = [
+            if (foundLocation.streetAddress.isNotEmpty) foundLocation.streetAddress,
+            if (foundLocation.city?.isNotEmpty == true) foundLocation.city,
+            if (foundLocation.stateProvince?.isNotEmpty == true) foundLocation.stateProvince,
+            if (foundLocation.postalCode?.isNotEmpty == true) foundLocation.postalCode,
+            foundLocation.country,
+          ];
+          final addressString = parts.join(', ');
+          final displayText = foundLocation.label ?? addressString;
+          
+          return Row(
+            children: [
+              const Icon(Icons.location_on, size: 12),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  displayText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          );
+        } catch (e) {
+          // Location not found
+          return const SizedBox.shrink();
+        }
+      },
     );
   }
 }

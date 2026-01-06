@@ -1576,7 +1576,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                     double additionalTotal = 0;
                                     double cashOutTotal = 0;
 
-                                    byUser.forEach((_, userTxns) {
+                                    byUser.forEach((userId, userTxns) {
                                       final buyins =
                                           userTxns
                                               .where((t) => t.type == 'buyin')
@@ -1591,19 +1591,32 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       );
 
                                       if (buyins.isNotEmpty) {
-                                        initialTotal += buyins.first.amount;
+                                        final firstBuyinAmount = buyins.first.amount;
+                                        initialTotal += firstBuyinAmount;
+                                        debugPrint('User $userId: Initial buyin = $firstBuyinAmount, total initial = $initialTotal');
+                                        
                                         if (buyins.length > 1) {
-                                          additionalTotal += buyins
+                                          final addtl = buyins
                                               .skip(1)
                                               .map((b) => b.amount)
                                               .fold<double>(0, (a, b) => a + b);
+                                          additionalTotal += addtl;
+                                          debugPrint('User $userId: Additional buyins = $addtl, total additional = $additionalTotal');
                                         }
                                       }
 
-                                      cashOutTotal += cashouts
+                                      final userCashout = cashouts
                                           .map((c) => c.amount)
                                           .fold<double>(0, (a, b) => a + b);
+                                      cashOutTotal += userCashout;
+                                      debugPrint('User $userId: Cashout = $userCashout, total cashout = $cashOutTotal');
                                     });
+
+                                    debugPrint('=== TOTALS ===');
+                                    debugPrint('Initial Total: $initialTotal');
+                                    debugPrint('Additional Total: $additionalTotal');
+                                    debugPrint('Cashout Total: $cashOutTotal');
+                                    debugPrint('Balance: ${(initialTotal + additionalTotal) - cashOutTotal}');
 
                                     final totalBalance =
                                         (initialTotal + additionalTotal) -
@@ -2680,7 +2693,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                   }
                                 }
 
-                                // Add initial buy-in for each participant
+                                // Ensure all participants have entries (even if no transactions yet)
                                 for (final participant in participants) {
                                   if (!summaryData.containsKey(
                                     participant.userId,
@@ -2690,11 +2703,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       'cashout': 0,
                                     };
                                   }
-                                  // Add initial buy-in to the total
-                                  summaryData[participant.userId]!['buyin'] =
-                                      summaryData[participant
-                                          .userId]!['buyin']! +
-                                      game.buyinAmount;
                                 }
 
                                 // Create rows with participant names
@@ -3035,7 +3043,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       }
 
                                       final allTransactions = snapshot.data!;
-                                      double totalBuyin = game.buyinAmount;
+                                      double totalBuyin = 0;
                                       double totalCashout = 0;
 
                                       for (final txn in allTransactions) {

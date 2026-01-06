@@ -22,7 +22,7 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
   static const String _allGroupsValue = 'all_groups';
 
   String _selectedGroupId = _allGroupsValue;
-  TimeFilter _timeFilter = TimeFilter.year;
+  TimeFilter _timeFilter = TimeFilter.week;
 
   @override
   Widget build(BuildContext context) {

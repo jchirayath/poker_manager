@@ -5,9 +5,47 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class GroupsListScreen extends ConsumerWidget {
   const GroupsListScreen({super.key});
+
+  Widget _buildUserAvatar(String? url, String fallback) {
+    final initials = fallback.isNotEmpty ? fallback : '?';
+    if ((url ?? '').isEmpty) {
+      return CircleAvatar(
+        radius: 24,
+        backgroundColor: Colors.grey.shade200,
+        child: Text(
+          initials,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+      );
+    }
+    
+    if (url!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        radius: 24,
+        backgroundColor: Colors.grey.shade200,
+        child: SvgPicture.network(
+          fixDiceBearUrl(url)!,
+          width: 48,
+          height: 48,
+          placeholderBuilder: (_) => const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    
+    return CircleAvatar(
+      radius: 24,
+      backgroundImage: NetworkImage(url),
+      child: const SizedBox.shrink(),
+    );
+  }
 
   Widget _buildGroupAvatar(String? url, String fallback) {
     final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
@@ -44,12 +82,78 @@ class GroupsListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupsAsync = ref.watch(groupsListProvider);
+    final authUserAsync = ref.watch(authStateProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Groups'),
       ),
-      body: groupsAsync.when(
+      body: Column(
+        children: [
+          // User Profile Card at top
+          authUserAsync.when(
+            data: (user) {
+              if (user == null) return const SizedBox.shrink();
+              
+              final displayName = user.firstName.isNotEmpty || user.lastName.isNotEmpty
+                  ? user.fullName
+                  : user.username ?? user.email.split('@').first;
+              
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    _buildUserAvatar(user.avatarUrl, 
+                      (user.firstName.isNotEmpty ? user.firstName[0] : '') +
+                      (user.lastName.isNotEmpty ? user.lastName[0] : '')),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          if (user.username != null && user.username!.isNotEmpty)
+                            Text(
+                              '@${user.username}',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.person),
+                      onPressed: () => context.push(RouteConstants.profile),
+                      tooltip: 'View Profile',
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          
+          // Groups list
+          Expanded(
+            child: groupsAsync.when(
         data: (groups) {
           if (groups.isEmpty) {
             return Center(
@@ -153,6 +257,9 @@ class GroupsListScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(RouteConstants.createGroup),

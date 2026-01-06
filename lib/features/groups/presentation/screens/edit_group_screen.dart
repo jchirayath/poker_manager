@@ -349,6 +349,13 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _isLoading ? null : _updateGroup,
+            tooltip: 'Update',
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,

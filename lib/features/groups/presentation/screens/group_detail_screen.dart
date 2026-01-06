@@ -233,6 +233,101 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     return '${date.month}/${date.day}/${date.year}';
   }
 
+  Future<void> _showDeleteConfirmation(BuildContext context, dynamic group) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Group?'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to delete "${group.name}"?'),
+            const SizedBox(height: 16),
+            const Text(
+              'This will permanently delete:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• All games in this group'),
+            const Text('• All member records'),
+            const Text('• All game transactions'),
+            const Text('• All statistics'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber, color: Colors.red, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This action cannot be undone!',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Group'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        final controller = ref.read(groupControllerProvider);
+        final success = await controller.deleteGroup(widget.groupId);
+        
+        if (success && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Group deleted successfully')),
+          );
+          // Navigate back to groups list
+          context.go('/groups');
+        } else if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to delete group')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting group: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Widget _avatar(String? url, String fallback) {
     final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
     if ((url ?? '').isEmpty) {
@@ -299,18 +394,19 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (group.description?.isNotEmpty == true) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        group.description!,
+                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     membersAsync.when(
                       data: (members) => Text('${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • ${members.length} member${members.length == 1 ? '' : 's'}'),
                       loading: () => Text('${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • loading members...'),
                       error: (e, _) => Text('${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • members unavailable'),
                     ),
-                    if (group.description?.isNotEmpty == true) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        group.description!,
-                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                      ),
-                    ],
                   ],
                 ),
                 trailing: IconButton(
@@ -533,6 +629,39 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, st) => Text('Error loading games: $e'),
               ),
+              const SizedBox(height: 32),
+              
+              // Delete Group Section
+              if (_isAdmin)
+                Column(
+                  children: [
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.delete_forever, color: Colors.red),
+                        label: const Text(
+                          'Delete Group',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                        onPressed: () => _showDeleteConfirmation(context, group),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Warning: This action cannot be undone',
+                      style: TextStyle(
+                        color: Colors.red[700],
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
             ],
           );
         },

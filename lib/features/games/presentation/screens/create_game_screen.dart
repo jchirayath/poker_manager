@@ -22,6 +22,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _buyinController;
   late final TextEditingController _additionalBuyinController;
+  late final TextEditingController _occurrencesController;
 
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -29,6 +30,11 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
   List<double> _additionalBuyins = [];
   String? _selectedLocationId;
   final Set<String> _selectedPlayerIds = {};
+  
+  // Recurring games settings
+  bool _isRecurring = false;
+  String _recurringFrequency = 'weekly'; // weekly, biweekly, monthly, bimonthly, yearly
+  int _occurrences = 4;
 
   Widget _buildMemberAvatar(String? url, String initials) {
     if ((url ?? '').isEmpty) {
@@ -66,6 +72,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     _nameController = TextEditingController();
     _buyinController = TextEditingController();
     _additionalBuyinController = TextEditingController();
+    _occurrencesController = TextEditingController(text: '4');
     _selectedDate = DateTime.now().add(const Duration(days: 1));
     _selectedTime = TimeOfDay.now();
   }
@@ -75,6 +82,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     _nameController.dispose();
     _buyinController.dispose();
     _additionalBuyinController.dispose();
+    _occurrencesController.dispose();
     super.dispose();
   }
 
@@ -239,6 +247,42 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     setState(() => _additionalBuyins.removeAt(index));
   }
 
+  /// Calculate the next game date based on the recurring frequency
+  DateTime _calculateNextDate(DateTime currentDate, String frequency) {
+    switch (frequency) {
+      case 'weekly':
+        return currentDate.add(const Duration(days: 7));
+      case 'biweekly':
+        return currentDate.add(const Duration(days: 14));
+      case 'monthly':
+        return DateTime(
+          currentDate.year,
+          currentDate.month + 1,
+          currentDate.day,
+          currentDate.hour,
+          currentDate.minute,
+        );
+      case 'bimonthly':
+        return DateTime(
+          currentDate.year,
+          currentDate.month + 2,
+          currentDate.day,
+          currentDate.hour,
+          currentDate.minute,
+        );
+      case 'yearly':
+        return DateTime(
+          currentDate.year + 1,
+          currentDate.month,
+          currentDate.day,
+          currentDate.hour,
+          currentDate.minute,
+        );
+      default:
+        return currentDate.add(const Duration(days: 7));
+    }
+  }
+
   /// Filter locations to show only those from selected members' profiles
   /// If no members selected, show all group locations
   Future<List<LocationModel>> _getFilteredLocations(
@@ -331,47 +375,132 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     );
 
     try {
-      // Create the game
-      await ref.read(createGameProvider.notifier).createGame(
-            groupId: widget.groupId,
-            name: _nameController.text,
-            gameDate: dateTime,
-            location: _selectedLocationId,
-            maxPlayers: _selectedPlayerIds.length,
-            currency: _selectedCurrency,
-            buyinAmount: buyin,
-            additionalBuyinValues: _additionalBuyins,
-            participantUserIds: _selectedPlayerIds.toList(),
-          );
+      // Get the location address if a location was selected
+      String? locationString;
+      if (_selectedLocationId != null) {
+        final locationsAsync = ref.read(groupLocationsProvider(widget.groupId));
+        final locations = locationsAsync.value ?? [];
+        final selectedLocation = locations.firstWhere(
+          (loc) => loc.id == _selectedLocationId,
+          orElse: () => locations.first,
+        );
+        locationString = selectedLocation.label ?? selectedLocation.fullAddress;
+      }
+
+      // Determine how many games to create
+      final gamesToCreate = _isRecurring ? _occurrences : 1;
+
+      if (_isRecurring) {
+        // Pop the screen immediately, then create games in the background
+        if (mounted) Navigator.pop(context);
+        Future(() async {
+          for (int i = 0; i < gamesToCreate; i++) {
+            DateTime gameDateTime = dateTime;
+            if (i > 0) {
+              DateTime previousDate = dateTime;
+              for (int j = 0; j < i; j++) {
+                previousDate = _calculateNextDate(previousDate, _recurringFrequency);
+              }
+              gameDateTime = previousDate;
+            }
+            String gameName = _nameController.text;
+            if (gamesToCreate > 1) {
+              gameName = '$gameName ${i + 1}/$gamesToCreate';
+            }
+            await ref.read(createGameProvider.notifier).createGame(
+              groupId: widget.groupId,
+              name: gameName,
+              gameDate: gameDateTime,
+              location: locationString,
+              maxPlayers: _selectedPlayerIds.length,
+              currency: _selectedCurrency,
+              buyinAmount: buyin,
+              additionalBuyinValues: _additionalBuyins,
+              participantUserIds: _selectedPlayerIds.toList(),
+            );
+            if (i < gamesToCreate - 1) {
+              await Future.delayed(const Duration(milliseconds: 200));
+            }
+          }
+        });
+        return;
+      }
+
+      // Create games based on schedule
+      for (int i = 0; i < gamesToCreate; i++) {
+        // Calculate the date for this game
+        DateTime gameDateTime = dateTime;
+        if (i > 0) {
+          // For subsequent games, calculate based on frequency
+          DateTime previousDate = dateTime;
+          for (int j = 0; j < i; j++) {
+            previousDate = _calculateNextDate(previousDate, _recurringFrequency);
+          }
+          gameDateTime = previousDate;
+        }
+        
+        // Generate game name with sequence number if recurring
+        String gameName = _nameController.text;
+        if (_isRecurring && gamesToCreate > 1) {
+          gameName = '$gameName ${i + 1}/${gamesToCreate}';
+        }
+
+        // Create the game
+        await ref.read(createGameProvider.notifier).createGame(
+              groupId: widget.groupId,
+              name: gameName,
+              gameDate: gameDateTime,
+              location: locationString,
+              maxPlayers: _selectedPlayerIds.length,
+              currency: _selectedCurrency,
+              buyinAmount: buyin,
+              additionalBuyinValues: _additionalBuyins,
+              participantUserIds: _selectedPlayerIds.toList(),
+            );
+        
+        // Small delay between creations to avoid overwhelming the database
+        if (i < gamesToCreate - 1) {
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+      }
 
       if (mounted) {
-        // Show a dialog to confirm starting the game
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Game Created'),
-            content: const Text('Start the game now? All selected players are assumed to have paid their buy-in.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Later'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context); // Close dialog
-                  _startGame(
-                    groupId: widget.groupId,
-                    gameName: _nameController.text,
-                    playerIds: _selectedPlayerIds.toList(),
-                    buyinAmount: buyin,
-                    currency: _selectedCurrency,
-                  );
-                },
-                child: const Text('Start Game'),
-              ),
-            ],
-          ),
-        );
+        final successMessage = _isRecurring 
+            ? '$gamesToCreate games created successfully!'
+            : 'Game created successfully!';
+        
+        // Show a dialog to confirm starting the game (only for single games)
+        if (!_isRecurring) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Game Created'),
+              content: const Text('Start the game now? All selected players are assumed to have paid their buy-in.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Later'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    _startGame(
+                      groupId: widget.groupId,
+                      gameName: _nameController.text,
+                      playerIds: _selectedPlayerIds.toList(),
+                      buyinAmount: buyin,
+                      currency: _selectedCurrency,
+                    );
+                  },
+                  child: const Text('Start Game'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // For recurring games, just go back (no snackbar)
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -562,10 +691,138 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
             ),
             const SizedBox(height: 16),
 
+            // Recurring Games Section
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Recurring Games',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Switch(
+                          value: _isRecurring,
+                          onChanged: (value) {
+                            setState(() => _isRecurring = value);
+                          },
+                        ),
+                      ],
+                    ),
+                    if (_isRecurring) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Create multiple games on a schedule',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _recurringFrequency,
+                        decoration: const InputDecoration(
+                          labelText: 'Frequency',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                          DropdownMenuItem(value: 'biweekly', child: Text('Every 2 Weeks')),
+                          DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                          DropdownMenuItem(value: 'bimonthly', child: Text('Every 2 Months')),
+                          DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _recurringFrequency = value;
+                              int defaultOccurrences;
+                              switch (value) {
+                                case 'weekly':
+                                  defaultOccurrences = 52;
+                                  break;
+                                case 'biweekly':
+                                  defaultOccurrences = 26;
+                                  break;
+                                case 'monthly':
+                                  defaultOccurrences = 12;
+                                  break;
+                                case 'bimonthly':
+                                  defaultOccurrences = 6;
+                                  break;
+                                case 'yearly':
+                                  defaultOccurrences = 1;
+                                  break;
+                                default:
+                                  defaultOccurrences = 4;
+                              }
+                              _occurrences = defaultOccurrences;
+                              _occurrencesController.text = defaultOccurrences.toString();
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _occurrencesController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Number of Games',
+                          hintText: '4',
+                          border: OutlineInputBorder(),
+                          helperText: 'How many games to create',
+                        ),
+                        onChanged: (value) {
+                          final occurrences = int.tryParse(value) ?? 4;
+                          setState(() => _occurrences = occurrences.clamp(1, 52));
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Players Section (moved before location)
-            Text(
-              'Select Players',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Select Players',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                membersAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                  data: (members) {
+                    if (members.isEmpty) return const SizedBox.shrink();
+                    
+                    final allSelected = members.every((m) => _selectedPlayerIds.contains(m.userId));
+                    
+                    return TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          if (allSelected) {
+                            _selectedPlayerIds.clear();
+                          } else {
+                            _selectedPlayerIds.addAll(members.map((m) => m.userId));
+                          }
+                        });
+                      },
+                      icon: Icon(allSelected ? Icons.check_box : Icons.check_box_outline_blank),
+                      label: Text(allSelected ? 'Deselect All' : 'Select All'),
+                    );
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             membersAsync.when(
@@ -715,7 +972,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Currency, Buy-in, Additional Buy-in input on one line
+                    // Currency and Buy-in on one line
                     Row(
                       children: [
                         // Currency
@@ -756,7 +1013,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Additional Buy-in Input
+                        // Additional Buy-in Input - Now Editable
                         Expanded(
                           flex: 1,
                           child: TextFormField(
@@ -777,39 +1034,25 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                         ),
                       ],
                     ),
-                    // Display additional buy-ins
-                    if (_additionalBuyins.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _additionalBuyins.asMap().entries.map((entry) {
-                          return Chip(
-                            label: Text('$_selectedCurrency ${entry.value}'),
-                            onDeleted: () => _removeAdditionalBuyin(entry.key),
-                            backgroundColor: Colors.blue.withValues(alpha: 0.2),
-                          );
-                        }).toList(),
-                      ),
-                    ],
                   ],
                 );
               },
             ),
             const SizedBox(height: 16),
-
-            // Create and Start Game Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: createGameState.isLoading ? null : _createGame,
-                child: createGameState.isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Create & Start Game'),
-              ),
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: createGameState.isLoading ? null : _createGame,
+            child: createGameState.isLoading
+                ? const CircularProgressIndicator()
+                : const Text('Create Game'),
+          ),
         ),
       ),
     );
