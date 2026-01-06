@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../../../../shared/models/result.dart';
 import '../models/group_model.dart';
 import '../models/group_member_model.dart';
@@ -25,7 +27,16 @@ class GroupsRepository {
           .eq('user_id', userId);
 
       final groups = (response as List)
-          .map((json) => GroupModel.fromJson(json['groups'] as Map<String, dynamic>))
+          .map((json) {
+            final groupData = json['groups'] as Map<String, dynamic>;
+            // Fix DiceBear URLs to exclude metadata tags
+            if (groupData['avatar_url'] != null) {
+              final original = groupData['avatar_url'];
+              groupData['avatar_url'] = fixDiceBearUrl(groupData['avatar_url']);
+              debugPrint('🎨 Group avatar URL fixed: $original → ${groupData['avatar_url']}');
+            }
+            return GroupModel.fromJson(groupData);
+          })
           .toList();
 
       return Success(groups);
@@ -46,6 +57,10 @@ class GroupsRepository {
         return const Failure('Group not found');
       }
 
+      // Fix DiceBear URLs to exclude metadata tags
+      if (response['avatar_url'] != null) {
+        response['avatar_url'] = fixDiceBearUrl(response['avatar_url']);
+      }
       return Success(GroupModel.fromJson(response));
     } catch (e) {
       return Failure('Failed to load group: ${e.toString()}');
@@ -81,6 +96,10 @@ class GroupsRepository {
           .select()
           .single();
 
+      // Fix DiceBear URLs to exclude metadata tags
+      if (groupResponse['avatar_url'] != null) {
+        groupResponse['avatar_url'] = fixDiceBearUrl(groupResponse['avatar_url']);
+      }
       final group = GroupModel.fromJson(groupResponse);
 
       // Add creator as admin member (allowed by RLS via creator policy)
@@ -129,6 +148,10 @@ class GroupsRepository {
           .select()
           .single();
 
+      // Fix DiceBear URLs to exclude metadata tags
+      if (response['avatar_url'] != null) {
+        response['avatar_url'] = fixDiceBearUrl(response['avatar_url']);
+      }
       return Success(GroupModel.fromJson(response));
     } catch (e) {
       return Failure('Failed to update group: ${e.toString()}');

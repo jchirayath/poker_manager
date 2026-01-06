@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/services/error_logger_service.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../../../../core/constants/business_constants.dart';
 import '../../../../shared/models/result.dart';
 import '../models/game_model.dart';
@@ -86,6 +87,11 @@ class GamesRepository {
       profile = Map<String, dynamic>.from(profiles);
     } else if (raw['profile'] is Map<String, dynamic>) {
       profile = Map<String, dynamic>.from(raw['profile'] as Map);
+    }
+
+    // Fix DiceBear URLs in profile avatar
+    if (profile != null && profile['avatar_url'] != null) {
+      profile['avatar_url'] = fixDiceBearUrl(profile['avatar_url']);
     }
 
     final totalBuyin = (raw['total_buyin'] ?? raw['totalBuyin'] ?? 0).toDouble();

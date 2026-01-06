@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -259,7 +260,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     if (url != null && url.isNotEmpty) {
       if (url.toLowerCase().contains('svg')) {
         return SvgPicture.network(
-          url,
+          fixDiceBearUrl(url)!,
           width: 120,
           height: 120,
           fit: BoxFit.cover,

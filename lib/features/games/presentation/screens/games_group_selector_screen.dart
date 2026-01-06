@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../profile/data/repositories/profile_repository.dart';
 import '../../../../shared/models/result.dart';
@@ -23,7 +24,7 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
       return CircleAvatar(
         backgroundColor: Colors.grey.shade200,
         child: SvgPicture.network(
-          url,
+          fixDiceBearUrl(url)!,
           width: 40,
           height: 40,
           placeholderBuilder: (_) => const SizedBox(

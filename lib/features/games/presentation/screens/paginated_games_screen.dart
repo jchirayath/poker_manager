@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../providers/games_pagination_provider.dart';
 import '../providers/games_provider.dart';
 import 'game_detail_screen.dart';
@@ -198,7 +199,7 @@ class _PaginatedGamesScreenState extends ConsumerState<PaginatedGamesScreen> {
           width: 16,
           height: 16,
           child: SvgPicture.network(
-            url,
+            fixDiceBearUrl(url)!,
             placeholderBuilder: (_) => const SizedBox(
               width: 8,
               height: 8,

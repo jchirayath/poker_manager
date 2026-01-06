@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/utils/input_validators.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -80,12 +81,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.emailAddress,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      return null;
-                    },
+                    validator: InputValidators.validateEmail,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(

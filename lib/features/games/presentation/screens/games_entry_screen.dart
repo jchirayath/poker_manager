@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import 'active_games_screen.dart';
 import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
@@ -534,7 +535,7 @@ class _GameCard extends StatelessWidget {
           width: 16,
           height: 16,
           child: SvgPicture.network(
-            url,
+            fixDiceBearUrl(url)!,
             placeholderBuilder: (_) => const SizedBox(
               width: 8,
               height: 8,

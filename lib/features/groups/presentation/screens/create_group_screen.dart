@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
@@ -50,7 +51,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     // Check if URL contains 'svg' - handles DiceBear URLs like /svg?seed=...
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        url,
+        fixDiceBearUrl(url)!,
         width: 40,
         height: 40,
         placeholderBuilder: (_) => const SizedBox(

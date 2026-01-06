@@ -260,7 +260,7 @@ void main() {
               .eq('id', userId)
               .maybeSingle();
 
-          final avatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$email';
+          final avatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$email&excludeMetadata=true';
           if (existingProfile == null) {
             // Profile wasn't created by trigger, create it directly
             try {
@@ -373,7 +373,7 @@ void main() {
             .eq('id', adminUserId)
             .maybeSingle();
 
-        final adminAvatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$adminEmail';
+        final adminAvatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$adminEmail&excludeMetadata=true';
         if (existingAdminProfile == null) {
           // Profile wasn't created by trigger, create it directly
           try {
@@ -451,7 +451,7 @@ void main() {
         'id': group1Id,
         'name': 'Downtown Sharks',
         'description': "Thursday night no-limit hold'em crew",
-        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/svg?seed=downtown-sharks',
+        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/svg?seed=downtown-sharks&excludeMetadata=true',
         'created_by': userIds[0], // Avery
         'privacy': 'private',
         'default_currency': 'USD',
@@ -465,7 +465,7 @@ void main() {
         'id': group2Id,
         'name': 'River Runners',
         'description': 'Avery-hosted midweek mix',
-        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/svg?seed=river-runners',
+        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/svg?seed=river-runners&excludeMetadata=true',
         'created_by': userIds[0], // Avery
         'privacy': 'public',
         'default_currency': 'USD',
@@ -479,7 +479,7 @@ void main() {
         'id': group3Id,
         'name': 'High Desert Crew',
         'description': 'Finley-hosted weekend games',
-        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/svg?seed=high-desert-crew',
+        'avatar_url': 'https://api.dicebear.com/7.x/avataaars/svg?seed=high-desert-crew&excludeMetadata=true',
         'created_by': userIds[5], // Finley
         'privacy': 'private',
         'default_currency': 'USD',

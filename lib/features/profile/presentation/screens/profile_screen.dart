@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -19,7 +20,7 @@ class ProfileScreen extends ConsumerWidget {
       debugPrint('🖼️ Loading SVG: $url');
       return ClipOval(
         child: SvgPicture.network(
-          url,
+          fixDiceBearUrl(url)!,
           width: 120,
           height: 120,
           placeholderBuilder: (_) => const SizedBox(

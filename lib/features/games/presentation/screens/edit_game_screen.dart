@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import '../../../../core/utils/avatar_utils.dart';
 import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../locations/presentation/providers/locations_provider.dart';
@@ -38,7 +39,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
 
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        url,
+        fixDiceBearUrl(url)!,
         width: 40,
         height: 40,
         placeholderBuilder: (_) => const SizedBox(

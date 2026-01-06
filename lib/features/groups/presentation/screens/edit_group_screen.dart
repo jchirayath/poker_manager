@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -149,7 +150,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
       if (_avatarUrl!.toLowerCase().contains('svg')) {
         avatarContent = ClipOval(
           child: SvgPicture.network(
-            _avatarUrl!,
+            fixDiceBearUrl(_avatarUrl!)!,
             width: 80,
             height: 80,
             placeholderBuilder: (_) => CircleAvatar(

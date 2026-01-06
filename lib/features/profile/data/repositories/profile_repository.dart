@@ -2,11 +2,23 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../../../../shared/models/result.dart';
 import '../models/profile_model.dart';
 
 class ProfileRepository {
   final SupabaseClient _client = SupabaseService.instance;
+
+  /// Helper to fix DiceBear URLs in profile data before mapping to model
+  void _fixProfileAvatarUrl(Map<String, dynamic> data) {
+    if (data['avatar_url'] != null) {
+      final original = data['avatar_url'];
+      data['avatar_url'] = fixDiceBearUrl(data['avatar_url']);
+      if (original != data['avatar_url']) {
+        debugPrint('👤 Profile avatar URL fixed: $original → ${data['avatar_url']}');
+      }
+    }
+  }
 
   Future<Result<ProfileModel>> getProfile(String userId) async {
     try {
@@ -37,12 +49,16 @@ class ProfileRepository {
           if (created == null) {
             return Failure('Failed to auto-create profile for user: $userId');
           }
-          return Success(ProfileModel.fromJson(created));
+          final createdMap = created as Map<String, dynamic>;
+          _fixProfileAvatarUrl(createdMap);
+          return Success(ProfileModel.fromJson(createdMap));
         } on PostgrestException catch (e) {
           return Failure('Profile missing and insert blocked: ${e.message}');
         }
       }
-      return Success(ProfileModel.fromJson(response));
+      final responseMap = response as Map<String, dynamic>;
+      _fixProfileAvatarUrl(responseMap);
+      return Success(ProfileModel.fromJson(responseMap));
     } catch (e) {
       return Failure('Failed to load profile: ${e.toString()}');
     }
@@ -115,7 +131,9 @@ class ProfileRepository {
         if (response == null) {
           return Failure('Profile not found for user: $userId');
         }
-        return Success(ProfileModel.fromJson(response));
+        final responseMap = response as Map<String, dynamic>;
+        _fixProfileAvatarUrl(responseMap);
+        return Success(ProfileModel.fromJson(responseMap));
       }
 
       debugPrint('🔵 Updating profile for user: $userId with updates: $updates');
@@ -137,7 +155,9 @@ class ProfileRepository {
         return Failure('Profile update affected 0 rows for user: $userId');
       }
       debugPrint('✅ Profile update successful');
-      return Success(ProfileModel.fromJson(response));
+      final responseMap = response as Map<String, dynamic>;
+      _fixProfileAvatarUrl(responseMap);
+      return Success(ProfileModel.fromJson(responseMap));
     } catch (e, stack) {
       debugPrint('🔴 Profile update exception: $e');
       debugPrint('Stack trace: $stack');
@@ -191,7 +211,9 @@ class ProfileRepository {
         return const Failure('Failed to create local profile');
       }
 
-      return Success(ProfileModel.fromJson(response));
+      final responseMap = response as Map<String, dynamic>;
+      _fixProfileAvatarUrl(responseMap);
+      return Success(ProfileModel.fromJson(responseMap));
     } catch (e) {
       return Failure('Failed to create local profile: ${e.toString()}');
     }
@@ -243,7 +265,11 @@ class ProfileRepository {
           .limit(20);
 
       final profiles = (response as List)
-          .map((json) => ProfileModel.fromJson(json))
+          .map((json) {
+            final profileMap = json as Map<String, dynamic>;
+            _fixProfileAvatarUrl(profileMap);
+            return ProfileModel.fromJson(profileMap);
+          })
           .toList();
 
       return Success(profiles);

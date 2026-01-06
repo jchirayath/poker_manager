@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../groups/data/models/group_model.dart';
@@ -394,7 +395,7 @@ class _GroupStatsSection extends ConsumerWidget {
           width: 24,
           height: 24,
           child: SvgPicture.network(
-            url,
+            fixDiceBearUrl(url)!,
             placeholderBuilder: (_) => const SizedBox(
               width: 12,
               height: 12,

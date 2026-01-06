@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/input_validators.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -136,15 +137,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
+                  validator: InputValidators.validateEmail,
                 ),
                 const SizedBox(height: 16),
 
@@ -177,17 +170,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Password',
                     border: OutlineInputBorder(),
+                    helperText: 'Must be 8+ characters with uppercase, lowercase, and number',
+                    helperMaxLines: 2,
                   ),
                   obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
+                  validator: InputValidators.validatePassword,
                 ),
                 const SizedBox(height: 16),
 
@@ -198,12 +185,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
-                  validator: (value) {
-                    if (value != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
+                  validator: (value) => InputValidators.validatePasswordConfirmation(
+                    value,
+                    _passwordController.text,
+                  ),
                 ),
                 const SizedBox(height: 24),
 

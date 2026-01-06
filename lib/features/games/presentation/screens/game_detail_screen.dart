@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../data/models/transaction_model.dart';
@@ -51,7 +52,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     // Check if URL contains .svg (handles query parameters)
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        url,
+        fixDiceBearUrl(url)!,
         width: 40,
         height: 40,
         placeholderBuilder: (_) => const SizedBox(
@@ -88,7 +89,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         radius: size / 2,
         backgroundColor: Colors.grey.shade200,
         child: SvgPicture.network(
-          url,
+          fixDiceBearUrl(url)!,
           width: size,
           height: size,
           placeholderBuilder: (_) => SizedBox(

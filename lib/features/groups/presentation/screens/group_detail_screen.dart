@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../games/presentation/screens/games_list_screen.dart';
@@ -245,7 +246,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       return CircleAvatar(
         backgroundColor: Colors.grey.shade200,
         child: SvgPicture.network(
-          url,
+          fixDiceBearUrl(url)!,
           width: 40,
           height: 40,
           placeholderBuilder: (_) => const SizedBox(

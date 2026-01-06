@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../../core/utils/avatar_utils.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/input_validators.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -38,7 +40,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     // Check contains 'svg' - handles DiceBear URLs like /svg?seed=...
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        url,
+        fixDiceBearUrl(url)!,
         width: 120,
         height: 120,
         fit: BoxFit.cover,
@@ -465,7 +467,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Username - used for Venmo & PayPal',
                       border: OutlineInputBorder(),
+                      helperText: 'Letters, numbers, dots, underscores, hyphens',
                     ),
+                    validator: InputValidators.validateUsername,
                   ),
                   const SizedBox(height: 16),
 
@@ -474,8 +478,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Phone Number',
                       border: OutlineInputBorder(),
+                      helperText: 'For Venmo payments',
                     ),
                     keyboardType: TextInputType.phone,
+                    validator: InputValidators.validatePhoneNumber,
                   ),
                   const SizedBox(height: 24),
 
@@ -530,6 +536,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             labelText: 'Postal Code',
                             border: OutlineInputBorder(),
                           ),
+                          validator: InputValidators.validatePostalCode,
                         ),
                       ),
                       const SizedBox(width: 16),
