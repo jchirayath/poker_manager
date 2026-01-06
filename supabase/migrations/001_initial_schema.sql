@@ -141,6 +141,42 @@ CREATE TRIGGER ensure_creator_is_admin
   EXECUTE FUNCTION set_creator_as_admin();
 
 -- =============================================
+-- TABLE: locations
+-- =============================================
+-- Stores locations for groups and/or members.
+-- Cases:
+-- 1) group location (group_id set, profile_id NULL)
+-- 2) member location within group (both set)
+-- 3) member location without group (group_id NULL)
+
+CREATE TABLE IF NOT EXISTS public.locations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
+  profile_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  street_address TEXT NOT NULL,
+  city TEXT,
+  state_province TEXT,
+  postal_code TEXT,
+  country TEXT NOT NULL,
+  label TEXT,
+  is_primary BOOLEAN DEFAULT FALSE,
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT has_group_or_profile CHECK (group_id IS NOT NULL OR profile_id IS NOT NULL)
+);
+
+CREATE TRIGGER update_locations_updated_at
+  BEFORE UPDATE ON locations
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Indexes for locations
+CREATE INDEX IF NOT EXISTS idx_locations_group_id ON locations(group_id);
+CREATE INDEX IF NOT EXISTS idx_locations_profile_id ON locations(profile_id);
+CREATE INDEX IF NOT EXISTS idx_locations_group_profile ON locations(group_id, profile_id);
+
+-- =============================================
 -- TABLE: games
 -- =============================================
 CREATE TABLE IF NOT EXISTS public.games (
@@ -243,6 +279,7 @@ ALTER TABLE game_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settlements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE player_statistics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- RLS POLICIES: profiles
@@ -492,6 +529,69 @@ CREATE POLICY "System can manage statistics"
   ON player_statistics FOR ALL
   USING (true)
   WITH CHECK (true);
+
+-- =============================================
+-- RLS POLICIES: locations
+-- =============================================
+
+-- Users can view locations for groups they're members of or with no group
+CREATE POLICY "Users can view group locations"
+  ON locations FOR SELECT
+  USING (
+    group_id IS NULL OR
+    group_id IN (
+      SELECT group_id FROM group_members 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+-- Users can view their own locations
+CREATE POLICY "Users can view own locations"
+  ON locations FOR SELECT
+  USING (profile_id = auth.uid());
+
+-- Users can insert locations for their profile or for groups they belong to
+CREATE POLICY "Users can insert own locations"
+  ON locations FOR INSERT
+  WITH CHECK (
+    profile_id = auth.uid() OR
+    (
+      group_id IS NOT NULL AND 
+      group_id IN (
+        SELECT group_id FROM group_members 
+        WHERE user_id = auth.uid()
+      ) AND
+      created_by = auth.uid()
+    )
+  );
+
+-- Users can update their own locations or group locations they administer
+CREATE POLICY "Users can update own locations"
+  ON locations FOR UPDATE
+  USING (
+    profile_id = auth.uid() OR
+    (
+      group_id IS NOT NULL AND 
+      group_id IN (
+        SELECT group_id FROM group_members 
+        WHERE user_id = auth.uid() AND role = 'admin'
+      )
+    )
+  );
+
+-- Users can delete their own locations or group locations they administer
+CREATE POLICY "Users can delete own locations"
+  ON locations FOR DELETE
+  USING (
+    profile_id = auth.uid() OR
+    (
+      group_id IS NOT NULL AND 
+      group_id IN (
+        SELECT group_id FROM group_members 
+        WHERE user_id = auth.uid() AND role = 'admin'
+      )
+    )
+  );
 
 -- =============================================
 -- DATABASE FUNCTIONS

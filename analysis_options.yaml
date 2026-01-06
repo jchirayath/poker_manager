@@ -11,8 +11,5 @@ linter:
     - use_key_in_widget_constructors
 
 analyzer:
-  exclude:
-    - "**/*.g.dart"
-    - "**/*.freezed.dart"
   errors:
     invalid_annotation_target: ignore

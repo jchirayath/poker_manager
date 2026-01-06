@@ -54,20 +54,21 @@ class GroupController {
 
     if (result is Success<GroupModel>) {
       _ref.invalidate(groupsListProvider);
-      return Result.success(result.data.id);
+      return Success(result.data.id);
     }
 
     if (result is Failure<GroupModel>) {
-      return Result.failure(result.message, exception: result.exception);
+      return Failure(result.message, exception: result.exception);
     }
 
-    return const Result.failure('Unknown error creating group');
+    return const Failure('Unknown error creating group');
   }
 
   Future<bool> updateGroup({
     required String groupId,
     String? name,
     String? description,
+    String? avatarUrl,
     String? privacy,
     String? defaultCurrency,
     double? defaultBuyin,
@@ -77,6 +78,7 @@ class GroupController {
       groupId: groupId,
       name: name,
       description: description,
+      avatarUrl: avatarUrl,
       privacy: privacy,
       defaultCurrency: defaultCurrency,
       defaultBuyin: defaultBuyin,

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/repositories/settlements_repository.dart';
-import '../../data/models/settlement_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/error_logger_service.dart';
+import '../../../../shared/models/result.dart';
 import '../../../games/data/repositories/games_repository.dart';
+import '../../data/models/settlement_model.dart';
+import '../../data/repositories/settlements_repository.dart';
 
 final settlementsRepositoryProvider = Provider((ref) => SettlementsRepository());
 
@@ -28,6 +33,73 @@ final gameSettlementsProvider =
   return result is Success<List<SettlementModel>> ? result.data : [];
 });
 
+/// REALTIME: Automatically updates settlements when they change in Supabase
+/// This replaces the manual invalidation pattern with live updates
+final gameSettlementsRealtimeProvider =
+    StreamProvider.family<List<SettlementModel>, String>((ref, gameId) {
+  final client = SupabaseService.instance;
+  
+  return client
+      .from('settlements')
+      .stream(primaryKey: ['id'])
+      .eq('game_id', gameId)
+      .map((List<Map<String, dynamic>> data) {
+        try {
+          return data.map((json) {
+            final amount = (json['amount'] as num).toDouble();
+            
+            // Validate settlement data from database
+            if (amount <= 0) {
+              throw Exception('Invalid settlement amount: $amount (must be positive)');
+            }
+
+            if (amount > 10000) { // FinancialConstants.maxSettlementAmount
+              throw Exception('Settlement amount $amount exceeds maximum');
+            }
+
+            // Check decimal precision
+            final roundedAmount = double.parse(amount.toStringAsFixed(2));
+            if ((amount - roundedAmount).abs() > 0.001) {
+              throw Exception('Settlement has invalid decimal precision: $amount');
+            }
+            
+            return SettlementModel.fromJson({
+              'id': json['id'] as String,
+              'gameId': json['game_id'] as String,
+              'payerId': json['payer_id'] as String,
+              'payeeId': json['payee_id'] as String,
+              'amount': amount,
+              'status': json['status'] as String,
+              'completedAt': json['completed_at'] as String?,
+              'payerName': json['payer_profile'] != null
+                  ? '${json['payer_profile']['first_name']} ${json['payer_profile']['last_name']}'
+                  : null,
+              'payeeName': json['payee_profile'] != null
+                  ? '${json['payee_profile']['first_name']} ${json['payee_profile']['last_name']}'
+                  : null,
+            });
+          }).toList();
+        } catch (e, st) {
+          ErrorLoggerService.logError(
+            e,
+            st,
+            context: 'gameSettlementsRealtimeProvider.map',
+            additionalData: {'gameId': gameId, 'dataCount': data.length},
+          );
+          return [];
+        }
+      })
+      .handleError((error, stackTrace) {
+        ErrorLoggerService.logError(
+          error,
+          stackTrace,
+          context: 'gameSettlementsRealtimeProvider.stream',
+          additionalData: {'gameId': gameId},
+        );
+        return [];
+      });
+});
+
 class SettlementScreen extends ConsumerStatefulWidget {
   final String gameId;
 
@@ -41,9 +113,8 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
   bool _isCalculating = false;
 
   Future<void> _calculateSettlement() async {
-    // Validate first
-    final validationAsync = ref.read(settlementValidationProvider(widget.gameId));
-    final validation = await validationAsync.future;
+    final validation =
+        await ref.read(settlementValidationProvider(widget.gameId).future);
 
     if (!mounted) return;
 
@@ -88,11 +159,11 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
     setState(() => _isCalculating = false);
 
     if (result is Success) {
-      // Update game status to completed
       final gamesRepo = ref.read(Provider((ref) => GamesRepository()));
       await gamesRepo.updateGameStatus(widget.gameId, 'completed');
 
-      ref.invalidate(gameSettlementsProvider(widget.gameId));
+      // No need to invalidate - realtime provider will automatically update!
+      // ref.invalidate(gameSettlementsProvider(widget.gameId));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -109,7 +180,8 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
   @override
   Widget build(BuildContext context) {
     final validationAsync = ref.watch(settlementValidationProvider(widget.gameId));
-    final settlementsAsync = ref.watch(gameSettlementsProvider(widget.gameId));
+    // Use the realtime provider instead of the future provider for automatic updates
+    final settlementsAsync = ref.watch(gameSettlementsRealtimeProvider(widget.gameId));
 
     return Scaffold(
       appBar: AppBar(
@@ -117,7 +189,6 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
       ),
       body: Column(
         children: [
-          // Validation Card
           Card(
             margin: const EdgeInsets.all(16),
             child: Padding(
@@ -144,8 +215,8 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      Text('Total Buy-ins: \${validation.totalBuyins.toStringAsFixed(2)}'),
-                      Text('Total Cash-outs: \${validation.totalCashouts.toStringAsFixed(2)}'),
+                      Text('Total Buy-ins: ${validation.totalBuyins.toStringAsFixed(2)}'),
+                      Text('Total Cash-outs: ${validation.totalCashouts.toStringAsFixed(2)}'),
                       if (!validation.isValid) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -156,13 +227,12 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                     ],
                   );
                 },
-                loading: () => const CircularProgressIndicator(),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, s) => Text('Error: $e'),
               ),
             ),
           ),
 
-          // Settlements List
           Expanded(
             child: settlementsAsync.when(
               data: (settlements) {
@@ -195,66 +265,155 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                   );
                 }
 
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        '${settlements.length} payment${settlements.length == 1 ? '' : 's'} needed',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                // Filter settlements for current user
+                final currentUserId = SupabaseService.currentUser?.id;
+                if (currentUserId == null) {
+                  return const Center(child: Text('User not authenticated'));
+                }
+
+                print('\n💰💰💰 SETTLEMENT SCREEN DEBUG 💰💰💰');
+                print('Current User ID: $currentUserId');
+                print('Total settlements loaded: ${settlements.length}');
+                
+                final userSettlements = settlements.where((s) =>
+                  s.payerId == currentUserId || s.payeeId == currentUserId
+                ).toList();
+                
+                print('Settlements involving current user: ${userSettlements.length}');
+                for (final s in userSettlements) {
+                  final isPayer = s.payerId == currentUserId;
+                  print('  - ${isPayer ? "PAY" : "RECEIVE"} \$${s.amount} ${isPayer ? "to" : "from"} ${isPayer ? s.payeeName : s.payerName}');
+                }
+                print('💰💰💰 END DEBUG 💰💰💰\n');
+
+                if (userSettlements.isEmpty) {
+                  return const Center(
+                    child: Text('No payments needed for you'),
+                  );
+                }
+
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Your Settlements',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: settlements.length,
-                        itemBuilder: (context, index) {
-                          final settlement = settlements[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: settlement.status == 'completed'
-                                    ? Colors.green
-                                    : Colors.orange,
-                                child: Icon(
-                                  settlement.status == 'completed'
-                                      ? Icons.check
-                                      : Icons.payment,
-                                  color: Colors.white,
+                        const SizedBox(height: 16),
+                        Table(
+                          border: TableBorder.all(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          columnWidths: const {
+                            0: FlexColumnWidth(2),
+                            1: FlexColumnWidth(1),
+                          },
+                          children: [
+                            TableRow(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                              ),
+                              children: const [
+                                Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Text(
+                                    'Action',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              title: Text(
-                                '${settlement.payerName} → ${settlement.payeeName}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text(
-                                settlement.status == 'completed'
-                                    ? 'Completed'
-                                    : 'Pending',
-                              ),
-                              trailing: Text(
-                                '\${settlement.amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
+                                Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: Text(
+                                    'Amount',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                    textAlign: TextAlign.right,
+                                  ),
                                 ),
-                              ),
-                              onTap: settlement.status == 'pending'
-                                  ? () => _markComplete(settlement.id)
-                                  : null,
+                              ],
                             ),
-                          );
-                        },
-                      ),
+                            ...userSettlements.map((settlement) {
+                              final isPayer = settlement.payerId == currentUserId;
+                              final otherUserName = isPayer 
+                                ? settlement.payeeName 
+                                : settlement.payerName;
+                              final action = isPayer
+                                ? 'Pay $otherUserName'
+                                : 'Get Paid from $otherUserName';
+                              final amountColor = isPayer ? Colors.red : Colors.green;
+                              
+                              return TableRow(
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isPayer ? Icons.arrow_upward : Icons.arrow_downward,
+                                          color: amountColor,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            action,
+                                            style: const TextStyle(fontSize: 15),
+                                          ),
+                                        ),
+                                        if (settlement.status == 'completed')
+                                          const Icon(
+                                            Icons.check_circle,
+                                            color: Colors.green,
+                                            size: 20,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Text(
+                                      '\$${settlement.amount.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: amountColor,
+                                      ),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        if (userSettlements.any((s) => s.status == 'pending'))
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Pending payments shown',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -273,7 +432,8 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
     if (!mounted) return;
 
     if (result is Success) {
-      ref.invalidate(gameSettlementsProvider(widget.gameId));
+      // No need to invalidate - realtime provider will automatically update!
+      // ref.invalidate(gameSettlementsProvider(widget.gameId));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment marked as complete')),
       );

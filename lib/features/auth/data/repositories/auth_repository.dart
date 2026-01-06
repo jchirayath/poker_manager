@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../shared/models/result.dart';
@@ -14,16 +15,16 @@ class AuthRepository {
       );
 
       if (response.user == null) {
-        return const Result.failure('Sign in failed');
+        return const Failure('Sign in failed');
       }
 
       try {
         final profile = await _getProfile(response.user!.id);
-        return Result.success(profile);
+        return Success(profile);
       } catch (e) {
-        print('Profile fetch error during sign in: $e');
+        developer.log('Profile fetch error during sign in: $e', name: 'AuthRepository');
         // Profile doesn't exist, create a basic user model from auth data
-        return Result.success(UserModel(
+        return Success(UserModel(
           id: response.user!.id,
           email: response.user!.email ?? email,
           firstName: '',
@@ -32,8 +33,8 @@ class AuthRepository {
         ));
       }
     } catch (e) {
-      print('Sign in error: $e');
-      return Result.failure('Sign in failed: ${e.toString()}');
+      developer.log('Sign in error: $e', name: 'AuthRepository');
+      return Failure('Sign in failed: ${e.toString()}');
     }
   }
 
@@ -45,6 +46,7 @@ class AuthRepository {
     required String country,
   }) async {
     try {
+      // Step 1: Create auth user
       final response = await _client.auth.signUp(
         email: email,
         password: password,
@@ -56,47 +58,103 @@ class AuthRepository {
       );
 
       if (response.user == null) {
-        return const Result.failure('Sign up failed');
+        return const Failure('Sign up failed');
       }
 
-      // Rely on DB trigger to create profile; fetch if available
-      final fetched = await _client
+      // Step 2: Immediately create profile (don't wait for trigger)
+      // This prevents race conditions and ensures profile exists
+      try {
+        final profile = await _createProfileSync(
+          userId: response.user!.id,
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          country: country,
+        );
+        return Success(profile);
+      } catch (e) {
+        developer.log('Profile creation failed: $e', name: 'AuthRepository');
+        
+        // Profile creation failed - cleanup auth user to prevent orphaned accounts
+        try {
+          await _client.auth.signOut();
+        } catch (cleanupError) {
+          developer.log('Failed to cleanup auth user: $cleanupError', name: 'AuthRepository');
+        }
+        
+        return Failure('Profile creation failed: ${e.toString()}');
+      }
+    } catch (e) {
+      developer.log('Sign up error: $e', name: 'AuthRepository');
+      return Failure('Sign up failed: ${e.toString()}');
+    }
+  }
+
+  /// Create profile synchronously during signup
+  /// This prevents race conditions with database triggers
+  Future<UserModel> _createProfileSync({
+    required String userId,
+    required String email,
+    required String firstName,
+    required String lastName,
+    required String country,
+  }) async {
+    try {
+      // First, check if profile already exists (in case trigger already created it)
+      final existing = await _client
           .from('profiles')
           .select()
-          .eq('id', response.user!.id)
+          .eq('id', userId)
           .maybeSingle();
-      if (fetched != null) {
-        return Result.success(UserModel.fromJson(fetched));
+
+      if (existing != null) {
+        developer.log('Profile already exists (created by trigger)', name: 'AuthRepository');
+        return UserModel.fromJson(existing);
       }
-      // Fallback: return basic model; profile will be available shortly
-      return Result.success(UserModel(
-        id: response.user!.id,
-        email: email,
-        firstName: firstName,
-        lastName: lastName,
-        country: country,
-      ));
-    } catch (e) {
-      print('Sign up error: $e');
-      return Result.failure('Sign up failed: ${e.toString()}');
+
+      // Create profile explicitly
+      final created = await _client
+          .from('profiles')
+          .insert({
+            'id': userId,
+            'email': email,
+            'first_name': firstName,
+            'last_name': lastName,
+            'country': country,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .select()
+          .single();
+
+      developer.log('Profile created synchronously for user: $userId', name: 'AuthRepository');
+      return UserModel.fromJson(created);
+    } on PostgrestException catch (e) {
+      // If it's a duplicate key error, the trigger might have created it
+      if (e.code == '23505') {
+        developer.log('Profile already exists (race with trigger)', name: 'AuthRepository');
+        final profile = await _getProfile(userId);
+        return profile;
+      }
+      rethrow;
     }
   }
 
   Future<Result<void>> signOut() async {
     try {
       await _client.auth.signOut();
-      return const Result.success(null);
+      return const Success(null);
     } catch (e) {
-      return Result.failure('Sign out failed: ${e.toString()}');
+      return Failure('Sign out failed: ${e.toString()}');
     }
   }
 
   Future<Result<void>> resetPassword(String email) async {
     try {
       await _client.auth.resetPasswordForEmail(email);
-      return const Result.success(null);
+      return const Success(null);
     } catch (e) {
-      return Result.failure('Password reset failed: ${e.toString()}');
+      return Failure('Password reset failed: ${e.toString()}');
     }
   }
 
@@ -126,7 +184,7 @@ class AuthRepository {
         if (state.session?.user == null) return null;
         return await _getProfile(state.session!.user.id);
       } catch (e) {
-        print('Error fetching profile: $e');
+        developer.log('Error fetching profile: $e', name: 'AuthRepository');
         return null;
       }
     });

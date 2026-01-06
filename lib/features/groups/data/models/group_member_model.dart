@@ -5,7 +5,7 @@ part 'group_member_model.freezed.dart';
 part 'group_member_model.g.dart';
 
 @freezed
-class GroupMemberModel with _$GroupMemberModel {
+abstract class GroupMemberModel with _$GroupMemberModel {
   const factory GroupMemberModel({
     required String id,
     @JsonKey(name: 'group_id') required String groupId,

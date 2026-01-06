@@ -1,13 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/profile_provider.dart';
 import '../../../../core/constants/route_constants.dart';
-import '../../../../core/services/supabase_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
+
+  Widget _avatar(String? url, String initials) {
+    debugPrint('🎯 Avatar URL: "$url" | Initials: "$initials"');
+    if ((url ?? '').isEmpty) {
+      debugPrint('📭 Using initials avatar (no URL)');
+      return _initialsAvatar(initials);
+    }
+    
+    if (url!.toLowerCase().contains('svg')) {
+      debugPrint('🖼️ Loading SVG: $url');
+      return ClipOval(
+        child: SvgPicture.network(
+          url,
+          width: 120,
+          height: 120,
+          placeholderBuilder: (_) => const SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    debugPrint('🖼️ Loading image: $url');
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('🔴 Error loading image avatar: $error');
+          return _initialsAvatar(initials);
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _initialsAvatar(String initials) {
+    return Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials.isNotEmpty ? initials : '?',
+          style: const TextStyle(fontSize: 32),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,50 +107,10 @@ class ProfileScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 60,
-                  child: user.avatarUrl != null
-                      ? ClipOval(
-                          child: Image.network(
-                            user.avatarUrl!,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              // Show initials if image fails to load
-                              return Container(
-                                width: 120,
-                                height: 120,
-                                color: Colors.grey[300],
-                                child: Center(
-                                  child: Text(
-                                    (user.firstName.isNotEmpty ? user.firstName[0] : '') + 
-                                    (user.lastName.isNotEmpty ? user.lastName[0] : ''),
-                                    style: const TextStyle(fontSize: 32),
-                                  ),
-                                ),
-                              );
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
-                          ),
-                        )
-                      : user.firstName.isNotEmpty
-                          ? Text(
-                              (user.firstName.isNotEmpty ? user.firstName[0] : '') + 
-                              (user.lastName.isNotEmpty ? user.lastName[0] : ''),
-                              style: const TextStyle(fontSize: 32),
-                            )
-                          : const Icon(Icons.person, size: 60),
+                _avatar(
+                  user.avatarUrl,
+                  (user.firstName.isNotEmpty ? user.firstName[0] : '') +
+                      (user.lastName.isNotEmpty ? user.lastName[0] : ''),
                 ),
                 const SizedBox(height: 16),
                 Text(

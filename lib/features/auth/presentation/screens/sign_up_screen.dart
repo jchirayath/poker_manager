@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../shared/models/result.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -150,7 +149,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 const SizedBox(height: 16),
 
                 DropdownButtonFormField<String>(
-                  value: _selectedCountry,
+                  initialValue: _selectedCountry,
                   decoration: const InputDecoration(
                     labelText: 'Country',
                     border: OutlineInputBorder(),

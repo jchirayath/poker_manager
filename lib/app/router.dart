@@ -11,7 +11,12 @@ import '../features/groups/presentation/screens/groups_list_screen.dart';
 import '../features/groups/presentation/screens/create_group_screen.dart';
 import '../features/groups/presentation/screens/group_detail_screen.dart';
 import '../features/groups/presentation/screens/manage_members_screen.dart';
+import '../features/groups/presentation/screens/invite_members_screen.dart';
 import '../features/groups/presentation/screens/edit_group_screen.dart';
+import '../features/groups/presentation/screens/local_user_form_screen.dart';
+import '../features/games/presentation/screens/games_entry_screen.dart';
+import '../features/profile/data/models/profile_model.dart';
+import '../features/stats/presentation/screens/stats_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -82,6 +87,29 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: RouteConstants.localUserCreate,
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return LocalUserFormScreen(groupId: id);
+        },
+      ),
+      GoRoute(
+        path: RouteConstants.localUserEdit,
+        builder: (context, state) {
+          final groupId = state.pathParameters['groupId']!;
+          final userId = state.pathParameters['userId']!;
+          final profile = state.extra is ProfileModel ? state.extra as ProfileModel : null;
+          return LocalUserFormScreen(groupId: groupId, userId: userId, initialProfile: profile);
+        },
+      ),
+      GoRoute(
+        path: '/groups/:id/invite',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return InviteMembersScreen(groupId: id);
+        },
+      ),
+      GoRoute(
         path: '/groups/:id/edit',
         builder: (context, state) {
           // Note: We'll pass group data via extra or fetch it in the screen
@@ -90,6 +118,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             groupId: id,
             name: state.extra is Map ? (state.extra as Map)['name'] ?? '' : '',
             description: state.extra is Map ? (state.extra as Map)['description'] : null,
+            avatarUrl: state.extra is Map ? (state.extra as Map)['avatarUrl'] : null,
             privacy: state.extra is Map ? (state.extra as Map)['privacy'] ?? 'private' : 'private',
             currency: state.extra is Map ? (state.extra as Map)['currency'] ?? 'USD' : 'USD',
             defaultBuyin: state.extra is Map ? (state.extra as Map)['defaultBuyin'] ?? 100.0 : 100.0,
@@ -112,9 +141,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   static const List<Widget> _screens = [
+    GamesEntryScreen(),
     GroupsListScreen(),
-    Center(child: Text('Games')),
-    Center(child: Text('Statistics')),
+    StatsScreen(),
     ProfileScreen(),
   ];
 
@@ -129,12 +158,12 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.group),
-            label: 'Groups',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.casino),
             label: 'Games',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.group),
+            label: 'Groups',
           ),
           NavigationDestination(
             icon: Icon(Icons.bar_chart),

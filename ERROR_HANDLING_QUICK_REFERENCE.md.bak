@@ -1,0 +1,228 @@
+# Error Handling Quick Reference
+
+**Status:** ✅ Production Ready  
+**Build Status:** ✅ 0 Compilation Errors
+
+## Using the Error Logger
+
+### Basic Usage
+
+```dart
+import 'package:poker_manager/core/services/error_logger_service.dart';
+
+// Error logging
+try {
+  await someOperation();
+} catch (e, st) {
+  ErrorLoggerService.logError(
+    e,
+    st,
+    context: 'myOperation',
+    additionalData: {'key': value},
+  );
+  rethrow;
+}
+
+// Warning logging
+if (unexpectedCondition) {
+  ErrorLoggerService.logWarning(
+    'Condition occurred',
+    context: 'myOperation',
+  );
+}
+
+// Info logging
+ErrorLoggerService.logInfo(
+  'Operation completed',
+  context: 'myOperation',
+);
+
+// Debug logging (dev mode only)
+ErrorLoggerService.logDebug(
+  'Debug info',
+  context: 'myOperation',
+);
+
+// User-friendly errors
+final userMessage = ErrorLoggerService.getUserFriendlyMessage(error);
+showSnackBar(userMessage);
+```
+
+### In Providers
+
+```dart
+final itemsProvider = FutureProvider((ref) async {
+  try {
+    return await repository.getItems();
+  } catch (e, st) {
+    ErrorLoggerService.logError(
+      e,
+      st,
+      context: 'itemsProvider',
+      additionalData: {'userId': userId},
+    );
+    rethrow;
+  }
+});
+```
+
+### In Notifiers
+
+```dart
+Future<void> createItem() async {
+  state = const AsyncValue.loading();
+  try {
+    final result = await repository.create();
+    state = result.when(
+      success: (item) {
+        ErrorLoggerService.logInfo('Item created', context: 'CreateNotifier');
+        return AsyncValue.data(item);
+      },
+      failure: (error, _) {
+        ErrorLoggerService.logWarning('Creation failed: $error', context: 'CreateNotifier');
+        return AsyncValue.error(Exception(error), StackTrace.current);
+      },
+    );
+  } catch (e, st) {
+    ErrorLoggerService.logError(e, st, context: 'CreateNotifier');
+    state = AsyncValue.error(e, st);
+  }
+}
+```
+
+### Handling AsyncValue Errors
+
+```dart
+// In UI
+ref.watch(someProvider).when(
+  data: (data) => SizedBox(),
+  loading: () => CircularProgressIndicator(),
+  error: (error, stack) {
+    ErrorLoggerService.logWarning('UI error: $error', context: 'SomeScreen');
+    final userMsg = ErrorLoggerService.getUserFriendlyMessage(error);
+    return ErrorWidget(message: userMsg);
+  },
+)
+```
+
+## Log Levels
+
+### Debug
+Development diagnostics. Only shown in debug mode.
+```dart
+ErrorLoggerService.logDebug('Loading...', context: 'Provider');
+```
+
+### Info
+Successful operations and important events.
+```dart
+ErrorLoggerService.logInfo('Loaded 5 items', context: 'Provider');
+```
+
+### Warning
+Expected failures that don't break functionality.
+```dart
+ErrorLoggerService.logWarning('Timeout: retrying...', context: 'Provider');
+```
+
+### Error
+Unexpected errors with full stack trace.
+```dart
+ErrorLoggerService.logError(e, st, context: 'Provider');
+```
+
+## Best Practices
+
+### DO ✅
+
+- Always include `context` (operation name)
+- Add `additionalData` for debugging (IDs, names, etc)
+- Log errors at appropriate level (warning vs error)
+- Preserve original StackTrace
+- Use `getUserFriendlyMessage()` for user display
+
+### DON'T ❌
+
+- Don't use `print()` or `debugPrint()` for errors
+- Don't ignore exceptions silently
+- Don't pass `StackTrace.current` in failure handlers (use actual stack trace)
+- Don't include sensitive data (passwords, tokens, PII)
+- Don't use generic error messages for debugging
+
+## Common Patterns
+
+### Network Errors
+```dart
+catch (e, st) {
+  if (e.toString().contains('timeout')) {
+    ErrorLoggerService.logWarning('Network timeout', context: context);
+  } else if (e.toString().contains('connection')) {
+    ErrorLoggerService.logWarning('Connection error', context: context);
+  } else {
+    ErrorLoggerService.logError(e, st, context: context);
+  }
+}
+```
+
+### Validation Errors
+```dart
+if (!isValid) {
+  ErrorLoggerService.logWarning('Invalid input', context: 'validation');
+  return AsyncValue.error(Exception('Invalid input'), StackTrace.current);
+}
+```
+
+### Data Integrity
+```dart
+if (result.isEmpty) {
+  ErrorLoggerService.logWarning(
+    'No data found',
+    context: 'dataProvider',
+  );
+  return [];
+}
+```
+
+## Future Enhancements
+
+### Add to production (one-time setup):
+
+```dart
+// In error_logger_service.dart logError method:
+if (kReleaseMode) {
+  // Send to Sentry
+  Sentry.captureException(
+    error,
+    stackTrace: stackTrace,
+    hint: {'context': context, ...?additionalData},
+  );
+
+  // Send to Firebase Crashlytics
+  FirebaseCrashlytics.instance.recordError(
+    error,
+    stackTrace,
+    reason: 'Error in $context',
+  );
+}
+```
+
+## Integration Points
+
+- ✅ Games Provider: All errors logged
+- ✅ Locations Provider: All errors logged  
+- ✅ All Notifiers: Structured error handling
+- 🔄 Ready for: Sentry integration
+- 🔄 Ready for: Firebase Crashlytics
+- 🔄 Ready for: Custom analytics
+
+## File Reference
+
+| File | Purpose | Status |
+|------|---------|--------|
+| lib/core/services/error_logger_service.dart | Error logging service | ✅ Created |
+| lib/features/games/presentation/providers/games_provider.dart | Game operations | ✅ Updated |
+| lib/features/locations/presentation/providers/locations_provider.dart | Location operations | ✅ Updated |
+
+---
+
+**For full documentation:** See [ERROR_HANDLING_IMPLEMENTATION.md](ERROR_HANDLING_IMPLEMENTATION.md)

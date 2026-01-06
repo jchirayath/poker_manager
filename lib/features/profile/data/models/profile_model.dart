@@ -4,22 +4,23 @@ part 'profile_model.freezed.dart';
 part 'profile_model.g.dart';
 
 @freezed
-class ProfileModel with _$ProfileModel {
+abstract class ProfileModel with _$ProfileModel {
   const ProfileModel._();
   
   const factory ProfileModel({
     required String id,
     required String email,
     String? username,
-    @JsonKey(name: 'first_name') required String firstName,
-    @JsonKey(name: 'last_name') required String lastName,
+    @JsonKey(name: 'first_name') String? firstName,
+    @JsonKey(name: 'last_name') String? lastName,
     @JsonKey(name: 'avatar_url') String? avatarUrl,
     @JsonKey(name: 'phone_number') String? phoneNumber,
     @JsonKey(name: 'street_address') String? streetAddress,
     String? city,
     @JsonKey(name: 'state_province') String? stateProvince,
     @JsonKey(name: 'postal_code') String? postalCode,
-    required String country,
+    String? country,
+    @JsonKey(name: 'is_local_user') @Default(false) bool isLocalUser,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
   }) = _ProfileModel;
@@ -27,7 +28,7 @@ class ProfileModel with _$ProfileModel {
   factory ProfileModel.fromJson(Map<String, dynamic> json) =>
       _$ProfileModelFromJson(json);
   
-  String get fullName => '$firstName $lastName';
+  String get fullName => '${firstName ?? ""} ${lastName ?? ""}'.trim();
 
   String get fullAddress {
     final parts = [

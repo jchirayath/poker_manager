@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/groups_provider.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
 import '../../data/models/group_member_model.dart';
 import '../../../../core/services/supabase_service.dart';
-
-const _roleLabels = {
-  'member': 'Member',
-  'admin': 'Admin',
-};
+// Local user form is reached via named route; direct import not needed here.
 
 class ManageMembersScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -22,23 +18,50 @@ class ManageMembersScreen extends ConsumerStatefulWidget {
 
 class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
   final _searchController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _nameController = TextEditingController();
   bool _isSearching = false;
   List<GroupMemberModel> _membersCache = [];
   List<dynamic> _searchResults = [];
   bool _isAdmin = false;
 
+  Widget _avatar(String? url, String fallback) {
+    final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
+    if ((url ?? '').isEmpty) {
+      return CircleAvatar(
+        backgroundColor: Colors.grey.shade200,
+        child: Text(letter),
+      );
+    }
+    
+    if (url!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        backgroundColor: Colors.grey.shade200,
+        child: SvgPicture.network(
+          url,
+          width: 40,
+          height: 40,
+          placeholderBuilder: (_) => const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    return CircleAvatar(
+      backgroundImage: NetworkImage(url),
+      child: const SizedBox.shrink(),
+    );
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
-    _emailController.dispose();
-    _nameController.dispose();
     super.dispose();
   }
 
   Future<void> _refreshMembers() async {
-    await ref.refresh(groupMembersProvider(widget.groupId).future);
+    ref.invalidate(groupMembersProvider(widget.groupId));
+    await ref.read(groupMembersProvider(widget.groupId).future);
   }
 
   Future<void> _initAdminStatus() async {
@@ -67,74 +90,6 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
     });
   }
 
-  Future<void> _inviteOrAddByEmail() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter an email')),
-      );
-      return;
-    }
-
-    setState(() => _isSearching = true);
-    try {
-      // Verify user is authenticated
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) {
-        debugPrint('🔴 User not authenticated');
-        throw 'User not authenticated';
-      }
-      debugPrint('🔵 Current user: ${currentUser.id}');
-
-      final fullName = _nameController.text.trim();
-      debugPrint('🔵 Inviting $email (fullName: $fullName) to group ${widget.groupId}');
-      
-      // Call function with explicit auth
-      final response = await SupabaseService.instance.functions.invoke(
-        'invite-user',
-        body: {
-          'groupId': widget.groupId,
-          'email': email,
-          'fullName': fullName,
-          'role': 'member',
-        },
-        headers: {
-          'Authorization': 'Bearer ${SupabaseService.instance.auth.currentSession?.accessToken ?? ''}',
-        },
-      );
-
-      debugPrint('🔵 Invite response: $response');
-
-      final data = response as Map<String, dynamic>?;
-      if (data == null || data['status'] != 'ok') {
-        final errorMsg = data?['error'] as String? ?? 'Invite failed';
-        debugPrint('🔴 Invite error: $errorMsg');
-        throw errorMsg;
-      }
-
-      debugPrint('✅ User invited successfully: ${data['userId']}');
-
-      await _refreshMembers();
-      _emailController.clear();
-      _nameController.clear();
-      _searchController.clear();
-      setState(() => _searchResults = []);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invitation sent')), 
-        );
-      }
-    } catch (e, stack) {
-      debugPrint('🔴 Failed to invite: $e');
-      debugPrintStack(stackTrace: stack);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to invite: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isSearching = false);
-    }
-  }
-
   Future<void> _addUser(String userId) async {
     debugPrint('🔵 Adding user $userId to group ${widget.groupId}');
     try {
@@ -143,6 +98,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
       if (ok) {
         debugPrint('✅ User added successfully');
         await _refreshMembers();
+        if (!mounted) return;
         _searchController.clear();
         setState(() => _searchResults = []);
         if (mounted) {
@@ -152,16 +108,20 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         }
       } else {
         debugPrint('🔴 Failed to add member');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to add member')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to add member')),
+          );
+        }
       }
     } catch (e, stack) {
       debugPrint('🔴 Error adding member: $e');
       debugPrintStack(stackTrace: stack);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -180,16 +140,20 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         }
       } else {
         debugPrint('🔴 Failed to remove member');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to remove member')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to remove member')),
+          );
+        }
       }
     } catch (e, stack) {
       debugPrint('🔴 Error removing member: $e');
       debugPrintStack(stackTrace: stack);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -212,16 +176,20 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         }
       } else {
         debugPrint('🔴 Failed to update role');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update role')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update role')),
+          );
+        }
       }
     } catch (e, stack) {
       debugPrint('🔴 Error updating role: $e');
       debugPrintStack(stackTrace: stack);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -233,6 +201,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final groupAsync = ref.watch(groupProvider(widget.groupId));
     final membersAsync = ref.watch(groupMembersProvider(widget.groupId));
 
     return Scaffold(
@@ -252,40 +221,65 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
       body: membersAsync.when(
         data: (members) {
           _membersCache = members;
+          final group = groupAsync.asData?.value;
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text('Invite by Email', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full name (optional)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person_outline),
+              if (group != null)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: ListTile(
+                    leading: _avatar(group.avatarUrl, group.name),
+                    title: Text(group.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${members.length} member${members.length == 1 ? '' : 's'}'),
+                        if (group.description?.isNotEmpty == true) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            group.description!,
+                            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Invite Members Button
+              ElevatedButton.icon(
+                onPressed: () {
+                  context.push('/groups/${widget.groupId}/invite');
+                },
+                icon: const Icon(Icons.mail_outline),
+                label: const Text('Invite Members by Email'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email address',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email_outlined),
+              const SizedBox(height: 12),
+              // Add Local User Button
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final result = await context.push(
+                    '/groups/${widget.groupId}/local-user',
+                  );
+                  if (result == true) {
+                    await _refreshMembers();
+                  }
+                },
+                icon: const Icon(Icons.person_add),
+                label: const Text('Add Local User (No Account)'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
+              const SizedBox(height: 16),
+              const Divider(),
               const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isSearching ? null : _inviteOrAddByEmail,
-                  icon: const Icon(Icons.send),
-                  label: const Text('Invite / Add'),
-                ),
-              ),
-              const Divider(height: 32),
-              const Text('Add Members', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Add Members • ${members.length} total', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               TextField(
                 controller: _searchController,
@@ -316,10 +310,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
                     itemBuilder: (context, index) {
                       final profile = _searchResults[index];
                       return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: profile.avatarUrl != null ? NetworkImage(profile.avatarUrl!) : null,
-                          child: profile.avatarUrl == null ? Text(profile.firstName.isNotEmpty ? profile.firstName[0] : '?') : null,
-                        ),
+                        leading: _avatar(profile.avatarUrl, profile.fullName),
                         title: Text(profile.fullName),
                         subtitle: profile.username != null ? Text('@${profile.username}') : null,
                         trailing: IconButton(
@@ -333,63 +324,80 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
               const SizedBox(height: 24),
               const Text('Current Members', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              ...members.map((m) {
-                final p = m.profile;
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: p?.avatarUrl != null ? NetworkImage(p!.avatarUrl!) : null,
-                      child: p?.avatarUrl == null ? Text(p?.firstName.isNotEmpty == true ? p!.firstName[0] : '?') : null,
-                    ),
-                    title: Text(p?.fullName ?? 'Unknown'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          m.isCreator
-                              ? 'Creator'
-                              : (m.role == 'admin' ? 'Admin' : 'Member'),
-                          style: TextStyle(
-                            fontWeight: m.isCreator || m.role == 'admin' ? FontWeight.bold : FontWeight.normal,
-                            color: m.isCreator ? Colors.orange : (m.role == 'admin' ? Colors.blue : null),
-                          ),
+              ...() {
+                // Sort: non-local users first, then local users
+                final sortedMembers = [...members]
+                  ..sort((a, b) {
+                    final aIsLocal = a.profile?.isLocalUser ?? false;
+                    final bIsLocal = b.profile?.isLocalUser ?? false;
+                    if (aIsLocal == bIsLocal) return 0;
+                    return aIsLocal ? 1 : -1;
+                  });
+                return sortedMembers.map((m) {
+                  final p = m.profile;
+                  final isLocal = p?.isLocalUser ?? false;
+                  return Card(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: _avatar(p?.avatarUrl, p?.fullName ?? ''),
+                      title: Row(
+                        children: [
+                          Flexible(child: Text(p?.fullName ?? 'Unknown')),
+                          if (isLocal) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Local',
+                                style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        m.isCreator
+                            ? 'Creator'
+                            : (m.role == 'admin' ? 'Admin' : 'Member'),
+                        style: TextStyle(
+                          fontWeight: m.isCreator || m.role == 'admin' ? FontWeight.bold : FontWeight.normal,
+                          color: m.isCreator ? Colors.orange : (m.role == 'admin' ? Colors.blue : null),
                         ),
-                        if (_isAdmin && !m.isCreator)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                      trailing: _isAdmin && !m.isCreator
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('Role'),
-                                const SizedBox(height: 6),
-                                Slider(
-                                  value: m.role == 'admin' ? 1 : 0,
-                                  min: 0,
-                                  max: 1,
-                                  divisions: 1,
-                                  label: _roleLabels[m.role == 'admin' ? 'admin' : 'member'],
-                                  onChanged: (v) {
-                                    final target = v >= 0.5 ? 'admin' : 'member';
-                                    if (target != m.role) {
-                                      _updateRole(m.userId, target);
-                                    }
-                                  },
+                                if (isLocal)
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    tooltip: 'Edit local user',
+                                    onPressed: () async {
+                                      final result = await context.push(
+                                        '/groups/${widget.groupId}/local-user/${m.userId}',
+                                        extra: p,
+                                      );
+                                      if (result == true) {
+                                        await _refreshMembers();
+                                      }
+                                    },
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  onPressed: () => _removeUser(m.userId),
+                                  tooltip: 'Remove Member',
                                 ),
                               ],
-                            ),
-                          ),
-                      ],
+                            )
+                          : null,
                     ),
-                    trailing: _isAdmin && !m.isCreator
-                        ? IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () => _removeUser(m.userId),
-                            tooltip: 'Remove Member',
-                          )
-                        : null,
-                  ),
-                );
-              }).toList(),
+                  );
+                });
+              }(),
             ],
           );
         },

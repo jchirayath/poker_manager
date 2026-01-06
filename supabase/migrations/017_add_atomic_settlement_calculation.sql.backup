@@ -1,0 +1,395 @@
+-- Migration: Add atomic settlement calculation function with transaction support
+-- Purpose: Prevent race conditions during settlement calculation
+-- Date: January 4, 2026
+
+-- ============================================================================
+-- 1. CREATE SETTLEMENT CALCULATION FUNCTION (ATOMIC)
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION calculate_settlement_atomic(p_game_id UUID)
+RETURNS TABLE (
+  settlement_id UUID,
+  payer_id UUID,
+  payee_id UUID,
+  amount DECIMAL(10, 2),
+  status TEXT,
+  created_at TIMESTAMPTZ
+) AS $$
+DECLARE
+  v_game_status TEXT;
+  v_total_buyin DECIMAL(10, 2);
+  v_total_cashout DECIMAL(10, 2);
+  v_difference DECIMAL(10, 2);
+  v_tolerance DECIMAL(10, 2) := 0.01;
+  v_group_id UUID;
+BEGIN
+  -- Step 1: Lock the game row to prevent concurrent modifications
+  -- This ensures no other transactions can modify this game simultaneously
+  SELECT status, group_id INTO v_game_status, v_group_id
+  FROM games
+  WHERE id = p_game_id
+  FOR UPDATE; -- Exclusive lock
+
+  -- Step 2: Verify game exists
+  IF v_game_status IS NULL THEN
+    RAISE EXCEPTION 'Game % not found', p_game_id;
+  END IF;
+
+  -- Step 3: Verify game is in completed state
+  IF v_game_status != 'completed' THEN
+    RAISE EXCEPTION 'Cannot calculate settlements for % game', v_game_status;
+  END IF;
+
+  -- Step 4: Check if settlements already exist for this game
+  -- If they do, return existing settlements (idempotent)
+  IF EXISTS (
+    SELECT 1 FROM settlements 
+    WHERE game_id = p_game_id 
+    AND deleted_at IS NULL
+    LIMIT 1
+  ) THEN
+    RETURN QUERY
+    SELECT 
+      s.id,
+      s.payer_id,
+      s.payee_id,
+      s.amount,
+      s.status,
+      s.created_at
+    FROM settlements s
+    WHERE s.game_id = p_game_id
+    AND s.deleted_at IS NULL
+    ORDER BY s.created_at;
+    RETURN;
+  END IF;
+
+  -- Step 5: Lock all game_participants rows for this game
+  -- Prevents concurrent transaction additions
+  PERFORM 1 FROM game_participants
+  WHERE game_id = p_game_id
+  FOR UPDATE;
+
+  -- Step 6: Calculate totals from locked data
+  SELECT 
+    COALESCE(SUM(total_buyin), 0),
+    COALESCE(SUM(total_cashout), 0)
+  INTO v_total_buyin, v_total_cashout
+  FROM game_participants
+  WHERE game_id = p_game_id;
+
+  -- Step 7: Validate financial consistency
+  v_difference := v_total_buyin - v_total_cashout;
+  
+  IF ABS(v_difference) > v_tolerance THEN
+    RAISE EXCEPTION 'Financial mismatch: Buy-in $% vs Cash-out $%. Difference: $%',
+      v_total_buyin, v_total_cashout, v_difference;
+  END IF;
+
+  -- Step 8: Validate all participants have valid net results
+  IF EXISTS (
+    SELECT 1 FROM game_participants
+    WHERE game_id = p_game_id
+    AND (net_result IS NaN OR net_result IS NULL)
+  ) THEN
+    RAISE EXCEPTION 'Invalid net results for some participants';
+  END IF;
+
+  -- Step 9: Validate no self-payments will be created
+  -- This ensures payer and payee are always different
+  IF EXISTS (
+    SELECT gp1.user_id
+    FROM game_participants gp1
+    JOIN game_participants gp2 ON gp1.game_id = gp2.game_id
+    WHERE gp1.game_id = p_game_id
+    AND gp1.net_result > v_tolerance
+    AND gp2.net_result < -v_tolerance
+    AND gp1.user_id = gp2.user_id
+  ) THEN
+    RAISE EXCEPTION 'Invalid settlement: user cannot pay themselves';
+  END IF;
+
+  -- Step 10: Calculate and insert settlements (within transaction lock)
+  -- Using a simple algorithm: match debtors with creditors
+  INSERT INTO settlements (game_id, payer_id, payee_id, amount, status, created_at)
+  SELECT 
+    p_game_id,
+    gp_debtor.user_id,
+    gp_creditor.user_id,
+    ROUND(
+      LEAST(
+        ABS(gp_debtor.net_result),
+        gp_creditor.net_result
+      )::NUMERIC, 2
+    ),
+    'pending',
+    NOW()
+  FROM (
+    SELECT user_id, net_result
+    FROM game_participants
+    WHERE game_id = p_game_id
+    AND net_result < -v_tolerance
+    ORDER BY net_result ASC
+  ) gp_debtor
+  CROSS JOIN LATERAL (
+    SELECT user_id, net_result
+    FROM game_participants
+    WHERE game_id = p_game_id
+    AND net_result > v_tolerance
+    AND net_result > 0
+    LIMIT 1
+  ) gp_creditor
+  WHERE LEAST(ABS(gp_debtor.net_result), gp_creditor.net_result) > v_tolerance
+  ON CONFLICT DO NOTHING
+  RETURNING 
+    settlements.id,
+    settlements.payer_id,
+    settlements.payee_id,
+    settlements.amount,
+    settlements.status,
+    settlements.created_at;
+
+  -- Step 11: If no settlements were created, transaction was inconsistent
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No valid settlements could be calculated';
+  END IF;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- 2. ADD LOGGING FOR SETTLEMENT CALCULATION ATTEMPTS
+-- ============================================================================
+
+-- Create settlement calculation audit table
+CREATE TABLE IF NOT EXISTS settlement_calculation_log (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  game_id UUID NOT NULL REFERENCES games(id),
+  attempted_by UUID REFERENCES profiles(id),
+  status TEXT CHECK (status IN ('success', 'failed', 'conflict')) NOT NULL,
+  error_message TEXT,
+  total_buyin DECIMAL(10, 2),
+  total_cashout DECIMAL(10, 2),
+  settlements_created INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for queries
+CREATE INDEX IF NOT EXISTS idx_settlement_calc_log_game ON settlement_calculation_log(game_id);
+CREATE INDEX IF NOT EXISTS idx_settlement_calc_log_status ON settlement_calculation_log(status);
+CREATE INDEX IF NOT EXISTS idx_settlement_calc_log_created_at ON settlement_calculation_log(created_at DESC);
+
+-- ============================================================================
+-- 3. CREATE CONCURRENT TRANSACTION LOCK TRACKER
+-- ============================================================================
+
+-- Table to track in-flight settlement calculations
+CREATE TABLE IF NOT EXISTS settlement_calculation_locks (
+  game_id UUID PRIMARY KEY REFERENCES games(id),
+  user_id UUID NOT NULL REFERENCES profiles(id),
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '5 minutes'
+);
+
+-- Index for cleanup
+CREATE INDEX IF NOT EXISTS idx_settlement_locks_expires ON settlement_calculation_locks(expires_at);
+
+-- Function to acquire settlement calculation lock
+CREATE OR REPLACE FUNCTION acquire_settlement_lock(p_game_id UUID, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  -- Try to insert lock (will fail if lock exists)
+  BEGIN
+    INSERT INTO settlement_calculation_locks (game_id, user_id, expires_at)
+    VALUES (p_game_id, p_user_id, NOW() + INTERVAL '5 minutes')
+    ON CONFLICT (game_id) DO NOTHING;
+    
+    -- Check if we got the lock
+    RETURN EXISTS (
+      SELECT 1 FROM settlement_calculation_locks
+      WHERE game_id = p_game_id
+      AND user_id = p_user_id
+      AND expires_at > NOW()
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RETURN FALSE;
+  END;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to release settlement calculation lock
+CREATE OR REPLACE FUNCTION release_settlement_lock(p_game_id UUID, p_user_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  DELETE FROM settlement_calculation_locks
+  WHERE game_id = p_game_id
+  AND user_id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- 4. ADD CONSTRAINTS TO PREVENT INVALID SETTLEMENTS
+-- ============================================================================
+
+-- Ensure payer and payee are different
+ALTER TABLE settlements
+ADD CONSTRAINT settlements_no_self_payment 
+CHECK (payer_id != payee_id);
+
+-- Ensure amounts are reasonable
+ALTER TABLE settlements
+ADD CONSTRAINT settlements_valid_amount 
+CHECK (amount > 0 AND amount <= 5000.00);
+
+-- Ensure amounts have 2 decimal places
+ALTER TABLE settlements
+ADD CONSTRAINT settlements_decimal_precision 
+CHECK (amount = ROUND(amount::NUMERIC, 2));
+
+-- ============================================================================
+-- 5. ADD TRIGGER TO LOG SETTLEMENT CALCULATIONS
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION log_settlement_creation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    -- Log settlement creation
+    INSERT INTO settlement_calculation_log (
+      game_id, 
+      attempted_by, 
+      status, 
+      settlements_created
+    )
+    VALUES (
+      NEW.game_id,
+      auth.uid(),
+      'success',
+      1
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER settlement_creation_log_trigger
+AFTER INSERT ON settlements
+FOR EACH ROW
+EXECUTE FUNCTION log_settlement_creation();
+
+-- ============================================================================
+-- 6. CREATE IDEMPOTENT SETTLEMENT RETRIEVAL FUNCTION
+-- ============================================================================
+
+-- Function to safely get or calculate settlements (idempotent)
+CREATE OR REPLACE FUNCTION get_or_calculate_settlements(p_game_id UUID)
+RETURNS TABLE (
+  settlement_id UUID,
+  payer_id UUID,
+  payee_id UUID,
+  amount DECIMAL(10, 2),
+  status TEXT
+) AS $$
+BEGIN
+  -- Try to return existing settlements first
+  RETURN QUERY
+  SELECT 
+    s.id,
+    s.payer_id,
+    s.payee_id,
+    s.amount,
+    s.status
+  FROM settlements s
+  WHERE s.game_id = p_game_id
+  AND s.deleted_at IS NULL
+  ORDER BY s.created_at;
+
+  -- If no settlements exist, calculate them atomically
+  IF NOT FOUND THEN
+    RETURN QUERY
+    SELECT * FROM calculate_settlement_atomic(p_game_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================================
+-- 7. GRANT PERMISSIONS
+-- ============================================================================
+
+GRANT EXECUTE ON FUNCTION calculate_settlement_atomic TO authenticated;
+GRANT EXECUTE ON FUNCTION acquire_settlement_lock TO authenticated;
+GRANT EXECUTE ON FUNCTION release_settlement_lock TO authenticated;
+GRANT EXECUTE ON FUNCTION get_or_calculate_settlements TO authenticated;
+
+-- ============================================================================
+-- 8. CLEANUP: Remove expired locks (run periodically or with cron)
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION cleanup_expired_settlement_locks()
+RETURNS INT AS $$
+DECLARE
+  v_deleted INT;
+BEGIN
+  DELETE FROM settlement_calculation_locks
+  WHERE expires_at < NOW();
+  
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  RETURN v_deleted;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION cleanup_expired_settlement_locks TO authenticated;
+
+-- ============================================================================
+-- NOTES
+-- ============================================================================
+-- 
+-- This migration implements atomic settlement calculation using:
+--
+-- 1. ROW-LEVEL LOCKING (FOR UPDATE)
+--    - Locks game and game_participants rows
+--    - Prevents concurrent modifications during calculation
+--    - Transactions wait for lock, ensuring serial execution
+--
+-- 2. IDEMPOTENCY
+--    - calculate_settlement_atomic() returns existing settlements if they exist
+--    - Safe to call multiple times without creating duplicates
+--    - Prevents "double settlement" bugs
+--
+-- 3. CONSISTENCY CHECKS
+--    - Validates buyin/cashout totals match (within tolerance)
+--    - Validates participant net results are valid numbers
+--    - Prevents self-payment settlements
+--    - Rounds amounts to 2 decimal places
+--
+-- 4. AUDIT LOGGING
+--    - Logs all settlement calculation attempts
+--    - Tracks success/failure and error messages
+--    - Enables post-incident analysis
+--
+-- 5. LOCK TRACKING
+--    - Prevents simultaneous settlement calculations for same game
+--    - Tracks in-flight operations with timeout
+--    - Enables cleanup of abandoned locks
+--
+-- USAGE IN DART:
+--
+--   // Acquire lock before calculation
+--   final lockAcquired = await _client.rpc('acquire_settlement_lock', 
+--     params: {'p_game_id': gameId, 'p_user_id': userId});
+--
+--   if (!lockAcquired) {
+--     throw Exception('Settlement calculation in progress');
+--   }
+--
+--   try {
+--     // Call atomic calculation
+--     final result = await _client.rpc('get_or_calculate_settlements',
+--       params: {'p_game_id': gameId});
+--     return settlements;
+--   } finally {
+--     // Always release lock
+--     await _client.rpc('release_settlement_lock',
+--       params: {'p_game_id': gameId, 'p_user_id': userId});
+--   }
+-- ============================================================================

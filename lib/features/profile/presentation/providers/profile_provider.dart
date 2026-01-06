@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/repositories/profile_repository.dart';
@@ -73,6 +74,10 @@ class ProfileController {
       _ref.invalidate(authStateProvider);
       return true;
     }
+    
+    if (result is Failure) {
+      debugPrint('🔴 Profile update failed: ${(result as Failure).message}');
+    }
     return false;
   }
 
@@ -93,5 +98,21 @@ class ProfileController {
   Future<List<ProfileModel>> searchProfiles(String query) async {
     final result = await _repository.searchProfiles(query);
     return result is Success<List<ProfileModel>> ? result.data : [];
+  }
+
+  Future<bool> deleteProfile() async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) return false;
+
+    final result = await _repository.deleteProfile(userId);
+
+    if (result is Success) {
+      // Sign out the user after deletion
+      await SupabaseService.instance.auth.signOut();
+      _ref.invalidate(authStateProvider);
+      _ref.invalidate(currentProfileProvider);
+      return true;
+    }
+    return false;
   }
 }

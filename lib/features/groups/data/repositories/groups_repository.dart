@@ -7,26 +7,30 @@ import '../models/group_member_model.dart';
 class GroupsRepository {
   final SupabaseClient _client = SupabaseService.instance;
 
+  // Expose client for storage operations
+  SupabaseClient get client => _client;
+
   Future<Result<List<GroupModel>>> getUserGroups() async {
     try {
       final userId = SupabaseService.currentUserId;
       if (userId == null) {
-        return const Result.failure('User not authenticated');
+        return const Failure('User not authenticated');
       }
 
-      // Join with group_members to filter by membership
+      // Query all groups where user is a member (RLS allows via group_members table)
+      // This single query handles both creators and regular members
       final response = await _client
-          .from('groups')
-          .select('*, group_members!inner(user_id)')
-          .eq('group_members.user_id', userId);
+          .from('group_members')
+          .select('groups(*)')
+          .eq('user_id', userId);
 
       final groups = (response as List)
-          .map((json) => GroupModel.fromJson(json))
+          .map((json) => GroupModel.fromJson(json['groups'] as Map<String, dynamic>))
           .toList();
 
-      return Result.success(groups);
+      return Success(groups);
     } catch (e) {
-      return Result.failure('Failed to load groups: ${e.toString()}');
+      return Failure('Failed to load groups: ${e.toString()}');
     }
   }
 
@@ -39,12 +43,12 @@ class GroupsRepository {
           .maybeSingle();
 
       if (response == null) {
-        return const Result.failure('Group not found');
+        return const Failure('Group not found');
       }
 
-      return Result.success(GroupModel.fromJson(response));
+      return Success(GroupModel.fromJson(response));
     } catch (e) {
-      return Result.failure('Failed to load group: ${e.toString()}');
+      return Failure('Failed to load group: ${e.toString()}');
     }
   }
 
@@ -59,7 +63,7 @@ class GroupsRepository {
     try {
       final userId = SupabaseService.currentUserId;
       if (userId == null) {
-        return const Result.failure('User not authenticated');
+        return const Failure('User not authenticated');
       }
 
       // Create group
@@ -87,9 +91,9 @@ class GroupsRepository {
         'is_creator': true,
       });
 
-      return Result.success(group);
+      return Success(group);
     } catch (e) {
-      return Result.failure('Failed to create group: ${e.toString()}');
+      return Failure('Failed to create group: ${e.toString()}');
     }
   }
 
@@ -97,6 +101,7 @@ class GroupsRepository {
     required String groupId,
     String? name,
     String? description,
+    String? avatarUrl,
     String? privacy,
     String? defaultCurrency,
     double? defaultBuyin,
@@ -109,6 +114,7 @@ class GroupsRepository {
 
       if (name != null) updates['name'] = name;
       if (description != null) updates['description'] = description;
+      if (avatarUrl != null) updates['avatar_url'] = avatarUrl;
       if (privacy != null) updates['privacy'] = privacy;
       if (defaultCurrency != null) updates['default_currency'] = defaultCurrency;
       if (defaultBuyin != null) updates['default_buyin'] = defaultBuyin;
@@ -123,18 +129,18 @@ class GroupsRepository {
           .select()
           .single();
 
-      return Result.success(GroupModel.fromJson(response));
+      return Success(GroupModel.fromJson(response));
     } catch (e) {
-      return Result.failure('Failed to update group: ${e.toString()}');
+      return Failure('Failed to update group: ${e.toString()}');
     }
   }
 
   Future<Result<void>> deleteGroup(String groupId) async {
     try {
       await _client.from('groups').delete().eq('id', groupId);
-      return const Result.success(null);
+      return const Success(null);
     } catch (e) {
-      return Result.failure('Failed to delete group: ${e.toString()}');
+      return Failure('Failed to delete group: ${e.toString()}');
     }
   }
 
@@ -143,16 +149,27 @@ class GroupsRepository {
     try {
       final response = await _client
           .from('group_members')
-          .select('*, profile:profiles(*)')
+          .select('*, profiles!user_id(*)')
           .eq('group_id', groupId);
 
       final members = (response as List)
-          .map((json) => GroupMemberModel.fromJson(json))
+          .map((json) {
+            // Remap nested profile relation to the expected single profile object
+            final profiles = json['profiles'];
+            if (profiles is List && profiles.isNotEmpty) {
+              json['profile'] = profiles.first;
+              json.remove('profiles');
+            } else if (profiles is Map<String, dynamic>) {
+              json['profile'] = profiles;
+              json.remove('profiles');
+            }
+            return GroupMemberModel.fromJson(json);
+          })
           .toList();
 
-      return Result.success(members);
+      return Success(members);
     } catch (e) {
-      return Result.failure('Failed to load members: ${e.toString()}');
+      return Failure('Failed to load members: ${e.toString()}');
     }
   }
 
@@ -168,9 +185,9 @@ class GroupsRepository {
         'is_creator': false,
       });
 
-      return const Result.success(null);
+      return const Success(null);
     } catch (e) {
-      return Result.failure('Failed to add member: ${e.toString()}');
+      return Failure('Failed to add member: ${e.toString()}');
     }
   }
 
@@ -185,9 +202,9 @@ class GroupsRepository {
           .eq('group_id', groupId)
           .eq('user_id', userId);
 
-      return const Result.success(null);
+      return const Success(null);
     } catch (e) {
-      return Result.failure('Failed to remove member: ${e.toString()}');
+      return Failure('Failed to remove member: ${e.toString()}');
     }
   }
 
@@ -203,9 +220,9 @@ class GroupsRepository {
           .eq('group_id', groupId)
           .eq('user_id', userId);
 
-      return const Result.success(null);
+      return const Success(null);
     } catch (e) {
-      return Result.failure('Failed to update member role: ${e.toString()}');
+      return Failure('Failed to update member role: ${e.toString()}');
     }
   }
 
@@ -219,12 +236,12 @@ class GroupsRepository {
           .maybeSingle();
 
       if (response == null) {
-        return const Result.success(false);
+        return const Success(false);
       }
 
-      return Result.success(response['role'] == 'admin');
+      return Success(response['role'] == 'admin');
     } catch (e) {
-      return Result.failure('Failed to check admin status: ${e.toString()}');
+      return Failure('Failed to check admin status: ${e.toString()}');
     }
   }
 }

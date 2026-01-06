@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
@@ -18,6 +19,68 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late TextEditingController _firstNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _usernameController;
+
+  Widget _buildAvatarImage(String? url, String initials) {
+    if ((url ?? '').isEmpty) {
+      return Container(
+        width: 120,
+        height: 120,
+        color: Colors.grey[300],
+        child: Center(
+          child: Text(
+            initials,
+            style: const TextStyle(fontSize: 32),
+          ),
+        ),
+      );
+    }
+
+    // Check contains 'svg' - handles DiceBear URLs like /svg?seed=...
+    if (url!.toLowerCase().contains('svg')) {
+      return SvgPicture.network(
+        url,
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        placeholderBuilder: (_) => Center(
+          child: CircularProgressIndicator(
+            value: 0,
+          ),
+        ),
+      );
+    }
+
+    return Image.network(
+      url,
+      width: 120,
+      height: 120,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: 120,
+          height: 120,
+          color: Colors.grey[300],
+          child: Center(
+            child: Text(
+              initials,
+              style: const TextStyle(fontSize: 32),
+            ),
+          ),
+        );
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: CircularProgressIndicator(
+            value: loadingProgress.expectedTotalBytes != null
+                ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                : null,
+          ),
+        );
+      },
+    );
+  }
   late TextEditingController _phoneController;
   late TextEditingController _streetController;
   late TextEditingController _cityController;
@@ -56,15 +119,107 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   Future<void> _pickImage() async {
-    debugPrint('🔵 Picking image from gallery');
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Image Source'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    debugPrint('🔵 Picking image from $source');
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image = await picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
 
     if (image != null) {
       debugPrint('✅ Image selected: ${image.path}');
       setState(() => _imageFile = File(image.path));
     } else {
       debugPrint('🔵 Image selection cancelled');
+    }
+  }
+
+  Future<void> _showDeleteConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Profile'),
+        content: const Text(
+          'Are you sure you want to delete your profile? '
+          'This action cannot be undone and will remove all your data, '
+          'group memberships, and game history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteProfile();
+    }
+  }
+
+  Future<void> _deleteProfile() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final controller = ref.read(profileControllerProvider);
+      final success = await controller.deleteProfile();
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile deleted successfully')),
+        );
+        // Sign out and go to login
+        context.go('/login');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete profile')),
+        );
+      }
+    } catch (e) {
+      debugPrint('🔴 Error deleting profile: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -172,8 +327,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
           // Initialize controllers with current values only once
           if (!_controllersInitialized) {
-            _firstNameController.text = profile.firstName;
-            _lastNameController.text = profile.lastName;
+            _firstNameController.text = profile.firstName ?? '';
+            _lastNameController.text = profile.lastName ?? '';
             _usernameController.text = profile.username ?? '';
             _phoneController.text = profile.phoneNumber ?? '';
             _streetController.text = profile.streetAddress ?? '';
@@ -181,7 +336,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             _stateController.text = profile.stateProvince ?? '';
             _postalCodeController.text = profile.postalCode ?? '';
             // Map common country abbreviations to full names
-            String mappedCountry = profile.country;
+            String mappedCountry = profile.country ?? 'United States';
             if (mappedCountry == 'US' || mappedCountry == 'USA' || mappedCountry == 'U.S.' || mappedCountry == 'U.S.A.') {
               mappedCountry = 'United States';
             } else if (mappedCountry == 'UK' || mappedCountry == 'GB') {
@@ -222,46 +377,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 )
                               : profile.avatarUrl != null
                                   ? ClipOval(
-                                      child: Image.network(
-                                        profile.avatarUrl!,
-                                        width: 120,
-                                        height: 120,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          final fn = (profile.firstName).trim();
-                                          final ln = (profile.lastName).trim();
-                                          final i1 = fn.isNotEmpty ? fn.substring(0, 1) : '';
-                                          final i2 = ln.isNotEmpty ? ln.substring(0, 1) : '';
-                                          final initials = (i1 + i2).isNotEmpty ? (i1 + i2) : '?';
-                                          return Container(
-                                            width: 120,
-                                            height: 120,
-                                            color: Colors.grey[300],
-                                            child: Center(
-                                              child: Text(
-                                                initials,
-                                                style: const TextStyle(fontSize: 32),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null) return child;
-                                          return Center(
-                                            child: CircularProgressIndicator(
-                                              value: loadingProgress.expectedTotalBytes != null
-                                                  ? loadingProgress.cumulativeBytesLoaded /
-                                                      loadingProgress.expectedTotalBytes!
-                                                  : null,
-                                            ),
-                                          );
-                                        },
+                                      child: _buildAvatarImage(
+                                        profile.avatarUrl,
+                                        _getInitials(profile.firstName ?? '', profile.lastName ?? ''),
                                       ),
                                     )
                                   : Builder(
                                       builder: (_) {
-                                        final fn = (profile.firstName).trim();
-                                        final ln = (profile.lastName).trim();
+                                        final fn = (profile.firstName ?? '').trim();
+                                        final ln = (profile.lastName ?? '').trim();
                                         final i1 = fn.isNotEmpty ? fn.substring(0, 1) : '';
                                         final i2 = ln.isNotEmpty ? ln.substring(0, 1) : '';
                                         final initials = (i1 + i2).isNotEmpty ? (i1 + i2) : '?';
@@ -339,7 +463,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   TextFormField(
                     controller: _usernameController,
                     decoration: const InputDecoration(
-                      labelText: 'Username',
+                      labelText: 'Username - used for Venmo & PayPal',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -411,7 +535,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedCountry,
+                          initialValue: _selectedCountry,
                           decoration: const InputDecoration(
                             labelText: 'Country *',
                             border: OutlineInputBorder(),
@@ -440,6 +564,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 32),
+
+                  // Danger Zone
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Danger Zone',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton(
+                    onPressed: _isLoading ? null : _showDeleteConfirmation,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                    child: const Text(
+                      'Delete Profile',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -449,5 +599,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         error: (error, stack) => Center(child: Text('Error: $error')),
       ),
     );
+  }
+
+  String _getInitials(String firstName, String lastName) {
+    final fn = firstName.trim();
+    final ln = lastName.trim();
+    final i1 = fn.isNotEmpty ? fn.substring(0, 1) : '';
+    final i2 = ln.isNotEmpty ? ln.substring(0, 1) : '';
+    return (i1 + i2).isNotEmpty ? (i1 + i2) : '?';
   }
 }
