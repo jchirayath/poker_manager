@@ -1,5 +1,5 @@
 name: poker_manager
-description: A poker game management application
+description: Poker Manager - Group Poker Game Organizer
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -34,4 +34,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/images/img_app_logo.svg
     - env.json
