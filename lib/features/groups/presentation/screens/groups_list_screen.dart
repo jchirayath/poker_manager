@@ -204,7 +204,7 @@ class GroupsListScreen extends ConsumerWidget {
                       return ListTile(
                         leading: Builder(
                           builder: (context) {
-                            debugPrint('🏢 Group: ${group.name} | Avatar: ${group.avatarUrl}');
+                            // Removed group debug info
                             return _buildGroupAvatar(group.avatarUrl, group.name);
                           },
                         ),

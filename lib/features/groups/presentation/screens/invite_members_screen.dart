@@ -51,7 +51,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         });
       }
     } catch (e) {
-      debugPrint('🔴 Error loading pending invites: $e');
+      // Removed group debug info
       if (mounted) {
         setState(() => _loadingInvites = false);
       }
@@ -71,17 +71,17 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
       final email = _emailController.text.trim();
       final fullName = _nameController.text.trim();
 
-      debugPrint('🔵 Sending invite to $email for group ${widget.groupId}');
-      debugPrint('🔵 Current user: ${currentUser.id}');
+      // Removed group debug info
+      // Removed group debug info
       
       // First, try to check if we have a valid session token
       final session = SupabaseService.instance.auth.currentSession;
       final hasValidToken = session != null && session.accessToken.isNotEmpty;
-      debugPrint('🔵 Has valid session token: $hasValidToken');
+      // Removed group debug info
 
       // Always try direct database insertion first (works for local users and authenticated users)
       try {
-        debugPrint('🔵 Creating invitation in database');
+        // Removed group debug info
         await SupabaseService.instance.from('group_invitations').insert({
           'group_id': widget.groupId,
           'email': email,
@@ -89,12 +89,12 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
           'status': 'pending',
           'invited_name': fullName,
         });
-        debugPrint('✅ Invitation created successfully in database');
+        // Removed group debug info
       } catch (dbError) {
-        debugPrint('🔴 Database insertion failed: $dbError');
+        // Removed group debug info
         // If direct insertion fails, try the function call (for authenticated users)
         if (hasValidToken) {
-          debugPrint('🔵 Trying invite-user function as fallback');
+          // Removed group debug info
           final response = await SupabaseService.instance.functions.invoke(
             'invite-user',
             body: {
@@ -113,7 +113,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
             final errorMsg = data?['error'] as String? ?? 'Invite failed';
             throw errorMsg;
           }
-          debugPrint('✅ Invitation sent via function');
+          // Removed group debug info
         } else {
           // No valid token and database insert failed
           rethrow;
@@ -133,7 +133,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         const SnackBar(content: Text('Invitation sent successfully')),
       );
     } catch (e) {
-      debugPrint('🔴 Failed to send invite: $e');
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send invite: $e')),
@@ -159,7 +159,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         );
       }
     } catch (e) {
-      debugPrint('🔴 Failed to cancel invite: $e');
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to cancel invite: $e')),
@@ -184,7 +184,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         );
       }
     } catch (e) {
-      debugPrint('🔴 Failed to resend invite: $e');
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to resend invite: $e')),

@@ -2459,15 +2459,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                           child: ElevatedButton.icon(
                             onPressed: () async {
                               try {
-                                debugPrint(
-                                  '🎮 Starting game: ${widget.gameId}',
-                                );
+                                // Removed avatar debug logging
                                 final result = await ref
                                     .read(startGameProvider.notifier)
                                     .startExistingGame(widget.gameId);
-                                debugPrint(
-                                  '🎮 Game started successfully: $result',
-                                );
+                                // Removed avatar debug logging
 
                                 if (!mounted) return;
 

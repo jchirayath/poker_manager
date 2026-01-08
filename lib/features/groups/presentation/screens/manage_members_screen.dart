@@ -92,12 +92,12 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
   }
 
   Future<void> _addUser(String userId) async {
-    debugPrint('🔵 Adding user $userId to group ${widget.groupId}');
+    // Removed group debug info
     try {
       final controller = ref.read(groupControllerProvider);
       final ok = await controller.addMember(widget.groupId, userId);
       if (ok) {
-        debugPrint('✅ User added successfully');
+        // Removed group debug info
         await _refreshMembers();
         if (!mounted) return;
         _searchController.clear();
@@ -108,7 +108,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
           );
         }
       } else {
-        debugPrint('🔴 Failed to add member');
+        // Removed group debug info
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to add member')),
@@ -116,8 +116,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         }
       }
     } catch (e, stack) {
-      debugPrint('🔴 Error adding member: $e');
-      debugPrintStack(stackTrace: stack);
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -127,12 +126,12 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
   }
 
   Future<void> _removeUser(String userId) async {
-    debugPrint('🔵 Removing user $userId from group ${widget.groupId}');
+    // Removed group debug info
     try {
       final controller = ref.read(groupControllerProvider);
       final ok = await controller.removeMember(widget.groupId, userId);
       if (ok) {
-        debugPrint('✅ User removed successfully');
+        // Removed group debug info
         await _refreshMembers();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -140,7 +139,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
           );
         }
       } else {
-        debugPrint('🔴 Failed to remove member');
+        // Removed group debug info
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to remove member')),
@@ -148,8 +147,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         }
       }
     } catch (e, stack) {
-      debugPrint('🔴 Error removing member: $e');
-      debugPrintStack(stackTrace: stack);
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -159,7 +157,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
   }
 
   Future<void> _updateRole(String userId, String role) async {
-    debugPrint('🔵 Updating user $userId role to $role');
+    // Removed group debug info
     try {
       final controller = ref.read(groupControllerProvider);
       final ok = await controller.updateMemberRole(

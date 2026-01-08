@@ -519,7 +519,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     required String currency,
   }) async {
     try {
-      debugPrint('🎮 Starting game: $gameName with ${playerIds.length} players');
+      // Removed avatar debug logging
       
       // Get the game ID from the create game provider state
       final createGameState = ref.read(createGameProvider);

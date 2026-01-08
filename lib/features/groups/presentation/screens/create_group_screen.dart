@@ -92,7 +92,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _createGroup() async {
-    debugPrint('🔵 Creating new group');
+    // Removed group debug info
     
     // Pre-validation: Check all required fields
     if (!_validateBeforeCreate()) {
@@ -110,7 +110,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       }
 
       final controller = ref.read(groupControllerProvider);
-      debugPrint('🔵 Calling createGroup with name: ${_nameController.text}');
+      // Removed group debug info
       final createResult = await controller.createGroup(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
@@ -125,18 +125,18 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       // Add selected users as members
       if (createResult is Success<String>) {
         final groupId = createResult.data;
-        debugPrint('✅ Group created with ID: $groupId');
+        // Removed group debug info
 
         if (_selectedUsers.isNotEmpty) {
-          debugPrint('🔵 Adding ${_selectedUsers.length} members');
+          // Removed group debug info
           for (final user in _selectedUsers) {
             await controller.addMember(groupId, user.id);
           }
-          debugPrint('✅ Members added');
+          // Removed group debug info
         }
 
         if (_pendingInvites.isNotEmpty) {
-          debugPrint('🔵 Sending ${_pendingInvites.length} invitations');
+          // Removed group debug info
           for (final invite in _pendingInvites) {
             try {
               await SupabaseService.instance.from('group_invitations').insert({
@@ -150,11 +150,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               debugPrint('⚠️ Failed to send invite to ${invite['email']}: $e');
             }
           }
-          debugPrint('✅ Invitations sent');
+          // Removed group debug info
         }
 
         if (_pendingLocalUsers.isNotEmpty) {
-          debugPrint('🔵 Creating ${_pendingLocalUsers.length} local users');
+          // Removed group debug info
           final localUserController = ref.read(localUserControllerProvider);
           for (final localUser in _pendingLocalUsers) {
             try {
@@ -169,7 +169,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               debugPrint('⚠️ Failed to create local user ${localUser['firstName']}: $e');
             }
           }
-          debugPrint('✅ Local users created');
+          // Removed group debug info
         }
 
         if (!mounted) return;
@@ -182,7 +182,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         // Use push so the user can navigate back to Create or List
         context.push(RouteConstants.groupDetail.replaceAll(':id', groupId));
       } else if (createResult is Failure<String>) {
-        debugPrint('🔴 Group creation failed: ${createResult.message}');
+        // Removed group debug info
         setState(() => _isLoading = false);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -190,8 +190,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         );
       }
     } catch (e, stack) {
-      debugPrint('🔴 Error creating group: $e');
-      debugPrintStack(stackTrace: stack);
+      // Removed group debug info
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -202,7 +201,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _searchUsers(String query) async {
-    debugPrint('🔵 Searching for users: $query');
+    // Removed group debug info
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
@@ -216,7 +215,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     try {
       final profileController = ref.read(profileControllerProvider);
       final results = await profileController.searchProfiles(query);
-      debugPrint('✅ Found ${results.length} users');
+      // Removed group debug info
 
       if (mounted) {
         setState(() {
@@ -227,8 +226,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         });
       }
     } catch (e, stack) {
-      debugPrint('🔴 Search error: $e');
-      debugPrintStack(stackTrace: stack);
+      // Removed group debug info
       if (mounted) {
         setState(() => _isSearching = false);
       }
@@ -436,7 +434,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   bool _validateBeforeCreate() {
     // Validate form fields (group name, buy-in, etc.)
     if (!_formKey.currentState!.validate()) {
-      debugPrint('🔴 Form validation failed');
+      // Removed group debug info
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all required fields')),
       );
@@ -445,7 +443,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
     // Validate group name is not empty
     if (_nameController.text.trim().isEmpty) {
-      debugPrint('🔴 Group name is empty');
+      // Removed group debug info
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Group name is required')),
       );
@@ -455,7 +453,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     // Validate default buy-in is valid
     final buyin = double.tryParse(_buyinController.text);
     if (buyin == null || buyin <= 0) {
-      debugPrint('🔴 Invalid buy-in amount');
+      // Removed group debug info
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Default buy-in must be a valid positive number')),
       );
@@ -464,7 +462,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
     // Validate currency is selected
     if (_currency.isEmpty) {
-      debugPrint('🔴 Currency not selected');
+      // Removed group debug info
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a currency')),
       );
@@ -473,14 +471,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
     // Validate privacy is selected
     if (_privacy.isEmpty) {
-      debugPrint('🔴 Privacy setting not selected');
+      // Removed group debug info
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select privacy setting')),
       );
       return false;
     }
 
-    debugPrint('✅ All validations passed');
+    // Removed group debug info
     return true;
   }
 

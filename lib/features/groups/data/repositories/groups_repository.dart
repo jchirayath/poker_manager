@@ -33,7 +33,7 @@ class GroupsRepository {
             if (groupData['avatar_url'] != null) {
               final original = groupData['avatar_url'];
               groupData['avatar_url'] = fixDiceBearUrl(groupData['avatar_url']);
-              debugPrint('🎨 Group avatar URL fixed: $original → ${groupData['avatar_url']}');
+              // Removed group avatar URL fixed debug
             }
             return GroupModel.fromJson(groupData);
           })

@@ -61,12 +61,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Future<void> _removeUser(String userId) async {
-    debugPrint('🔵 Removing user $userId from group ${widget.groupId}');
+    // Removed group debug info
     try {
       final controller = ref.read(groupControllerProvider);
       final ok = await controller.removeMember(widget.groupId, userId);
       if (ok) {
-        debugPrint('✅ User removed successfully');
+        // Removed group debug info
         await _refreshMembers();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -74,7 +74,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           );
         }
       } else {
-        debugPrint('🔴 Failed to remove member');
+        // Removed group debug info
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to remove member')),
@@ -82,8 +82,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         }
       }
     } catch (e, stack) {
-      debugPrint('🔴 Error removing member: $e');
-      debugPrintStack(stackTrace: stack);
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -93,7 +92,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Future<void> _updateRole(String userId, String role) async {
-    debugPrint('🔵 Updating user $userId role to $role');
+    // Removed group debug info
     try {
       final controller = ref.read(groupControllerProvider);
       final ok = await controller.updateMemberRole(
@@ -102,7 +101,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         role: role,
       );
       if (ok) {
-        debugPrint('✅ Role updated to $role');
+        // Removed group debug info
         await _refreshMembers();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -110,7 +109,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           );
         }
       } else {
-        debugPrint('🔴 Failed to update role');
+        // Removed group debug info
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to update role')),
@@ -118,8 +117,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         }
       }
     } catch (e, stack) {
-      debugPrint('🔴 Error updating role: $e');
-      debugPrintStack(stackTrace: stack);
+      // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
