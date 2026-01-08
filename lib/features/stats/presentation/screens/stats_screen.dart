@@ -40,29 +40,33 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ref.invalidate(groupStatsProvider(resolvedGroupId));
           }
         },
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
           children: [
-            _buildModeSelector(context),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _buildModeSelector(context),
+            ),
             const SizedBox(height: 12),
-            if (_mode == StatsMode.recentGame)
-              _RecentGamesSection(
-                timeFilter: _timeFilter,
-                onTimeFilterChanged: (f) => setState(() => _timeFilter = f),
-                gameQuery: _gameQuery,
-                onQueryChanged: (value) => setState(() => _gameQuery = value),
-                currentUserId: currentUserId,
-              )
-            else
-              _GroupStatsSection(
-                currentUserId: currentUserId,
-                selectedGroupId: resolvedGroupId,
-                onGroupChanged: (id) {
-                  setState(() => _selectedGroupId = id);
-                },
-                groupsAsync: groupsAsync,
+            Expanded(
+              child: SingleChildScrollView(
+                child: (_mode == StatsMode.recentGame)
+                    ? _RecentGamesSection(
+                        timeFilter: _timeFilter,
+                        onTimeFilterChanged: (f) => setState(() => _timeFilter = f),
+                        gameQuery: _gameQuery,
+                        onQueryChanged: (value) => setState(() => _gameQuery = value),
+                        currentUserId: currentUserId,
+                      )
+                    : _GroupStatsSection(
+                        currentUserId: currentUserId,
+                        selectedGroupId: resolvedGroupId,
+                        onGroupChanged: (id) {
+                          setState(() => _selectedGroupId = id);
+                        },
+                        groupsAsync: groupsAsync,
+                      ),
               ),
+            ),
           ],
         ),
       ),
@@ -92,6 +96,51 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 }
 
 class _RecentGamesSection extends ConsumerWidget {
+    static Widget buildGroupAvatar(String? url, String fallback, BuildContext context) {
+      final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : 'G';
+      if (url == null || url.isEmpty) {
+        return Padding(
+          padding: const EdgeInsets.only(right: 0),
+          child: CircleAvatar(
+            radius: 12,
+            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+            child: Text(
+              letter,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        );
+      }
+      if (url.toLowerCase().contains('svg')) {
+        return Padding(
+          padding: const EdgeInsets.only(right: 0),
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: SvgPicture.network(
+              fixDiceBearUrl(url)!,
+              placeholderBuilder: (_) => const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 1),
+              ),
+            ),
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.only(right: 0),
+        child: CircleAvatar(
+          radius: 12,
+          backgroundImage: NetworkImage(url),
+          backgroundColor: Colors.transparent,
+        ),
+      );
+    }
   final TimeFilter timeFilter;
   final void Function(TimeFilter filter) onTimeFilterChanged;
   final String gameQuery;
@@ -179,7 +228,13 @@ class _RecentGamesSection extends ConsumerWidget {
                               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 4),
-                            Text('${data.groupName} • ${_formatDate(data.game.gameDate)}'),
+                            Row(
+                              children: [
+                                buildGroupAvatar(data.groupAvatarUrl, data.groupName, context),
+                                const SizedBox(width: 8),
+                                Text('${data.groupName} • ${_formatDate(data.game.gameDate)}'),
+                              ],
+                            ),
                             const SizedBox(height: 12),
                             _RankingTable(
                               currency: data.game.currency,
@@ -346,9 +401,15 @@ class _GroupStatsSection extends ConsumerWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                data.groupName,
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                              Row(
+                                children: [
+                                  _buildGroupAvatar(data.groupAvatarUrl, data.groupName, context),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    data.groupName,
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                ],
                               ),
                               Text('${data.gameCount} games'),
                             ],
@@ -377,18 +438,25 @@ class _GroupStatsSection extends ConsumerWidget {
 
   static Widget _buildGroupAvatar(String? url, String fallback, BuildContext context) {
     final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : 'G';
-    if ((url ?? '').isEmpty) {
+    if (url == null || url.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(right: 0),
-        child: Icon(
-          Icons.group,
-          size: 20,
-          color: Theme.of(context).colorScheme.primary,
+        child: CircleAvatar(
+          radius: 12,
+          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+          child: Text(
+            letter,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
         ),
       );
     }
 
-    if (url!.toLowerCase().contains('svg')) {
+    if (url.toLowerCase().contains('svg')) {
       return Padding(
         padding: const EdgeInsets.only(right: 0),
         child: SizedBox(

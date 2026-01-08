@@ -584,7 +584,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   return const SizedBox.shrink();
                 }
                 return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(8),
                   child: Card(
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -1039,20 +1039,19 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               },
             ),
             const SizedBox(height: 16),
+
+            // Create and Start Game Button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: createGameState.isLoading ? null : _createGame,
+                child: createGameState.isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Create Game'),
+              ),
+            ),
           ],
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: createGameState.isLoading ? null : _createGame,
-            child: createGameState.isLoading
-                ? const CircularProgressIndicator()
-                : const Text('Create Game'),
-          ),
         ),
       ),
     );

@@ -47,7 +47,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
           );
         }
       } catch (e) {
-        debugPrint('Scroll error: $e');
+        // Removed debugPrint
       }
     });
   }
@@ -69,12 +69,14 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
             children: [
               Text(
                 dateFormatter.format(now),
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(width: 12),
               Text(
                 timeFormatter.format(now),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
               ),
@@ -106,10 +108,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
           controller: _scrollController,
           padding: const EdgeInsets.all(16),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-              child: dateTimeCard,
-            ),
+            dateTimeCard,
             Container(
               height: 56,
               padding: const EdgeInsets.symmetric(vertical: 8),

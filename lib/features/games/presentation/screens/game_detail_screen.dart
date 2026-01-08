@@ -517,17 +517,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     final hasPhone = profile.phoneNumber?.isNotEmpty ?? false;
     final hasUsername = profile.username?.isNotEmpty ?? false;
 
-    // Debug logging
-    debugPrint('=== Payment Options for ${profile.fullName} ===');
-    debugPrint('Email: ${profile.email} (has: $hasEmail)');
-    debugPrint('Username: ${profile.username} (has: $hasUsername)');
-    debugPrint('Phone: ${profile.phoneNumber} (has: $hasPhone)');
-
+  
     final paymentOptions = <Map<String, dynamic>>[];
 
     // PayPal options
     if (hasEmail) {
-      debugPrint('Adding PayPal (email) option');
       paymentOptions.add({
         'label': 'PayPal (${profile.email})',
         'icon': Icons.payment,
@@ -539,7 +533,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     }
 
     if (hasUsername) {
-      debugPrint('Adding PayPal (username) option');
       paymentOptions.add({
         'label': 'PayPal (@${profile.username})',
         'icon': Icons.payment,
@@ -552,7 +545,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
     // Venmo options
     if (hasEmail) {
-      debugPrint('Adding Venmo (email) option');
       paymentOptions.add({
         'label': 'Venmo (${profile.email})',
         'icon': Icons.phone,
@@ -564,7 +556,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     }
 
     if (hasUsername) {
-      debugPrint('Adding Venmo (username) option');
       paymentOptions.add({
         'label': 'Venmo (@${profile.username})',
         'icon': Icons.phone,
@@ -576,7 +567,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     }
 
     if (hasPhone) {
-      debugPrint('Adding Venmo (phone) option');
       paymentOptions.add({
         'label': 'Venmo (${profile.phoneNumber})',
         'icon': Icons.phone,
@@ -587,7 +577,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
       });
     }
 
-    debugPrint('=== Total payment options: ${paymentOptions.length} ===');
 
     if (paymentOptions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -774,7 +763,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
             label: 'Copy',
             onPressed: () {
               // In production: use clipboard package
-              debugPrint('URL: $urlString');
             },
           ),
         ),
@@ -1288,11 +1276,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           }
         },
         failure: (message, data) {
-          debugPrint('Could not load settlements from database: $message');
         },
       );
     } catch (e) {
-      debugPrint('Error loading settlements: $e');
     }
   }
 
@@ -1593,7 +1579,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       if (buyins.isNotEmpty) {
                                         final firstBuyinAmount = buyins.first.amount;
                                         initialTotal += firstBuyinAmount;
-                                        debugPrint('User $userId: Initial buyin = $firstBuyinAmount, total initial = $initialTotal');
                                         
                                         if (buyins.length > 1) {
                                           final addtl = buyins
@@ -1601,7 +1586,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                               .map((b) => b.amount)
                                               .fold<double>(0, (a, b) => a + b);
                                           additionalTotal += addtl;
-                                          debugPrint('User $userId: Additional buyins = $addtl, total additional = $additionalTotal');
                                         }
                                       }
 
@@ -1609,14 +1593,8 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                           .map((c) => c.amount)
                                           .fold<double>(0, (a, b) => a + b);
                                       cashOutTotal += userCashout;
-                                      debugPrint('User $userId: Cashout = $userCashout, total cashout = $cashOutTotal');
                                     });
 
-                                    debugPrint('=== TOTALS ===');
-                                    debugPrint('Initial Total: $initialTotal');
-                                    debugPrint('Additional Total: $additionalTotal');
-                                    debugPrint('Cashout Total: $cashOutTotal');
-                                    debugPrint('Balance: ${(initialTotal + additionalTotal) - cashOutTotal}');
 
                                     final totalBalance =
                                         (initialTotal + additionalTotal) -

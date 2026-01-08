@@ -145,7 +145,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     if (source == null) return;
 
-    debugPrint('🔵 Picking image from $source');
     final picker = ImagePicker();
     final image = await picker.pickImage(
       source: source,
@@ -155,10 +154,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
 
     if (image != null) {
-      debugPrint('✅ Image selected: ${image.path}');
       setState(() => _imageFile = File(image.path));
     } else {
-      debugPrint('🔵 Image selection cancelled');
     }
   }
 
@@ -215,7 +212,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         );
       }
     } catch (e) {
-      debugPrint('🔴 Error deleting profile: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -226,9 +222,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
-    debugPrint('🔵 Saving profile');
     if (!_formKey.currentState!.validate()) {
-      debugPrint('🔴 Form validation failed');
       return;
     }
 
@@ -240,10 +234,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       // Upload avatar if selected
       bool avatarSuccess = true;
       if (_imageFile != null) {
-        debugPrint('🔵 Uploading avatar');
         avatarSuccess = await controller.uploadAvatar(_imageFile!);
         if (!avatarSuccess) {
-          debugPrint('🔴 Avatar upload failed');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -253,12 +245,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             );
           }
         } else {
-          debugPrint('✅ Avatar uploaded successfully');
         }
       }
 
       // Update profile
-      debugPrint('🔵 Updating profile fields');
       final success = await controller.updateProfile(
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
@@ -276,19 +266,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       setState(() => _isLoading = false);
 
       if (success) {
-        debugPrint('✅ Profile updated successfully');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully')),
         );
         context.pop();
       } else {
-        debugPrint('🔴 Profile update failed');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to update profile')),
         );
       }
     } catch (e, stack) {
-      debugPrint('🔴 Error saving profile: $e');
       debugPrintStack(stackTrace: stack);
       if (mounted) {
         setState(() => _isLoading = false);

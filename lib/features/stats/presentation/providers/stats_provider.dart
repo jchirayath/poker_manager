@@ -46,11 +46,13 @@ class GameBreakdown {
 class RecentGameStats {
   final GameModel game;
   final String groupName;
+  final String? groupAvatarUrl;
   final List<RankingRow> ranking;
 
   RecentGameStats({
     required this.game,
     required this.groupName,
+    required this.groupAvatarUrl,
     required this.ranking,
   });
 }
@@ -58,6 +60,7 @@ class RecentGameStats {
 class GroupStatsSummary {
   final String groupId;
   final String groupName;
+  final String? groupAvatarUrl;
   final String currency;
   final int gameCount;
   final List<RankingRow> ranking;
@@ -65,6 +68,7 @@ class GroupStatsSummary {
   GroupStatsSummary({
     required this.groupId,
     required this.groupName,
+    required this.groupAvatarUrl,
     required this.currency,
     required this.gameCount,
     required this.ranking,
@@ -155,6 +159,7 @@ final recentGameStatsProvider = FutureProvider<RecentGameStats>((ref) async {
   return RecentGameStats(
     game: latestGame!,
     groupName: latestGroup.name,
+    groupAvatarUrl: latestGroup.avatarUrl,
     ranking: ranking,
   );
 });
@@ -195,6 +200,7 @@ final recentGamesStatsProvider = FutureProvider<List<RecentGameStats>>((ref) asy
         RecentGameStats(
           game: game,
           groupName: group.name,
+          groupAvatarUrl: group.avatarUrl,
           ranking: ranking,
         ),
       );
@@ -241,6 +247,7 @@ final groupStatsProvider = FutureProvider.family<GroupStatsSummary, String>((ref
     return GroupStatsSummary(
       groupId: groupId,
       groupName: group?.name ?? 'Group',
+      groupAvatarUrl: group?.avatarUrl,
       currency: group?.defaultCurrency ?? 'USD',
       gameCount: 0,
       ranking: const [],
@@ -299,6 +306,7 @@ final groupStatsProvider = FutureProvider.family<GroupStatsSummary, String>((ref
   return GroupStatsSummary(
     groupId: groupId,
     groupName: group?.name ?? 'Group',
+    groupAvatarUrl: group?.avatarUrl,
     currency: completedGames.first.currency,
     gameCount: completedGames.length,
     ranking: ranking,

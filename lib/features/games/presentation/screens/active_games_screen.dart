@@ -26,13 +26,10 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('🎯 ActiveGamesScreen: Building screen...');
     final activeGamesAsync = ref.watch(activeGamesProvider);
     final pastGamesAsync = ref.watch(pastGamesProvider);
     final groupsAsync = ref.watch(groupsListProvider);
     
-    print('🎯 ActiveGamesScreen: activeGamesAsync isLoading=${activeGamesAsync.isLoading}, hasValue=${activeGamesAsync.hasValue}, hasError=${activeGamesAsync.hasError}');
-    print('🎯 ActiveGamesScreen: pastGamesAsync isLoading=${pastGamesAsync.isLoading}, hasValue=${pastGamesAsync.hasValue}, hasError=${pastGamesAsync.hasError}');
 
     return Scaffold(
       appBar: AppBar(
@@ -68,14 +65,12 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
                   ),
                 ),
                 error: (error, stack) {
-                  print('Active games error: $error');
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text('Error: $error'),
                   );
                 },
                 data: (games) {
-                  print('Active games loaded: ${games.length} games');
                   if (games.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -147,18 +142,12 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
                   ),
                 ),
                 error: (error, stack) {
-                  print('Past games error: $error');
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text('Error: $error'),
                   );
                 },
                 data: (games) {
-                  print('Past games loaded: ${games.length} games');
-                  for (final game in games) {
-                    print('  - ${game.game.name}: ${game.game.status}');
-                  }
-
                   final filtered = games
                       .where((entry) => entry.game.status == 'completed')
                       .where((entry) => _selectedGroupId == _allGroupsValue || entry.groupId == _selectedGroupId)
