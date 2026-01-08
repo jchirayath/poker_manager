@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/avatar_utils.dart';
+import '../providers/games_pagination_provider.dart';
 import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../data/models/transaction_model.dart';
@@ -2404,52 +2405,81 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
-                              ElevatedButton.icon(
-                                onPressed: _isStartingGame
-                                    ? null
-                                    : () async {
-                                        setState(() {
-                                          _isStartingGame = true;
-                                        });
-                                        try {
-                                          await ref
-                                              .read(startGameProvider.notifier)
-                                              .startExistingGame(widget.gameId);
-                                          if (!mounted) return;
-                                          ref.invalidate(
-                                            gameDetailProvider(widget.gameId),
-                                          );
-                                          ref.invalidate(activeGamesProvider);
-                                          ref.invalidate(pastGamesProvider);
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Game started successfully!'),
-                                            ),
-                                          );
-                                        } catch (e, stackTrace) {
-                                          debugPrint('❌ Error starting game: $e');
-                                          debugPrint('Stack trace: $stackTrace');
-                                          if (mounted) {
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _isStartingGame
+                                      ? null
+                                      : () async {
+                                          setState(() {
+                                            _isStartingGame = true;
+                                          });
+                                          try {
+                                            await ref
+                                                .read(startGameProvider.notifier)
+                                                .startExistingGame(widget.gameId);
+                                            if (!mounted) return;
+                                            ref.invalidate(
+                                              gameDetailProvider(widget.gameId),
+                                            );
+                                            ref.invalidate(activeGamesProvider);
+                                            ref.invalidate(pastGamesProvider);
+                                            ref.invalidate(
+                                              groupGamesProvider(game.groupId),
+                                            );
+                                            // Refresh game details and transactions after starting
+                                            ref.invalidate(gameWithParticipantsProvider(widget.gameId));
+                                            ref.invalidate(gameTransactionsProvider(widget.gameId));
                                             ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(
-                                                content: Text('Error starting game: $e'),
+                                              const SnackBar(
+                                                content: Text('Game started successfully!'),
                                               ),
                                             );
+                                          } catch (e, stackTrace) {
+                                            debugPrint('❌ Error starting game: $e');
+                                            debugPrint('Stack trace: $stackTrace');
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Error starting game: $e'),
+                                                ),
+                                              );
+                                            }
+                                          } finally {
+                                            if (mounted) {
+                                              setState(() {
+                                                _isStartingGame = false;
+                                              });
+                                            }
                                           }
-                                        } finally {
-                                          if (mounted) {
-                                            setState(() {
-                                              _isStartingGame = false;
-                                            });
-                                          }
-                                        }
-                                      },
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Start Game'),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
+                                        },
+                                  icon: const Icon(Icons.play_arrow),
+                                  label: _isStartingGame
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Loading transactions - please wait...',
+                                            style: TextStyle(
+                                              color: Colors.green[700],
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : const Text('Start Game'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    foregroundColor: Colors.green,
+                                    side: const BorderSide(color: Colors.green),
+                                  ),
                                 ),
                               ),
                               if (_isStartingGame)
@@ -4395,6 +4425,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                   groupGamesProvider(game.groupId),
                                 );
 
+                                ref.invalidate(paginatedGamesProvider);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
@@ -4483,6 +4514,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
                                     Navigator.of(context).pop();
 
+                                    ref.invalidate(paginatedGamesProvider);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text(
