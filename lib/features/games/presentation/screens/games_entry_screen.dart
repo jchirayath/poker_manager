@@ -25,10 +25,24 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
   final GlobalKey _cancelledGamesKey = GlobalKey();
   final GlobalKey _createGameKey = GlobalKey();
 
+
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openGameDetail(BuildContext context, String gameId) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => GameDetailScreen(gameId: gameId),
+      ),
+    );
+    if (result == true) {
+      // Game was cancelled, refresh providers
+      ref.invalidate(activeGamesProvider);
+      ref.invalidate(pastGamesProvider);
+    }
   }
 
   void _scrollToSection(GlobalKey key) {
@@ -215,15 +229,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                             ),
                             ...inProgressGames.map((gwg) => _GameCard(
                                   gameWithGroup: gwg,
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) => GameDetailScreen(
-                                          gameId: gwg.game.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                  onTap: () => _openGameDetail(context, gwg.game.id),
                                 )),
                             const SizedBox(height: 24),
                           ] else
@@ -250,15 +256,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                             ),
                             ...allScheduledGames.map((gwg) => _GameCard(
                                   gameWithGroup: gwg,
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) => GameDetailScreen(
-                                          gameId: gwg.game.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                  onTap: () => _openGameDetail(context, gwg.game.id),
                                 )),
                             const SizedBox(height: 24),
                           ] else
@@ -320,15 +318,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                       if (completedGames.isNotEmpty) ...
                         completedGames.take(10).map((gwg) => _GameCard(
                             gameWithGroup: gwg,
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => GameDetailScreen(
-                                    gameId: gwg.game.id,
-                                  ),
-                                ),
-                              );
-                            },
+                            onTap: () => _openGameDetail(context, gwg.game.id),
                           )),
                       if (completedGames.length > 10)
                         Padding(
@@ -379,15 +369,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                       if (cancelledGames.isNotEmpty) ...
                         cancelledGames.take(10).map((gwg) => _GameCard(
                             gameWithGroup: gwg,
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => GameDetailScreen(
-                                    gameId: gwg.game.id,
-                                  ),
-                                ),
-                              );
-                            },
+                            onTap: () => _openGameDetail(context, gwg.game.id),
                           )),
                       if (cancelledGames.length > 10)
                         Padding(

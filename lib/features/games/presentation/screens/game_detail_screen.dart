@@ -4489,6 +4489,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                     ),
                                   ),
                                 );
+                                Navigator.of(context).pop(true); // <-- Return true to trigger refresh
                               } catch (e, stackTrace) {
                                 debugPrint('❌ Error cancelling game: $e');
                                 debugPrint('Stack trace: $stackTrace');
