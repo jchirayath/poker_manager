@@ -19,6 +19,7 @@ class CreateGameScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
+  static final ScrollController _scrollController = ScrollController();
   late final TextEditingController _nameController;
   late final TextEditingController _buyinController;
   late final TextEditingController _additionalBuyinController;
@@ -567,10 +568,69 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Game'),
-        centerTitle: true,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_upward, size: 20),
+                ),
+              ),
+            ),
+            Flexible(
+              child: Text(
+                'Create Game',
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).appBarTheme.titleTextStyle ?? Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_downward, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,6 +726,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                         _selectedDate != null
                             ? DateFormat('MMM d, yyyy').format(_selectedDate!)
                             : 'Select date',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ),
@@ -683,6 +744,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                         _selectedTime != null
                             ? _selectedTime!.format(context)
                             : 'Select time',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ),

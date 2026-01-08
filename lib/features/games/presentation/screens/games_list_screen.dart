@@ -7,18 +7,79 @@ import 'game_detail_screen.dart';
 import 'start_game_screen.dart';
 import '../../data/models/game_model.dart';
 
-class GamesListScreen extends ConsumerWidget {
+class GamesListScreen extends ConsumerStatefulWidget {
   final String groupId;
 
   const GamesListScreen({required this.groupId, super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final gamesAsync = ref.watch(groupGamesProvider(groupId));
+  ConsumerState<GamesListScreen> createState() => _GamesListScreenState();
+}
+
+class _GamesListScreenState extends ConsumerState<GamesListScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  Widget build(BuildContext context) {
+    final gamesAsync = ref.watch(groupGamesProvider(widget.groupId));
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Games'),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_upward, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('Games'),
+            const SizedBox(width: 8),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_downward, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
         centerTitle: true,
       ),
       floatingActionButton: FloatingActionButton(
@@ -58,7 +119,7 @@ class GamesListScreen extends ConsumerWidget {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) =>
-                                CreateGameScreen(groupId: groupId),
+                                CreateGameScreen(groupId: widget.groupId),
                           ),
                         );
                       },
@@ -73,6 +134,7 @@ class GamesListScreen extends ConsumerWidget {
           data: (games) {
             if (games.isEmpty) {
               return ListView(
+                controller: _scrollController,
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(24),
@@ -88,7 +150,7 @@ class GamesListScreen extends ConsumerWidget {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    StartGameScreen(groupId: groupId),
+                                    StartGameScreen(groupId: widget.groupId),
                               ),
                             );
                           },
@@ -101,7 +163,7 @@ class GamesListScreen extends ConsumerWidget {
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    CreateGameScreen(groupId: groupId),
+                                    CreateGameScreen(groupId: widget.groupId),
                               ),
                             );
                           },
@@ -125,6 +187,7 @@ class GamesListScreen extends ConsumerWidget {
                 .toList();
 
             return ListView(
+              controller: _scrollController,
               padding: const EdgeInsets.only(bottom: 24),
               children: [
                 Padding(
@@ -136,7 +199,7 @@ class GamesListScreen extends ConsumerWidget {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) =>
-                                CreateGameScreen(groupId: groupId),
+                                CreateGameScreen(groupId: widget.groupId),
                           ),
                         );
                       },
@@ -304,7 +367,7 @@ class GamesListScreen extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) =>
-                        StartGameScreen(groupId: groupId),
+                        StartGameScreen(groupId: widget.groupId),
                   ),
                 );
               },
@@ -319,7 +382,7 @@ class GamesListScreen extends ConsumerWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) =>
-                        CreateGameScreen(groupId: groupId),
+                        CreateGameScreen(groupId: widget.groupId),
                   ),
                 );
               },
@@ -331,6 +394,6 @@ class GamesListScreen extends ConsumerWidget {
   }
 
   Future<void> _refresh(WidgetRef ref) async {
-    await ref.refresh(groupGamesProvider(groupId).future);
+    await ref.refresh(groupGamesProvider(widget.groupId).future);
   }
 }
