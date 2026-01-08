@@ -139,10 +139,6 @@ final recentGameStatsProvider = FutureProvider<RecentGameStats>((ref) async {
   }
 
   if (latestGame == null || latestGroup == null) {
-    ErrorLoggerService.logWarning(
-      'No recent games found',
-      context: 'recentGameStatsProvider',
-    );
     throw Exception('No recent games found');
   }
 

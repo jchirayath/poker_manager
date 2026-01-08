@@ -20,7 +20,7 @@ class StatsScreen extends ConsumerStatefulWidget {
 class _StatsScreenState extends ConsumerState<StatsScreen> {
   StatsMode _mode = StatsMode.recentGame;
   String? _selectedGroupId;
-  TimeFilter _timeFilter = TimeFilter.month;
+  TimeFilter _timeFilter = TimeFilter.week;
   String _gameQuery = '';
 
   @override
