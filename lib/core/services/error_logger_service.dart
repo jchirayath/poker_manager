@@ -83,15 +83,8 @@ class ErrorLoggerService {
   /// }
   /// ```
   static void logWarning(String message, {String? context}) {
-    developer.log(
-      message,
-      name: '$_appName/${context ?? 'Warning'}',
-      level: 900, // WARNING level
-    );
-
-    if (kDebugMode) {
-      debugPrint('⚠️  WARNING${context != null ? ' [$context]' : ''}: $message');
-    }
+    // Suppressed: Only log errors globally
+    return;
   }
 
   /// Log info for important events (data loaded, action completed, etc).
@@ -104,15 +97,8 @@ class ErrorLoggerService {
   /// );
   /// ```
   static void logInfo(String message, {String? context}) {
-    developer.log(
-      message,
-      name: '$_appName/${context ?? 'Info'}',
-      level: 800, // INFO level
-    );
-
-    if (kDebugMode) {
-      debugPrint('ℹ️  INFO${context != null ? ' [$context]' : ''}: $message');
-    }
+    // Suppressed: Only log errors globally
+    return;
   }
 
   /// Log debug messages (only in debug mode).
@@ -125,9 +111,8 @@ class ErrorLoggerService {
   /// );
   /// ```
   static void logDebug(String message, {String? context}) {
-    if (kDebugMode) {
-      debugPrint('🔍 DEBUG${context != null ? ' [$context]' : ''}: $message');
-    }
+    // Suppressed: Only log errors globally
+    return;
   }
 
   /// Format error message for user display (removes technical details).
