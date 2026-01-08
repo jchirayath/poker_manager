@@ -121,6 +121,14 @@ class GroupsListScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
+                            'logged in user',
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          Text(
                             displayName,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,

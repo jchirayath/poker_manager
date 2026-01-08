@@ -2560,6 +2560,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                     ),
                                   ),
                                 );
+                                // Refresh game details and transactions after stopping
+                                ref.invalidate(gameWithParticipantsProvider(widget.gameId));
+                                ref.invalidate(gameTransactionsProvider(widget.gameId));
                               } catch (e, stackTrace) {
                                 debugPrint('❌ Error stopping game: $e');
                                 debugPrint('Stack trace: $stackTrace');
