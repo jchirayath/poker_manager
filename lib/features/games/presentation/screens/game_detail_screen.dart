@@ -21,6 +21,8 @@ class GameDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
+      bool _shouldRefreshTransactions = true;
+    bool _isStartingGame = false;
   // Track settlement status: key = "from_id|to_id", value = {settled: bool, method: String?}
   final Map<String, Map<String, dynamic>> _settlementStatus = {};
   bool _settlementsLoaded = false;
@@ -1334,6 +1336,15 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     final gameWithParticipantsAsync = ref.watch(
       gameWithParticipantsProvider(widget.gameId),
     );
+    // Only refresh transactions once on initial load to avoid refresh loop
+    if (_shouldRefreshTransactions) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.refresh(gameTransactionsProvider(widget.gameId));
+        setState(() {
+          _shouldRefreshTransactions = false;
+        });
+      });
+    }
 
     return gameWithParticipantsAsync.when(
       loading: () => Scaffold(
@@ -1550,12 +1561,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                   error: (_, __) =>
                                       const Text('Could not load totals'),
                                   data: (txns) {
-                                    final byUser =
-                                        <String, List<TransactionModel>>{};
+                                    final byUser = <String, List<TransactionModel>>{};
                                     for (final txn in txns) {
-                                      byUser
-                                          .putIfAbsent(txn.userId, () => [])
-                                          .add(txn);
+                                      byUser.putIfAbsent(txn.userId, () => []).add(txn);
                                     }
 
                                     double initialTotal = 0;
@@ -1563,23 +1571,15 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                     double cashOutTotal = 0;
 
                                     byUser.forEach((userId, userTxns) {
-                                      final buyins =
-                                          userTxns
-                                              .where((t) => t.type == 'buyin')
-                                              .toList()
-                                            ..sort(
-                                              (a, b) => a.timestamp.compareTo(
-                                                b.timestamp,
-                                              ),
-                                            );
-                                      final cashouts = userTxns.where(
-                                        (t) => t.type == 'cashout',
-                                      );
+                                      final buyins = userTxns
+                                          .where((t) => t.type == 'buyin')
+                                          .toList()
+                                        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+                                      final cashouts = userTxns.where((t) => t.type == 'cashout');
 
                                       if (buyins.isNotEmpty) {
                                         final firstBuyinAmount = buyins.first.amount;
                                         initialTotal += firstBuyinAmount;
-                                        
                                         if (buyins.length > 1) {
                                           final addtl = buyins
                                               .skip(1)
@@ -1595,19 +1595,13 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       cashOutTotal += userCashout;
                                     });
 
-
-                                    final totalBalance =
-                                        (initialTotal + additionalTotal) -
-                                        cashOutTotal;
+                                    final totalBalance = (initialTotal + additionalTotal) - cashOutTotal;
                                     return Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Totals',
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.titleMedium,
+                                          style: Theme.of(context).textTheme.titleMedium,
                                         ),
                                         const SizedBox(height: 6),
                                         Table(
@@ -1615,33 +1609,22 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                             0: FlexColumnWidth(2),
                                             1: FlexColumnWidth(1),
                                           },
-                                          defaultVerticalAlignment:
-                                              TableCellVerticalAlignment.middle,
+                                          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                                           children: [
                                             TableRow(
                                               children: [
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 4,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
                                                     'Initial Buy-In Total',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                    style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 4,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
                                                     '${game.currency} ${initialTotal.toStringAsFixed(2)}',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                    style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
                                               ],
@@ -1649,27 +1632,17 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                             TableRow(
                                               children: [
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 4,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
                                                     'Additional Buy-In Total',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                    style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 4,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
                                                     '${game.currency} ${additionalTotal.toStringAsFixed(2)}',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                    style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
                                               ],
@@ -1677,27 +1650,17 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                             TableRow(
                                               children: [
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 4,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
                                                     'Cash Out Total',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                    style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 4,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
                                                     '${game.currency} ${cashOutTotal.toStringAsFixed(2)}',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodySmall,
+                                                    style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
                                               ],
@@ -1705,35 +1668,17 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                             TableRow(
                                               children: [
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 6,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 6),
                                                   child: Text(
                                                     'Total Balance',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
+                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
                                                   ),
                                                 ),
                                                 Padding(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 6,
-                                                      ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 6),
                                                   child: Text(
                                                     '${game.currency} ${totalBalance.toStringAsFixed(2)}',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodySmall
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                        ),
+                                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
                                                   ),
                                                 ),
                                               ],
@@ -2456,47 +2401,71 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: SizedBox(
                           width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              try {
-                                // Removed avatar debug logging
-                                final result = await ref
-                                    .read(startGameProvider.notifier)
-                                    .startExistingGame(widget.gameId);
-                                // Removed avatar debug logging
-
-                                if (!mounted) return;
-
-                                ref.invalidate(
-                                  gameDetailProvider(widget.gameId),
-                                );
-                                ref.invalidate(activeGamesProvider);
-                                ref.invalidate(pastGamesProvider);
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Game started successfully!'),
-                                  ),
-                                );
-                              } catch (e, stackTrace) {
-                                debugPrint('❌ Error starting game: $e');
-                                debugPrint('Stack trace: $stackTrace');
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error starting game: $e'),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              ElevatedButton.icon(
+                                onPressed: _isStartingGame
+                                    ? null
+                                    : () async {
+                                        setState(() {
+                                          _isStartingGame = true;
+                                        });
+                                        try {
+                                          await ref
+                                              .read(startGameProvider.notifier)
+                                              .startExistingGame(widget.gameId);
+                                          if (!mounted) return;
+                                          ref.invalidate(
+                                            gameDetailProvider(widget.gameId),
+                                          );
+                                          ref.invalidate(activeGamesProvider);
+                                          ref.invalidate(pastGamesProvider);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Game started successfully!'),
+                                            ),
+                                          );
+                                        } catch (e, stackTrace) {
+                                          debugPrint('❌ Error starting game: $e');
+                                          debugPrint('Stack trace: $stackTrace');
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('Error starting game: $e'),
+                                              ),
+                                            );
+                                          }
+                                        } finally {
+                                          if (mounted) {
+                                            setState(() {
+                                              _isStartingGame = false;
+                                            });
+                                          }
+                                        }
+                                      },
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Start Game'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                              if (_isStartingGame)
+                                const Positioned.fill(
+                                  child: ColoredBox(
+                                    color: Color.fromRGBO(255, 255, 255, 0.6),
+                                    child: Center(
+                                      child: SizedBox(
+                                        width: 32,
+                                        height: 32,
+                                        child: CircularProgressIndicator(),
+                                      ),
                                     ),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.play_arrow),
-                            label: const Text('Start Game'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                            ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
