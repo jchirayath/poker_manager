@@ -74,7 +74,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
 
     final dateTimeCard = Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -83,15 +83,17 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
             children: [
               Text(
                 dateFormatter.format(now),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Text(
                 timeFormatter.format(now),
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
               ),
             ],
