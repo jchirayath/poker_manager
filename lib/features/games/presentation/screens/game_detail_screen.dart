@@ -1371,7 +1371,63 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Game Details'),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Floating button to scroll to top (left of title)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      if (_scrollController.hasClients) {
+                        _scrollController.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.arrow_upward, size: 20),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text('Game Details'),
+                const SizedBox(width: 8),
+                // Floating button to scroll to bottom (right of title)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      if (_scrollController.hasClients) {
+                        _scrollController.animateTo(
+                          _scrollController.position.maxScrollExtent,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOut,
+                        );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.arrow_downward, size: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             centerTitle: true,
             actions: [
               // Show edit button for scheduled and active games

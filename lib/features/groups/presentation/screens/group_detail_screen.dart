@@ -39,12 +39,19 @@ class GroupDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
+    late final ScrollController _scrollController;
   bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
     _initAdminStatus();
+    @override
+    void dispose() {
+      _scrollController.dispose();
+      super.dispose();
+    }
   }
 
   Future<void> _initAdminStatus() async {
@@ -363,7 +370,63 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Group Details'),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Floating button to scroll to top (left of title)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_upward, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('Group Details'),
+            const SizedBox(width: 8),
+            // Floating button to scroll to bottom (right of title)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_downward, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -384,6 +447,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           }
 
           return ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
               ListTile(

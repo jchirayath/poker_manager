@@ -22,6 +22,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   String? _selectedGroupId;
   TimeFilter _timeFilter = TimeFilter.week;
   String _gameQuery = '';
+  final ScrollController _scrollController = ScrollController();
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +32,63 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final resolvedGroupId = _selectedGroupId ?? (groups.isNotEmpty ? groups.first.id : null);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Stats')),
+      appBar: AppBar(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_upward, size: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text('Stats'),
+            const SizedBox(width: 8),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_downward, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(groupsListProvider);
@@ -49,6 +106,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             const SizedBox(height: 12),
             Expanded(
               child: SingleChildScrollView(
+                controller: _scrollController,
                 child: (_mode == StatsMode.recentGame)
                     ? _RecentGamesSection(
                         timeFilter: _timeFilter,
