@@ -248,11 +248,11 @@ class GamesRepository {
           .select('*, profiles!user_id(*)')
           .eq('game_id', gameId);
 
-      debugPrint('📡 Raw response: $response');
+      // Removed raw response debug info
 
       final participants = (response as List)
           .map((json) {
-            debugPrint('🔍 Processing participant: $json');
+            // Removed processing participant debug info
             return _mapParticipantRowToModel(
               Map<String, dynamic>.from(json as Map),
             );
@@ -801,7 +801,7 @@ class GamesRepository {
         )
       ''').eq('id', gameId).single();
 
-      debugPrint('✅ Raw response received');
+      // Removed raw response debug info
 
       final game = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
       debugPrint('✅ Game mapped: ${game.id}');
