@@ -9,6 +9,7 @@ import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
 import '../providers/games_provider.dart';
 import '../../../locations/presentation/providers/locations_provider.dart';
+import '../../../common/widgets/app_drawer.dart';
 
 class GamesEntryScreen extends ConsumerStatefulWidget {
   const GamesEntryScreen({super.key});
@@ -106,9 +107,16 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
     final pastGamesAsync = ref.watch(pastGamesProvider);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Games'),
         centerTitle: true,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateGameOptions(context),
