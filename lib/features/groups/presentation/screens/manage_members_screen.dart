@@ -297,27 +297,41 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
               ),
               const SizedBox(height: 8),
               if (_searchResults.isNotEmpty)
-                Container(
-                  constraints: const BoxConstraints(maxHeight: 220),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(4),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.3,
                   ),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _searchResults.length,
-                    itemBuilder: (context, index) {
-                      final profile = _searchResults[index];
-                      return ListTile(
-                        leading: _avatar(profile.avatarUrl, profile.fullName),
-                        title: Text(profile.fullName),
-                        subtitle: profile.username != null ? Text('@${profile.username}') : null,
-                        trailing: IconButton(
-                          icon: const Icon(Icons.person_add_alt),
-                          onPressed: () => _addUser(profile.id),
-                        ),
-                      );
-                    },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _searchResults.length,
+                      itemBuilder: (context, index) {
+                        final profile = _searchResults[index];
+                        return ListTile(
+                          leading: _avatar(profile.avatarUrl, profile.fullName),
+                          title: Text(
+                            profile.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: profile.username != null
+                              ? Text(
+                                  '@${profile.username}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                )
+                              : null,
+                          trailing: IconButton(
+                            icon: const Icon(Icons.person_add_alt),
+                            onPressed: () => _addUser(profile.id),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               const SizedBox(height: 24),

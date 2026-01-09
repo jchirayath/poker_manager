@@ -73,79 +73,81 @@ class _PaginatedGamesScreenState extends ConsumerState<PaginatedGamesScreen> {
         ],
       ),
       body: gamesAsync.when(
-        appBar: AppBar(
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    if (_scrollController.hasClients) {
-                      _scrollController.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.arrow_upward, size: 20),
-                  ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.error,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(_getTitle()),
-              const SizedBox(width: 8),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    if (_scrollController.hasClients) {
-                      _scrollController.animateTo(
-                        _scrollController.position.maxScrollExtent,
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.arrow_downward, size: 20),
-                  ),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading games',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-              ),
-            ],
-          ),
-          centerTitle: true,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () {
-                final pageKey = GamePageKey(
-                  page: 1,
-                  pageSize: _pageSize,
-                  groupFilter: widget.groupId,
-                  statusFilter: widget.statusFilter,
-                );
-                ref.invalidate(paginatedGamesProvider(pageKey));
-              },
-              tooltip: 'Refresh',
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final key = GamePageKey(
+                      page: 1,
+                      pageSize: _pageSize,
+                      groupFilter: widget.groupId,
+                      statusFilter: widget.statusFilter,
+                    );
+                    ref.invalidate(paginatedGamesProvider(key));
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
+        data: (gamesWithGroups) {
+          if (gamesWithGroups.isEmpty) {
+            return _buildEmptyState(context);
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              final key = GamePageKey(
+                page: 1,
+                pageSize: _pageSize,
+                groupFilter: widget.groupId,
+                statusFilter: widget.statusFilter,
+              );
+              ref.invalidate(paginatedGamesProvider(key));
+            },
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              itemCount: gamesWithGroups.length,
+              itemBuilder: (context, index) {
+                return _buildGameCard(context, gamesWithGroups[index]);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _getTitle() {
+    if (widget.statusFilter != null) {
+      return '${widget.statusFilter![0].toUpperCase()}${widget.statusFilter!.substring(1)} Games';
     }
     return 'All Games';
   }

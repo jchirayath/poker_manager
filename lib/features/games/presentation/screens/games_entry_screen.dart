@@ -400,7 +400,13 @@ class _GameCard extends StatelessWidget {
               children: [
                 const Icon(Icons.calendar_today, size: 12),
                 const SizedBox(width: 4),
-                Text('${_dateFormatter.format(game.gameDate)} at ${_timeFormatter.format(game.gameDate)}'),
+                Expanded(
+                  child: Text(
+                    '${_dateFormatter.format(game.gameDate)} at ${_timeFormatter.format(game.gameDate)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             if (game.location?.isNotEmpty == true) ...[

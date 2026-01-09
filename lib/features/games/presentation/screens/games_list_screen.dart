@@ -287,12 +287,21 @@ class GamesListScreen extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
-        title: Text(game.name),
+        title: Text(
+          game.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(gameDate),
-            if (game.location != null) Text('📍 ${game.location}'),
+            if (game.location != null)
+              Text(
+                '📍 ${game.location}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             Text(
               'Buy-in: ${game.currency} ${game.buyinAmount}',
               style: Theme.of(context).textTheme.bodySmall,
@@ -300,6 +309,7 @@ class GamesListScreen extends ConsumerWidget {
           ],
         ),
         trailing: Container(
+          constraints: const BoxConstraints(maxWidth: 100),
           decoration: BoxDecoration(
             color: _getStatusColor(game.status),
             borderRadius: BorderRadius.circular(12),
@@ -311,6 +321,8 @@ class GamesListScreen extends ConsumerWidget {
           child: Text(
             _getStatusLabel(game.status),
             style: const TextStyle(fontSize: 12),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         onTap: () {

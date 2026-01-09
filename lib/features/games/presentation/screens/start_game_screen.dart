@@ -146,12 +146,21 @@ class _StartGameScreenState extends ConsumerState<StartGameScreen> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
-        title: Text(game.name),
+        title: Text(
+          game.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(gameDate),
-            if (game.location != null) Text('📍 ${game.location}'),
+            if (game.location != null)
+              Text(
+                '📍 ${game.location}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             Text(
               'Buy-in: ${game.currency} ${game.buyinAmount}',
               style: Theme.of(context).textTheme.bodySmall,

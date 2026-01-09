@@ -262,7 +262,13 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
               children: [
                 const Icon(Icons.calendar_today, size: 14),
                 const SizedBox(width: 4),
-                Text(date),
+                Expanded(
+                  child: Text(
+                    date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             if (game.location != null) ...[
