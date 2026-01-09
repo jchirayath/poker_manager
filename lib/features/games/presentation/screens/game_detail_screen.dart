@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/games_pagination_provider.dart';
 import '../providers/games_provider.dart';
@@ -516,159 +518,220 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     final profile = toParticipant.profile;
     if (profile == null) return;
 
-    final hasEmail = profile.email?.isNotEmpty ?? false;
-    final hasPhone = profile.phoneNumber?.isNotEmpty ?? false;
     final hasUsername = profile.username?.isNotEmpty ?? false;
+    final hasPhone = profile.phoneNumber?.isNotEmpty ?? false;
 
-  
+    // Build payment options - prioritize app deep links like Splitwise
     final paymentOptions = <Map<String, dynamic>>[];
 
+    // Venmo options (preferred - uses deep links to open app)
+    if (hasUsername) {
+      paymentOptions.add({
+        'label': 'Venmo',
+        'sublabel': '@${profile.username}',
+        'method': 'venmo',
+        'onPressed': () {
+          Navigator.of(context).pop();
+          _launchVenmoPayment(profile.username, amount, profile.fullName);
+        },
+      });
+    } else if (hasPhone) {
+      paymentOptions.add({
+        'label': 'Venmo',
+        'sublabel': profile.phoneNumber,
+        'method': 'venmo',
+        'onPressed': () {
+          Navigator.of(context).pop();
+          _launchVenmoByPhone(profile.phoneNumber, amount, profile.fullName);
+        },
+      });
+    }
+
     // PayPal options
-    if (hasEmail) {
-      paymentOptions.add({
-        'label': 'PayPal (${profile.email})',
-        'icon': Icons.payment,
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchPayPalEmail(profile, amount);
-        },
-      });
-    }
-
     if (hasUsername) {
       paymentOptions.add({
-        'label': 'PayPal (@${profile.username})',
-        'icon': Icons.payment,
+        'label': 'PayPal',
+        'sublabel': '@${profile.username}',
+        'method': 'paypal',
         'onPressed': () {
           Navigator.of(context).pop();
-          _launchPayPalUsername(profile, amount);
+          _launchPayPalPayment(profile.username, amount);
         },
       });
     }
-
-    // Venmo options
-    if (hasEmail) {
-      paymentOptions.add({
-        'label': 'Venmo (${profile.email})',
-        'icon': Icons.phone,
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchVenmoEmail(profile);
-        },
-      });
-    }
-
-    if (hasUsername) {
-      paymentOptions.add({
-        'label': 'Venmo (@${profile.username})',
-        'icon': Icons.phone,
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchVenmoUsername(profile);
-        },
-      });
-    }
-
-    if (hasPhone) {
-      paymentOptions.add({
-        'label': 'Venmo (${profile.phoneNumber})',
-        'icon': Icons.phone,
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchVenmoPhone(profile);
-        },
-      });
-    }
-
 
     if (paymentOptions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No payment information available for this user'),
+          content: Text('No payment information available for this user. Ask them to add their Venmo/PayPal username to their profile.'),
+          duration: Duration(seconds: 4),
         ),
       );
       return;
     }
 
-    // If only one payment method available, launch it directly
-    if (paymentOptions.length == 1) {
-      final option = paymentOptions[0];
-      final onPressed = option['onPressed'] as VoidCallback;
-      onPressed();
-      return;
-    }
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    // Multiple payment methods - show dialog
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 300,
-            maxHeight: 500,
-          ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogContext) => Container(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Avatar and name
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  child: Text(
+                    _getInitials(profile.fullName ?? 'U'),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Text(
-                  'Pay ${profile.fullName}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  'Pay ${profile.fullName ?? 'User'}',
+                  style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Send $currency ${amount.toStringAsFixed(2)} via:',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
+                const SizedBox(height: 4),
+
+                // Amount
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$currency ${amount.toStringAsFixed(2)}',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      ...paymentOptions.map(
-                        (option) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: ElevatedButton(
-                            onPressed: option['onPressed'] as VoidCallback,
-                            style: ElevatedButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 44),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _getPaymentMethodImage(
-                                  (option['label'] as String).toLowerCase().contains('paypal')
-                                      ? 'paypal'
-                                      : 'venmo',
-                                  16,
+                const SizedBox(height: 24),
+
+                // Payment options
+                ...paymentOptions.map((option) {
+                  final isVenmo = option['method'] == 'venmo';
+                  final buttonColor = isVenmo
+                      ? const Color(0xFF3D95CE) // Venmo blue
+                      : const Color(0xFF003087); // PayPal blue
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: buttonColor,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: option['onPressed'] as VoidCallback,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                          child: Row(
+                            children: [
+                              // Payment logo
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    option['label'] as String,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                child: Center(
+                                  child: isVenmo
+                                      ? const Text(
+                                          'V',
+                                          style: TextStyle(
+                                            color: Color(0xFF3D95CE),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 24,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'P',
+                                          style: TextStyle(
+                                            color: Color(0xFF003087),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 24,
+                                          ),
+                                        ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      option['label'] as String,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    if (option['sublabel'] != null)
+                                      Text(
+                                        option['sublabel'] as String,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.8),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 44),
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ],
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ],
@@ -679,101 +742,120 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     );
   }
 
-  void _launchPayPalEmail(dynamic profile, double amount) {
-    final email = profile.email ?? '';
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email not found in profile')),
-      );
-      return;
-    }
-
-    final paypalUrl = 'https://paypal.me/${email.split('@')[0]}?amount=$amount';
-    _launchUrl(paypalUrl);
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
   }
 
-  void _launchPayPalUsername(dynamic profile, double amount) {
-    final username = profile.username ?? '';
-    if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PayPal username not found in profile')),
-      );
-      return;
-    }
+  /// Launch Venmo payment using deep link (opens Venmo app directly like Splitwise)
+  Future<void> _launchVenmoPayment(String username, double amount, String? recipientName) async {
+    // Clean username (remove @ if present)
+    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    final note = Uri.encodeComponent('Poker game settlement${recipientName != null ? ' - $recipientName' : ''}');
 
-    final paypalUrl = 'https://paypal.me/$username?amount=$amount';
-    _launchUrl(paypalUrl);
+    // Venmo deep link format: venmo://paycharge?txn=pay&recipients=USERNAME&amount=AMOUNT&note=NOTE
+    final venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=$cleanUsername&amount=${amount.toStringAsFixed(2)}&note=$note';
+
+    // Fallback web URL
+    final venmoWebUrl = 'https://venmo.com/$cleanUsername?txn=pay&amount=${amount.toStringAsFixed(2)}&note=$note';
+
+    await _launchPaymentUrl(venmoDeepLink, venmoWebUrl, 'Venmo');
   }
 
-  void _launchVenmoEmail(dynamic profile) {
-    final email = profile.email ?? '';
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email not found in profile')),
-      );
-      return;
-    }
+  /// Launch Venmo payment by phone number
+  Future<void> _launchVenmoByPhone(String phone, double amount, String? recipientName) async {
+    // Clean phone number
+    final cleanPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
+    final note = Uri.encodeComponent('Poker game settlement${recipientName != null ? ' - $recipientName' : ''}');
 
-    // Venmo via email - typically opens Venmo app or web
-    final venmoUrl = 'https://venmo.com/email/$email';
-    _launchUrl(venmoUrl);
+    // Venmo deep link with phone
+    final venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=$cleanPhone&amount=${amount.toStringAsFixed(2)}&note=$note';
+
+    // Fallback - no direct web URL for phone, use app store
+    final venmoWebUrl = 'https://venmo.com/';
+
+    await _launchPaymentUrl(venmoDeepLink, venmoWebUrl, 'Venmo');
   }
 
-  void _launchVenmoUsername(dynamic profile) {
-    final username = profile.username ?? '';
+  /// Launch PayPal payment using PayPal.me link
+  Future<void> _launchPayPalPayment(String username, double amount) async {
+    // Clean username
+    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
 
-    if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Venmo username not found in profile')),
-      );
-      return;
-    }
+    // PayPal.me URL (works on both mobile and web, opens PayPal app if installed)
+    final paypalUrl = 'https://paypal.me/$cleanUsername/${amount.toStringAsFixed(2)}';
 
-    final venmoUrl = 'https://venmo.com/$username';
-    _launchUrl(venmoUrl);
+    // PayPal also supports a deep link format
+    final paypalDeepLink = 'paypal://paypalme/$cleanUsername/${amount.toStringAsFixed(2)}';
+
+    await _launchPaymentUrl(paypalDeepLink, paypalUrl, 'PayPal');
   }
 
-  void _launchVenmoPhone(dynamic profile) {
-    final phone = profile.phoneNumber ?? '';
-
-    if (phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Phone number not found in profile')),
-      );
-      return;
-    }
-
-    // Venmo phone link - open Venmo app or web
-    final venmoUrl = 'sms:$phone';
-    _launchUrl(venmoUrl);
-  }
-
-  Future<void> _launchUrl(String urlString) async {
+  /// Helper to launch payment URL with deep link fallback
+  Future<void> _launchPaymentUrl(String deepLink, String webUrl, String appName) async {
     try {
-      // For now, just copy to clipboard and show snackbar
-      // In production, use url_launcher package:
-      // if (await canLaunchUrl(Uri.parse(urlString))) {
-      //   await launchUrl(Uri.parse(urlString));
-      // } else {
-      //   throw 'Could not launch $urlString';
-      // }
+      final deepLinkUri = Uri.parse(deepLink);
+      final webUri = Uri.parse(webUrl);
 
-      // Fallback: Show URL in snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Open: $urlString'),
-          action: SnackBarAction(
-            label: 'Copy',
-            onPressed: () {
-              // In production: use clipboard package
-            },
-          ),
-        ),
+      // Try deep link first (opens app directly)
+      bool launched = await launchUrl(
+        deepLinkUri,
+        mode: LaunchMode.externalApplication,
       );
+
+      if (!launched) {
+        // Fall back to web URL
+        launched = await launchUrl(
+          webUri,
+          mode: LaunchMode.externalApplication,
+        );
+      }
+
+      if (!launched) {
+        // Copy URL to clipboard as last resort
+        await Clipboard.setData(ClipboardData(text: webUrl));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$appName link copied to clipboard'),
+              action: SnackBarAction(
+                label: 'Open Browser',
+                onPressed: () {
+                  launchUrl(webUri, mode: LaunchMode.platformDefault);
+                },
+              ),
+            ),
+          );
+        }
+      }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error opening URL: $e')));
+      // If deep link fails, try web URL
+      try {
+        final webUri = Uri.parse(webUrl);
+        final launched = await launchUrl(
+          webUri,
+          mode: LaunchMode.externalApplication,
+        );
+
+        if (!launched) {
+          await Clipboard.setData(ClipboardData(text: webUrl));
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$appName link copied to clipboard'),
+              ),
+            );
+          }
+        }
+      } catch (e2) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open $appName: $e2')),
+          );
+        }
+      }
     }
   }
 
@@ -957,34 +1039,51 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     );
   }
 
-  Widget _getPaymentMethodImage(String method, double size) {
+  Widget _getPaymentMethodImage(String method, double size, {Color? color}) {
+    final iconColor = color ?? Colors.white;
     switch (method.toLowerCase()) {
       case 'paypal':
-        return Image.network(
-          'https://www.paypalobjects.com/webstatic/icon/pp258.png',
-          height: size,
+        return Container(
           width: size,
-          color: Colors.white,
-          colorBlendMode: BlendMode.srcIn,
-          errorBuilder: (context, error, stackTrace) {
-            return Icon(Icons.payment, size: size);
-          },
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFF003087),
+            borderRadius: BorderRadius.circular(size / 4),
+          ),
+          child: Center(
+            child: Text(
+              'P',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.6,
+              ),
+            ),
+          ),
         );
       case 'venmo':
-        return Image.network(
-          'https://venmo.com/favicon.ico',
-          height: size,
+        return Container(
           width: size,
-          color: Colors.white,
-          colorBlendMode: BlendMode.srcIn,
-          errorBuilder: (context, error, stackTrace) {
-            return Icon(Icons.phone, size: size);
-          },
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3D95CE),
+            borderRadius: BorderRadius.circular(size / 4),
+          ),
+          child: Center(
+            child: Text(
+              'V',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: size * 0.6,
+              ),
+            ),
+          ),
         );
       case 'cash':
-        return Icon(Icons.payments, size: size);
+        return Icon(Icons.payments, size: size, color: iconColor);
       default:
-        return Icon(Icons.payment, size: size);
+        return Icon(Icons.payment, size: size, color: iconColor);
     }
   }
 
