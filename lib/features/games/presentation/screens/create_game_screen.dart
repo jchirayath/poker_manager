@@ -19,7 +19,7 @@ class CreateGameScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
-  static final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
   late final TextEditingController _nameController;
   late final TextEditingController _buyinController;
   late final TextEditingController _additionalBuyinController;
@@ -31,11 +31,14 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
   List<double> _additionalBuyins = [];
   String? _selectedLocationId;
   final Set<String> _selectedPlayerIds = {};
-  
+
   // Recurring games settings
   bool _isRecurring = false;
   String _recurringFrequency = 'weekly'; // weekly, biweekly, monthly, bimonthly, yearly
   int _occurrences = 4;
+
+  // Cache date formatter to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
 
   Widget _buildMemberAvatar(String? url, String initials) {
     if ((url ?? '').isEmpty) {
@@ -80,6 +83,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _nameController.dispose();
     _buyinController.dispose();
     _additionalBuyinController.dispose();
@@ -569,8 +573,8 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Material(
               color: Colors.transparent,
@@ -595,14 +599,9 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 ),
               ),
             ),
-            Flexible(
-              child: Text(
-                'Create Game',
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).appBarTheme.titleTextStyle ?? Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
+            const SizedBox(width: 8),
+            const Text('Create Game'),
+            const SizedBox(width: 8),
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -628,6 +627,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
             ),
           ],
         ),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
         controller: _scrollController,
@@ -724,9 +724,8 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       ),
                       child: Text(
                         _selectedDate != null
-                            ? DateFormat('MMM d, yyyy').format(_selectedDate!)
+                            ? _dateFormatter.format(_selectedDate!)
                             : 'Select date',
-                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ),
@@ -744,7 +743,6 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                         _selectedTime != null
                             ? _selectedTime!.format(context)
                             : 'Select time',
-                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ),

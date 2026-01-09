@@ -124,26 +124,6 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
                           style: TextStyle(color: Colors.grey[600], fontSize: 13),
                         ),
                       ],
-                      const SizedBox(height: 4),
-                      FutureBuilder<dynamic>(
-                        future: _getCreatorName(group.createdBy),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData) {
-                            return Text(
-                              'Created by: ${snapshot.data}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey[600],
-                              ),
-                            );
-                          }
-                          return Text(
-                            'Created by: ${group.createdBy}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          );
-                        },
-                      ),
                     ],
                   ),
                   trailing: const Icon(Icons.chevron_right),

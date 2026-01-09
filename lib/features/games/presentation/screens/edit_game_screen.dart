@@ -32,6 +32,9 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   String? _groupId;
   bool _isInitialized = false;
 
+  // Cache date formatter to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
+
   Widget _buildMemberAvatar(String? url, String initials) {
     if ((url ?? '').isEmpty) {
       return Text(initials);
@@ -473,7 +476,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           ),
                           child: Text(
                             _selectedDate != null
-                                ? DateFormat('MMM d, yyyy').format(_selectedDate!)
+                                ? _dateFormatter.format(_selectedDate!)
                                 : 'Select date',
                           ),
                         ),

@@ -24,6 +24,9 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
   String _selectedGroupId = _allGroupsValue;
   TimeFilter _timeFilter = TimeFilter.week;
 
+  // Cache date formatter to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy HH:mm');
+
   @override
   Widget build(BuildContext context) {
     final activeGamesAsync = ref.watch(activeGamesProvider);
@@ -148,12 +151,18 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
                   );
                 },
                 data: (games) {
-                  final filtered = games
-                      .where((entry) => entry.game.status == 'completed')
-                      .where((entry) => _selectedGroupId == _allGroupsValue || entry.groupId == _selectedGroupId)
-                      .where((entry) => _isWithinRange(entry.game.gameDate))
-                      .toList()
-                    ..sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
+                  // Single pass filtering for better performance
+                  final filtered = <GameWithGroup>[];
+
+                  for (final entry in games) {
+                    if (entry.game.status == 'completed' &&
+                        (_selectedGroupId == _allGroupsValue || entry.groupId == _selectedGroupId) &&
+                        _isWithinRange(entry.game.gameDate)) {
+                      filtered.add(entry);
+                    }
+                  }
+
+                  filtered.sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
 
                   if (filtered.isEmpty) {
                     return const Padding(
@@ -203,7 +212,7 @@ class _ActiveGamesScreenState extends ConsumerState<ActiveGamesScreen> {
 
   Widget _buildGameCard(BuildContext context, GameWithGroup entry) {
     final game = entry.game;
-    final date = DateFormat('MMM d, yyyy HH:mm').format(game.gameDate);
+    final date = _dateFormatter.format(game.gameDate);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

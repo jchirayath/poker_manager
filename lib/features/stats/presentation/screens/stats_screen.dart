@@ -245,14 +245,12 @@ class _RecentGamesSection extends ConsumerWidget {
                               children: [
                                 buildGroupAvatar(data.groupAvatarUrl, data.groupName, context),
                                 const SizedBox(width: 8),
-                                Text('${data.groupName} • ${_formatDate(data.game.gameDate)}'),
+                                Text('${data.groupName} • ${_formatDate(data.game.gameDate)}', style: const TextStyle(fontSize: 14)),
                               ],
                             ),
                             const SizedBox(height: 12),
-                            _RankingTable(
-                              currency: data.game.currency,
+                            _RecentGameRankingTable(
                               ranking: data.ranking,
-                              showBreakdown: false,
                               currentUserId: currentUserId,
                             ),
                           ],
@@ -262,7 +260,7 @@ class _RecentGamesSection extends ConsumerWidget {
                 if (filtered.length > visible.length)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Text('Showing ${visible.length} of ${filtered.length} recent games'),
+                    child: Text('Showing ${visible.length} of ${filtered.length} recent games', style: const TextStyle(fontSize: 14)),
                   ),
               ],
             );
@@ -309,6 +307,103 @@ class _TimeFilterChips extends StatelessWidget {
           onSelected: (_) => onChanged(TimeFilter.all),
         ),
       ],
+    );
+  }
+}
+
+class _RecentGameRankingTable extends StatelessWidget {
+  final List<RankingRow> ranking;
+  final String? currentUserId;
+
+  const _RecentGameRankingTable({
+    required this.ranking,
+    this.currentUserId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final highlightColor = Theme.of(context).colorScheme.secondaryContainer.withOpacity(0.35);
+    final highlightTextColor = Theme.of(context).colorScheme.onSecondaryContainer;
+
+    return Table(
+      columnWidths: const {
+        0: FixedColumnWidth(40),
+        1: FlexColumnWidth(),
+        2: FixedColumnWidth(70),
+        3: FixedColumnWidth(90),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        const TableRow(
+          children: [
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text('Rank', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text('Player', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text('W/L', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text('Net', textAlign: TextAlign.right, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        ...ranking.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final row = entry.value;
+          final isWinner = row.net > 0;
+          final isCurrentUser = currentUserId != null && row.userId == currentUserId;
+          final bg = isCurrentUser ? highlightColor : null;
+          final fg = isCurrentUser ? highlightTextColor : null;
+          final weight = isCurrentUser ? FontWeight.w700 : FontWeight.normal;
+          final resultText = isWinner ? 'Win' : 'Loss';
+          final resultColor = isWinner ? Colors.green : Colors.red;
+          return TableRow(
+            children: [
+              _cell('#${idx + 1}', background: bg, color: fg, weight: weight),
+              _cell(row.name, background: bg, color: fg, weight: weight),
+              _cell(
+                resultText,
+                align: TextAlign.center,
+                background: bg,
+                color: fg ?? resultColor,
+                weight: weight,
+              ),
+              _cell(
+                _formatAmountNoCurrency(row.net),
+                align: TextAlign.right,
+                color: _netColor(row.net),
+                background: bg,
+                weight: weight,
+              ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _cell(
+    String text, {
+    TextAlign align = TextAlign.left,
+    Color? color,
+    Color? background,
+    FontWeight? weight,
+  }) {
+    return Container(
+      color: background,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        text,
+        textAlign: align,
+        style: TextStyle(color: color, fontWeight: weight, fontSize: 14),
+      ),
     );
   }
 }
@@ -569,7 +664,7 @@ class _RankingTable extends StatelessWidget {
 
     return Column(
       children: [
-        // Summary card with player records
+        // Summary card with consolidated ranking
         Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
@@ -579,56 +674,71 @@ class _RankingTable extends StatelessWidget {
               children: [
                 Text(
                   'Summary',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Games: $totalGames'),
-                    Text('Players: $totalPlayers'),
+                    Text('Games: $totalGames', style: const TextStyle(fontSize: 14)),
+                    Text('Players: $totalPlayers', style: const TextStyle(fontSize: 14)),
                   ],
                 ),
                 const SizedBox(height: 12),
-                // Player win-loss table
+                // Consolidated ranking table with wins/losses and net
                 Table(
                   columnWidths: const {
-                    0: FlexColumnWidth(),
-                    1: FixedColumnWidth(80),
-                    2: FixedColumnWidth(80),
+                    0: FixedColumnWidth(40),
+                    1: FlexColumnWidth(),
+                    2: FixedColumnWidth(50),
+                    3: FixedColumnWidth(50),
+                    4: FixedColumnWidth(90),
                   },
                   defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                   children: [
                     const TableRow(
                       children: [
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: 4),
-                          child: Text('Player', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text('Rank', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                         ),
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: 4),
-                          child: Text('Wins', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text('Player', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                         ),
                         Padding(
-                          padding: EdgeInsets.symmetric(vertical: 4),
-                          child: Text('Losses', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text('W', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text('L', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text('Net', textAlign: TextAlign.right, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
-                    ...ranking.map((player) {
+                    ...ranking.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final player = entry.value;
+                      final rank = ranks[idx];
                       final isCurrentUser = currentUserId != null && player.userId == currentUserId;
                       final bg = isCurrentUser ? highlightColor : null;
                       final fg = isCurrentUser ? highlightTextColor : null;
-                      final weight = isCurrentUser ? FontWeight.w700 : null;
+                      final weight = isCurrentUser ? FontWeight.w700 : FontWeight.normal;
                       return TableRow(
                         children: [
-                          _cell(player.name, background: bg, color: fg, weight: weight),
+                          _cell('#$rank', background: bg, color: fg, weight: weight, fontSize: 14),
+                          _cell(player.name, background: bg, color: fg, weight: weight, fontSize: 14),
                           _cell(
                             '${player.wins}',
                             align: TextAlign.center,
                             background: bg,
                             color: fg,
                             weight: weight,
+                            fontSize: 14,
                           ),
                           _cell(
                             '${player.losses}',
@@ -636,6 +746,15 @@ class _RankingTable extends StatelessWidget {
                             background: bg,
                             color: fg,
                             weight: weight,
+                            fontSize: 14,
+                          ),
+                          _cell(
+                            _formatAmountNoCurrency(player.net),
+                            align: TextAlign.right,
+                            color: _netColor(player.net),
+                            background: bg,
+                            weight: weight,
+                            fontSize: 14,
                           ),
                         ],
                       );
@@ -665,99 +784,71 @@ class _RankingTable extends StatelessWidget {
                 children: [
                   Text(
                     gameName,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   Text(
                     _formatDate(gameDate),
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: const TextStyle(fontSize: 14),
                   ),
                   const SizedBox(height: 8),
                   Table(
                     columnWidths: const {
-                      0: FixedColumnWidth(30),
+                      0: FixedColumnWidth(40),
                       1: FlexColumnWidth(),
-                      2: FixedColumnWidth(90),
+                      2: FixedColumnWidth(70),
+                      3: FixedColumnWidth(90),
                     },
                     defaultVerticalAlignment: TableCellVerticalAlignment.middle,
                     children: [
                       const TableRow(
                         children: [
                           Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
-                            child: Text('Rank', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: Text('Rank', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                           ),
                           Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
-                            child: Text('Player', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: Text('Player', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                           ),
                           Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
-                            child: Text('Result', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: Text('W/L', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: Text('Net', textAlign: TextAlign.right, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
                       ...players.asMap().entries.map((e) {
                         final playerIdx = e.key;
                         final (player, game) = e.value;
-                        final isCurrentUser = currentUserId != null && player.userId == currentUserId;
-                        final bg = isCurrentUser ? highlightColor : null;
-                        final fg = isCurrentUser ? highlightTextColor : null;
-                        final weight = isCurrentUser ? FontWeight.w700 : null;
-                        return TableRow(
-                          children: [
-                            _cell('#${playerIdx + 1}', background: bg, color: fg, weight: weight),
-                            _cell(player.name, background: bg, color: fg, weight: weight),
-                            _cell(
-                              _formatAmount(currency, game.net),
-                              align: TextAlign.right,
-                              background: bg,
-                              color: _netColor(game.net),
-                              weight: weight,
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Wins/Losses summary for this game
-                  Table(
-                    columnWidths: const {
-                      0: FlexColumnWidth(),
-                      1: FixedColumnWidth(60),
-                    },
-                    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                    children: [
-                      const TableRow(
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
-                            child: Text('Player', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
-                            child: Text('Result', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                      ...players.map((p) {
-                        final (player, game) = p;
                         final isWinner = game.net > 0;
                         final isCurrentUser = currentUserId != null && player.userId == currentUserId;
                         final bg = isCurrentUser ? highlightColor : null;
                         final fg = isCurrentUser ? highlightTextColor : null;
-                        final weight = isCurrentUser ? FontWeight.w700 : null;
+                        final weight = isCurrentUser ? FontWeight.w700 : FontWeight.normal;
                         final resultText = isWinner ? 'Win' : 'Loss';
                         final resultColor = isWinner ? Colors.green : Colors.red;
                         return TableRow(
                           children: [
-                            _cell(player.name, background: bg, color: fg, weight: weight),
+                            _cell('#${playerIdx + 1}', background: bg, color: fg, weight: weight, fontSize: 14),
+                            _cell(player.name, background: bg, color: fg, weight: weight, fontSize: 14),
                             _cell(
                               resultText,
                               align: TextAlign.center,
                               background: bg,
                               color: fg ?? resultColor,
                               weight: weight,
+                              fontSize: 14,
+                            ),
+                            _cell(
+                              _formatAmountNoCurrency(game.net),
+                              align: TextAlign.right,
+                              background: bg,
+                              color: _netColor(game.net),
+                              weight: weight,
+                              fontSize: 14,
                             ),
                           ],
                         );
@@ -798,6 +889,7 @@ class _RankingTable extends StatelessWidget {
     Color? color,
     Color? background,
     FontWeight? weight,
+    double fontSize = 14,
   }) {
     return Container(
       color: background,
@@ -805,7 +897,7 @@ class _RankingTable extends StatelessWidget {
       child: Text(
         text,
         textAlign: align,
-        style: TextStyle(color: color, fontWeight: weight),
+        style: TextStyle(color: color, fontWeight: weight, fontSize: fontSize),
       ),
     );
   }
@@ -855,6 +947,12 @@ String _formatAmount(String currency, double value) {
   final sign = value >= 0 ? '' : '-';
   final abs = value.abs().toStringAsFixed(2);
   return '$sign$currency $abs';
+}
+
+String _formatAmountNoCurrency(double value) {
+  final sign = value >= 0 ? '+' : '-';
+  final abs = value.abs().toStringAsFixed(2);
+  return '$sign\$$abs';
 }
 
 Color _netColor(double value) => value >= 0 ? Colors.green : Colors.red;

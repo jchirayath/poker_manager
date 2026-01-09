@@ -20,6 +20,9 @@ class StartGameScreen extends ConsumerStatefulWidget {
 class _StartGameScreenState extends ConsumerState<StartGameScreen> {
   bool _showCreateForm = false;
 
+  // Cache date formatter to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy HH:mm');
+
   @override
   Widget build(BuildContext context) {
     final defaultGamesAsync =
@@ -138,8 +141,7 @@ class _StartGameScreenState extends ConsumerState<StartGameScreen> {
   }
 
   Widget _buildGameCard(GameModel game) {
-    final dateFormatter = DateFormat('MMM d, yyyy HH:mm');
-    final gameDate = dateFormatter.format(game.gameDate);
+    final gameDate = _dateFormatter.format(game.gameDate);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

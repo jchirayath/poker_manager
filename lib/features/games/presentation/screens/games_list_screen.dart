@@ -12,6 +12,9 @@ class GamesListScreen extends ConsumerWidget {
 
   const GamesListScreen({required this.groupId, super.key});
 
+  // Cache date formatter to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy HH:mm');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gamesAsync = ref.watch(groupGamesProvider(groupId));
@@ -145,14 +148,20 @@ class GamesListScreen extends ConsumerWidget {
               );
             }
 
-            final activeGames =
-                games.where((game) => game.status == 'in_progress').toList();
-            final scheduledGames =
-                games.where((game) => game.status == 'scheduled').toList();
-            final pastGames = games
-                .where((game) =>
-                    game.status == 'completed' || game.status == 'cancelled')
-                .toList();
+            // Single pass filtering for better performance
+            final activeGames = <GameModel>[];
+            final scheduledGames = <GameModel>[];
+            final pastGames = <GameModel>[];
+
+            for (final game in games) {
+              if (game.status == 'in_progress') {
+                activeGames.add(game);
+              } else if (game.status == 'scheduled') {
+                scheduledGames.add(game);
+              } else if (game.status == 'completed' || game.status == 'cancelled') {
+                pastGames.add(game);
+              }
+            }
 
             return ListView(
               padding: const EdgeInsets.only(bottom: 24),
@@ -273,8 +282,7 @@ class GamesListScreen extends ConsumerWidget {
   }
 
   Widget _buildGameCard(BuildContext context, GameModel game) {
-    final dateFormatter = DateFormat('MMM d, yyyy HH:mm');
-    final gameDate = dateFormatter.format(game.gameDate);
+    final gameDate = _dateFormatter.format(game.gameDate);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
