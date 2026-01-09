@@ -113,6 +113,53 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     );
   }
 
+  /// Consistent amount text widget for all monetary displays
+  /// [size] can be 'small' (12), 'medium' (14), or 'large' (16)
+  Widget _buildAmountText(
+    String currency,
+    double amount, {
+    String size = 'medium',
+    bool showSign = false,
+    bool bold = true,
+    Color? color,
+  }) {
+    final isPositive = amount >= 0;
+    final displayColor = color ?? (isPositive ? Colors.green[700] : Colors.red[700]);
+    final sign = showSign ? (isPositive ? '+' : '') : '';
+    final fontSize = size == 'small' ? 12.0 : (size == 'large' ? 15.0 : 13.0);
+
+    return Text(
+      '$sign$currency ${amount.abs().toStringAsFixed(2)}',
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
+        color: displayColor,
+      ),
+    );
+  }
+
+  /// Amount badge widget for highlighted amounts (like in settlement cards)
+  Widget _buildAmountBadge(String currency, double amount, {bool compact = false}) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 3 : 5,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
+      ),
+      child: Text(
+        '$currency ${amount.toStringAsFixed(2)}',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Colors.green[700],
+          fontSize: compact ? 12 : 13,
+        ),
+      ),
+    );
+  }
+
   Widget _buildZeroBuyinView(BuildContext context, String currency) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,51 +566,13 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     if (profile == null) return;
 
     final hasUsername = profile.username?.isNotEmpty ?? false;
+    final hasEmail = profile.email?.isNotEmpty ?? false;
     final hasPhone = profile.phoneNumber?.isNotEmpty ?? false;
 
-    // Build payment options - prioritize app deep links like Splitwise
-    final paymentOptions = <Map<String, dynamic>>[];
-
-    // Venmo options (preferred - uses deep links to open app)
-    if (hasUsername) {
-      paymentOptions.add({
-        'label': 'Venmo',
-        'sublabel': '@${profile.username}',
-        'method': 'venmo',
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchVenmoPayment(profile.username, amount, profile.fullName);
-        },
-      });
-    } else if (hasPhone) {
-      paymentOptions.add({
-        'label': 'Venmo',
-        'sublabel': profile.phoneNumber,
-        'method': 'venmo',
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchVenmoByPhone(profile.phoneNumber, amount, profile.fullName);
-        },
-      });
-    }
-
-    // PayPal options
-    if (hasUsername) {
-      paymentOptions.add({
-        'label': 'PayPal',
-        'sublabel': '@${profile.username}',
-        'method': 'paypal',
-        'onPressed': () {
-          Navigator.of(context).pop();
-          _launchPayPalPayment(profile.username, amount);
-        },
-      });
-    }
-
-    if (paymentOptions.isEmpty) {
+    if (!hasUsername && !hasEmail && !hasPhone) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No payment information available for this user. Ask them to add their Venmo/PayPal username to their profile.'),
+          content: Text('No payment information available for this user. Ask them to add their Venmo/PayPal info to their profile.'),
           duration: Duration(seconds: 4),
         ),
       );
@@ -571,173 +580,24 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     }
 
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (dialogContext) => Container(
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle bar
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Avatar and name
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  child: Text(
-                    _getInitials(profile.fullName ?? 'U'),
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Pay ${profile.fullName ?? 'User'}',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-
-                // Amount
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '$currency ${amount.toStringAsFixed(2)}',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green[700],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Payment options
-                ...paymentOptions.map((option) {
-                  final isVenmo = option['method'] == 'venmo';
-                  final buttonColor = isVenmo
-                      ? const Color(0xFF3D95CE) // Venmo blue
-                      : const Color(0xFF003087); // PayPal blue
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Material(
-                      color: buttonColor,
-                      borderRadius: BorderRadius.circular(12),
-                      child: InkWell(
-                        onTap: option['onPressed'] as VoidCallback,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                          child: Row(
-                            children: [
-                              // Payment logo
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Center(
-                                  child: isVenmo
-                                      ? const Text(
-                                          'V',
-                                          style: TextStyle(
-                                            color: Color(0xFF3D95CE),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 24,
-                                          ),
-                                        )
-                                      : const Text(
-                                          'P',
-                                          style: TextStyle(
-                                            color: Color(0xFF003087),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 24,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      option['label'] as String,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    if (option['sublabel'] != null)
-                                      Text(
-                                        option['sublabel'] as String,
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.8),
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      builder: (dialogContext) => _PaymentOptionsSheet(
+        profile: profile,
+        amount: amount,
+        currency: currency,
+        theme: theme,
+        onLaunchVenmo: (identifier, type) {
+          Navigator.of(dialogContext).pop();
+          _launchVenmoPayment(identifier, type, amount, profile.fullName);
+        },
+        onLaunchPayPal: (identifier, type) {
+          Navigator.of(dialogContext).pop();
+          _launchPayPalPayment(identifier, type, amount);
+        },
       ),
     );
   }
@@ -749,46 +609,57 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
   }
 
-  /// Launch Venmo payment using deep link (opens Venmo app directly like Splitwise)
-  Future<void> _launchVenmoPayment(String username, double amount, String? recipientName) async {
-    // Clean username (remove @ if present)
-    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+  /// Launch Venmo payment using deep link
+  Future<void> _launchVenmoPayment(String identifier, String type, double amount, String? recipientName) async {
     final note = Uri.encodeComponent('Poker game settlement${recipientName != null ? ' - $recipientName' : ''}');
+    String venmoDeepLink;
+    String venmoWebUrl;
 
-    // Venmo deep link format: venmo://paycharge?txn=pay&recipients=USERNAME&amount=AMOUNT&note=NOTE
-    final venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=$cleanUsername&amount=${amount.toStringAsFixed(2)}&note=$note';
-
-    // Fallback web URL
-    final venmoWebUrl = 'https://venmo.com/$cleanUsername?txn=pay&amount=${amount.toStringAsFixed(2)}&note=$note';
+    switch (type) {
+      case 'username':
+        final cleanUsername = identifier.startsWith('@') ? identifier.substring(1) : identifier;
+        venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=$cleanUsername&amount=${amount.toStringAsFixed(2)}&note=$note';
+        venmoWebUrl = 'https://venmo.com/$cleanUsername?txn=pay&amount=${amount.toStringAsFixed(2)}&note=$note';
+        break;
+      case 'phone':
+        final cleanPhone = identifier.replaceAll(RegExp(r'[^\d]'), '');
+        venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=$cleanPhone&amount=${amount.toStringAsFixed(2)}&note=$note';
+        venmoWebUrl = 'https://venmo.com/';
+        break;
+      case 'email':
+      default:
+        venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=${Uri.encodeComponent(identifier)}&amount=${amount.toStringAsFixed(2)}&note=$note';
+        venmoWebUrl = 'https://venmo.com/';
+        break;
+    }
 
     await _launchPaymentUrl(venmoDeepLink, venmoWebUrl, 'Venmo');
   }
 
-  /// Launch Venmo payment by phone number
-  Future<void> _launchVenmoByPhone(String phone, double amount, String? recipientName) async {
-    // Clean phone number
-    final cleanPhone = phone.replaceAll(RegExp(r'[^\d]'), '');
-    final note = Uri.encodeComponent('Poker game settlement${recipientName != null ? ' - $recipientName' : ''}');
+  /// Launch PayPal payment
+  Future<void> _launchPayPalPayment(String identifier, String type, double amount) async {
+    String paypalUrl;
+    String paypalDeepLink;
 
-    // Venmo deep link with phone
-    final venmoDeepLink = 'venmo://paycharge?txn=pay&recipients=$cleanPhone&amount=${amount.toStringAsFixed(2)}&note=$note';
-
-    // Fallback - no direct web URL for phone, use app store
-    final venmoWebUrl = 'https://venmo.com/';
-
-    await _launchPaymentUrl(venmoDeepLink, venmoWebUrl, 'Venmo');
-  }
-
-  /// Launch PayPal payment using PayPal.me link
-  Future<void> _launchPayPalPayment(String username, double amount) async {
-    // Clean username
-    final cleanUsername = username.startsWith('@') ? username.substring(1) : username;
-
-    // PayPal.me URL (works on both mobile and web, opens PayPal app if installed)
-    final paypalUrl = 'https://paypal.me/$cleanUsername/${amount.toStringAsFixed(2)}';
-
-    // PayPal also supports a deep link format
-    final paypalDeepLink = 'paypal://paypalme/$cleanUsername/${amount.toStringAsFixed(2)}';
+    switch (type) {
+      case 'username':
+        final cleanUsername = identifier.startsWith('@') ? identifier.substring(1) : identifier;
+        paypalUrl = 'https://paypal.me/$cleanUsername/${amount.toStringAsFixed(2)}';
+        paypalDeepLink = 'paypal://paypalme/$cleanUsername/${amount.toStringAsFixed(2)}';
+        break;
+      case 'email':
+        // PayPal can use email for payment
+        paypalUrl = 'https://www.paypal.com/paypalme/my/profile?email=${Uri.encodeComponent(identifier)}';
+        paypalDeepLink = 'paypal://send?recipient=${Uri.encodeComponent(identifier)}&amount=${amount.toStringAsFixed(2)}';
+        break;
+      case 'phone':
+      default:
+        // PayPal mobile payments
+        final cleanPhone = identifier.replaceAll(RegExp(r'[^\d]'), '');
+        paypalUrl = 'https://www.paypal.com/';
+        paypalDeepLink = 'paypal://send?recipient=$cleanPhone&amount=${amount.toStringAsFixed(2)}';
+        break;
+    }
 
     await _launchPaymentUrl(paypalDeepLink, paypalUrl, 'PayPal');
   }
@@ -923,12 +794,21 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     double amount,
     dynamic game,
   ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final settlementMethods = [
       {
         'label': 'Cash',
         'method': 'cash',
-        'icon': Icons.payments,
+        'icon': Icons.payments_rounded,
         'color': const Color(0xFF4CAF50),
+      },
+      {
+        'label': 'Venmo',
+        'method': 'venmo',
+        'icon': Icons.phone_iphone,
+        'color': const Color(0xFF3D95CE),
       },
       {
         'label': 'PayPal',
@@ -936,105 +816,275 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         'icon': Icons.payment,
         'color': const Color(0xFF003087),
       },
-      {
-        'label': 'Venmo',
-        'method': 'venmo',
-        'icon': Icons.phone,
-        'color': const Color(0xFF3D95CE),
-      },
     ];
 
-    showDialog<void>(
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Mark as Settled',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogContext) => Container(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Checkmark icon
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.green,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                Text(
+                  'Mark as Settled',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Payment info card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[850] : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // From user
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            child: Text(
+                              _getInitials(from.profile?.fullName ?? 'U'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              from.profile?.fullName ?? 'Unknown',
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Arrow with amount
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 18),
+                            Container(
+                              width: 2,
+                              height: 20,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(width: 14),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.green.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.arrow_downward,
+                                    size: 14,
+                                    color: Colors.green[700],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _buildAmountText(
+                                    game.currency,
+                                    amount,
+                                    size: 'medium',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // To user
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.green.withValues(alpha: 0.1),
+                            child: Text(
+                              _getInitials(to.profile?.fullName ?? 'U'),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              to.profile?.fullName ?? 'Unknown',
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Payment method label
+                Text(
+                  'How was it paid?',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Payment method buttons
+                ...settlementMethods.map((method) {
+                  final color = method['color'] as Color;
+                  final icon = method['icon'] as IconData;
+                  final label = method['label'] as String;
+                  final methodName = method['method'] as String;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          setState(() {
+                            final key = '${from.id}|${to.id}';
+                            _settlementStatus[key] = {
+                              'settled': true,
+                              'method': methodName,
+                            };
+                          });
+                          _recordSettlement(
+                            gameId: game.id,
+                            fromUserId: from.id,
+                            toUserId: to.id,
+                            amount: amount,
+                            method: methodName,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 20,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  icon,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  label,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.check_circle_outline,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '${from.profile?.fullName ?? "Unknown"} paid',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${to.profile?.fullName ?? "Unknown"}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${game.currency} ${amount.toStringAsFixed(2)}',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'How was it paid?',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ...settlementMethods.map((method) {
-            final color = method['color'] as Color;
-            return ElevatedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                setState(() {
-                  final key = '${from.id}|${to.id}';
-                  _settlementStatus[key] = {
-                    'settled': true,
-                    'method': method['method'],
-                  };
-                });
-                _recordSettlement(
-                  gameId: game.id,
-                  fromUserId: from.id,
-                  toUserId: to.id,
-                  amount: amount,
-                  method: method['method'] as String,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: color,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _getPaymentMethodImage(method['method'] as String, 16),
-                  const SizedBox(width: 8),
-                  Text(method['label'] as String),
-                ],
-              ),
-            );
-          }),
-        ],
       ),
     );
   }
@@ -1093,94 +1143,220 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     dynamic to,
     String method,
   ) {
-    showDialog<void>(
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reset Settlement?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                border: Border.all(
-                  color: Colors.red.withValues(alpha: 0.3),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogContext) => Container(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    '${from.profile?.fullName ?? "Unknown"} → ${to.profile?.fullName ?? "Unknown"}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                const SizedBox(height: 24),
+
+                // Warning icon
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.undo_rounded,
+                    color: Colors.orange,
+                    size: 36,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                Text(
+                  'Reset Settlement?',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This will clear the settlement record',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Settlement info card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey[850] : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
-                      border: Border.all(color: Colors.green),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          size: 12,
-                          color: Colors.green,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          method,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.green,
+                  child: Row(
+                    children: [
+                      // From avatar
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                        child: Text(
+                          _getInitials(from.profile?.fullName ?? 'U'),
+                          style: TextStyle(
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Arrow
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              from.profile?.fullName ?? 'Unknown',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.arrow_forward,
+                                  size: 16,
+                                  color: Colors.green,
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    method,
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              to.profile?.fullName ?? 'Unknown',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+                      // To avatar
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.green.withValues(alpha: 0.1),
+                        child: Text(
+                          _getInitials(to.profile?.fullName ?? 'U'),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 24),
+
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(
+                            color: isDark ? Colors.grey[600]! : Colors.grey[400]!,
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: isDark ? Colors.grey[300] : Colors.grey[700],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          _deleteSettlement(
+                            gameId: widget.gameId,
+                            from: from,
+                            to: to,
+                          );
+                        },
+                        icon: const Icon(Icons.undo_rounded, size: 20),
+                        label: const Text('Reset'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'This will clear the settlement record. Are you sure?',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              _deleteSettlement(
-                gameId: widget.gameId,
-                from: from,
-                to: to,
-              );
-            },
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Reset Settlement'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1987,118 +2163,237 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                           final to = settlement['to'] as dynamic;
                                           final amount =
                                               settlement['amount'] as double;
+                                          final theme = Theme.of(context);
+                                          final isDark = theme.brightness == Brightness.dark;
+                                          final key = '${from.id}|${to.id}';
+                                          final status = _settlementStatus[key];
+                                          final isSettled = status?['settled'] ?? false;
+                                          final settlementMethod = status?['method'] as String?;
 
                                           return Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 4,
-                                            ),
+                                            padding: const EdgeInsets.only(bottom: 12),
                                             child: Container(
                                               decoration: BoxDecoration(
+                                                color: isSettled
+                                                    ? Colors.green.withValues(alpha: 0.05)
+                                                    : (isDark ? Colors.grey[850] : Colors.grey[50]),
                                                 border: Border.all(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .outline
-                                                      .withValues(alpha: 0.3),
+                                                  color: isSettled
+                                                      ? Colors.green.withValues(alpha: 0.3)
+                                                      : (isDark ? Colors.grey[700]! : Colors.grey[300]!),
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
+                                                borderRadius: BorderRadius.circular(12),
                                               ),
-                                              padding: const EdgeInsets.all(8),
-                                              child: Row(
+                                              child: Column(
                                                 children: [
-                                                  Expanded(
-                                                    flex: 2,
-                                                    child: Text(
-                                                      from.profile?.fullName ??
-                                                          'Unknown',
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodySmall,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Icon(
-                                                    Icons.arrow_forward,
-                                                    size: 14,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .outline,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Expanded(
-                                                    flex: 2,
-                                                    child: TextButton(
-                                                      onPressed: () {
-                                                        _showPaymentOptionsDialog(
-                                                          context,
-                                                          to,
-                                                          amount,
-                                                          game.currency,
-                                                        );
-                                                      },
-                                                      style: TextButton
-                                                          .styleFrom(
-                                                        padding:
-                                                            EdgeInsets.zero,
-                                                        tapTargetSize:
-                                                            MaterialTapTargetSize
-                                                                .shrinkWrap,
-                                                      ),
-                                                      child: Text(
-                                                        to.profile?.fullName ??
-                                                            'Unknown',
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: Theme.of(context)
-                                                            .textTheme
-                                                            .bodySmall
-                                                            ?.copyWith(
-                                                              color: Theme.of(
-                                                                    context,
-                                                                  )
-                                                                  .colorScheme
-                                                                  .primary,
+                                                  // Main settlement info row
+                                                  Padding(
+                                                    padding: const EdgeInsets.all(12),
+                                                    child: Row(
+                                                      children: [
+                                                        // From avatar
+                                                        CircleAvatar(
+                                                          radius: 16,
+                                                          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                                          child: Text(
+                                                            _getInitials(from.profile?.fullName ?? 'U'),
+                                                            style: TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: theme.colorScheme.primary,
                                                             ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        // From name and arrow
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              Text(
+                                                                from.profile?.fullName ?? 'Unknown',
+                                                                maxLines: 1,
+                                                                overflow: TextOverflow.ellipsis,
+                                                                style: theme.textTheme.bodyMedium?.copyWith(
+                                                                  fontWeight: FontWeight.w500,
+                                                                ),
+                                                              ),
+                                                              Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons.arrow_forward,
+                                                                    size: 12,
+                                                                    color: isSettled ? Colors.green : Colors.grey,
+                                                                  ),
+                                                                  const SizedBox(width: 4),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      to.profile?.fullName ?? 'Unknown',
+                                                                      maxLines: 1,
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        // Amount
+                                                        _buildAmountBadge(game.currency, amount, compact: true),
+                                                      ],
+                                                    ),
+                                                  ),
+
+                                                  // Action buttons row
+                                                  Container(
+                                                    decoration: BoxDecoration(
+                                                      border: Border(
+                                                        top: BorderSide(
+                                                          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                                                        ),
                                                       ),
                                                     ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  SizedBox(
-                                                    width: 45,
-                                                    child: Text(
-                                                      '${game.currency} ${amount.toStringAsFixed(2)}',
-                                                      textAlign:
-                                                          TextAlign.right,
-                                                      style: Theme.of(context)
-                                                          .textTheme
-                                                          .bodySmall
-                                                          ?.copyWith(
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            color:
-                                                                Colors.green,
+                                                    child: isSettled
+                                                        ? // Settled state - show settled badge with reset option
+                                                          InkWell(
+                                                            onTap: () {
+                                                              _showResetSettlementDialog(
+                                                                context,
+                                                                from,
+                                                                to,
+                                                                settlementMethod ?? 'Unknown',
+                                                              );
+                                                            },
+                                                            borderRadius: const BorderRadius.vertical(
+                                                              bottom: Radius.circular(12),
+                                                            ),
+                                                            child: Padding(
+                                                              padding: const EdgeInsets.symmetric(
+                                                                horizontal: 12,
+                                                                vertical: 10,
+                                                              ),
+                                                              child: Row(
+                                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                                children: [
+                                                                  const Icon(
+                                                                    Icons.check_circle,
+                                                                    size: 16,
+                                                                    color: Colors.green,
+                                                                  ),
+                                                                  const SizedBox(width: 6),
+                                                                  Text(
+                                                                    'Settled via ${settlementMethod ?? "Unknown"}',
+                                                                    style: const TextStyle(
+                                                                      color: Colors.green,
+                                                                      fontWeight: FontWeight.w600,
+                                                                      fontSize: 13,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(width: 8),
+                                                                  Icon(
+                                                                    Icons.edit_outlined,
+                                                                    size: 14,
+                                                                    color: Colors.grey[500],
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : // Not settled - show action buttons
+                                                          Row(
+                                                            children: [
+                                                              // Pay button
+                                                              Expanded(
+                                                                child: InkWell(
+                                                                  onTap: () {
+                                                                    _showPaymentOptionsDialog(
+                                                                      context,
+                                                                      to,
+                                                                      amount,
+                                                                      game.currency,
+                                                                    );
+                                                                  },
+                                                                  child: Container(
+                                                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                                                    decoration: BoxDecoration(
+                                                                      borderRadius: const BorderRadius.only(
+                                                                        bottomLeft: Radius.circular(11),
+                                                                      ),
+                                                                    ),
+                                                                    child: Row(
+                                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                                      children: [
+                                                                        Icon(
+                                                                          Icons.send_rounded,
+                                                                          size: 16,
+                                                                          color: theme.colorScheme.primary,
+                                                                        ),
+                                                                        const SizedBox(width: 6),
+                                                                        Text(
+                                                                          'Pay Now',
+                                                                          style: TextStyle(
+                                                                            color: theme.colorScheme.primary,
+                                                                            fontWeight: FontWeight.w600,
+                                                                            fontSize: 13,
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              // Divider
+                                                              Container(
+                                                                width: 1,
+                                                                height: 36,
+                                                                color: isDark ? Colors.grey[700] : Colors.grey[200],
+                                                              ),
+                                                              // Mark Settled button
+                                                              Expanded(
+                                                                child: InkWell(
+                                                                  onTap: () {
+                                                                    _showSettlementDialog(
+                                                                      context,
+                                                                      from,
+                                                                      to,
+                                                                      amount,
+                                                                      game,
+                                                                    );
+                                                                  },
+                                                                  child: Container(
+                                                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                                                    decoration: BoxDecoration(
+                                                                      borderRadius: const BorderRadius.only(
+                                                                        bottomRight: Radius.circular(11),
+                                                                      ),
+                                                                    ),
+                                                                    child: Row(
+                                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                                      children: [
+                                                                        Icon(
+                                                                          Icons.check_circle_outline,
+                                                                          size: 16,
+                                                                          color: Colors.green[600],
+                                                                        ),
+                                                                        const SizedBox(width: 6),
+                                                                        Text(
+                                                                          'Mark Settled',
+                                                                          style: TextStyle(
+                                                                            color: Colors.green[600],
+                                                                            fontWeight: FontWeight.w600,
+                                                                            fontSize: 13,
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  GestureDetector(
-                                                    onTap: () {
-                                                      _showSettlementDialog(
-                                                        context,
-                                                        from,
-                                                        to,
-                                                        amount,
-                                                        game,
-                                                      );
-                                                    },
-                                                    child: _buildSettlementCell(
-                                                      from,
-                                                      to,
-                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -2302,18 +2597,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                   ),
                                                 ),
                                                 // Win/Loss amount
-                                                Text(
-                                                  '${game.currency} ${winLoss.toStringAsFixed(2)}',
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium
-                                                      ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: winLoss >= 0
-                                                            ? Colors.green
-                                                            : Colors.red,
-                                                      ),
+                                                _buildAmountText(
+                                                  game.currency,
+                                                  winLoss,
+                                                  size: 'medium',
+                                                  showSign: true,
                                                 ),
                                               ],
                                             ),
@@ -2495,46 +2783,41 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                   ),
                                                 ),
                                                 Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    8,
-                                                  ),
-                                                  child: Text(
-                                                    '${game.currency} ${buyins.toStringAsFixed(2)}',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodyMedium,
-                                                    textAlign: TextAlign.right,
-                                                  ),
-                                                ),
-                                                Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    8,
-                                                  ),
-                                                  child: Text(
-                                                    '${game.currency} ${cashouts.toStringAsFixed(2)}',
-                                                    style: Theme.of(
-                                                      context,
-                                                    ).textTheme.bodyMedium,
-                                                    textAlign: TextAlign.right,
+                                                  padding: const EdgeInsets.all(8),
+                                                  child: Align(
+                                                    alignment: Alignment.centerRight,
+                                                    child: _buildAmountText(
+                                                      game.currency,
+                                                      buyins,
+                                                      size: 'small',
+                                                      bold: false,
+                                                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                                                    ),
                                                   ),
                                                 ),
                                                 Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    8,
+                                                  padding: const EdgeInsets.all(8),
+                                                  child: Align(
+                                                    alignment: Alignment.centerRight,
+                                                    child: _buildAmountText(
+                                                      game.currency,
+                                                      cashouts,
+                                                      size: 'small',
+                                                      bold: false,
+                                                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                                                    ),
                                                   ),
-                                                  child: Text(
-                                                    '${game.currency} ${winLoss.toStringAsFixed(2)}',
-                                                    style: Theme.of(context)
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color: winLoss >= 0
-                                                              ? Colors.green
-                                                              : Colors.red,
-                                                        ),
-                                                    textAlign: TextAlign.right,
+                                                ),
+                                                Padding(
+                                                  padding: const EdgeInsets.all(8),
+                                                  child: Align(
+                                                    alignment: Alignment.centerRight,
+                                                    child: _buildAmountText(
+                                                      game.currency,
+                                                      winLoss,
+                                                      size: 'small',
+                                                      showSign: true,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
@@ -4749,5 +5032,516 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
       default:
         return Colors.grey.withValues(alpha: 0.3);
     }
+  }
+}
+
+/// Payment options bottom sheet with editable fields
+class _PaymentOptionsSheet extends StatefulWidget {
+  final dynamic profile;
+  final double amount;
+  final String currency;
+  final ThemeData theme;
+  final void Function(String identifier, String type) onLaunchVenmo;
+  final void Function(String identifier, String type) onLaunchPayPal;
+
+  const _PaymentOptionsSheet({
+    required this.profile,
+    required this.amount,
+    required this.currency,
+    required this.theme,
+    required this.onLaunchVenmo,
+    required this.onLaunchPayPal,
+  });
+
+  @override
+  State<_PaymentOptionsSheet> createState() => _PaymentOptionsSheetState();
+}
+
+class _PaymentOptionsSheetState extends State<_PaymentOptionsSheet> {
+  late TextEditingController _usernameController;
+  late TextEditingController _emailController;
+  late TextEditingController _phoneController;
+
+  String _selectedPaymentApp = 'venmo'; // 'venmo' or 'paypal'
+  String _selectedIdentifierType = 'username'; // 'username', 'email', or 'phone'
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController(text: widget.profile.username ?? '');
+    _emailController = TextEditingController(text: widget.profile.email ?? '');
+    _phoneController = TextEditingController(text: widget.profile.phoneNumber ?? '');
+
+    // Set default identifier type based on available data
+    if (widget.profile.username?.isNotEmpty ?? false) {
+      _selectedIdentifierType = 'username';
+    } else if (widget.profile.email?.isNotEmpty ?? false) {
+      _selectedIdentifierType = 'email';
+    } else if (widget.profile.phoneNumber?.isNotEmpty ?? false) {
+      _selectedIdentifierType = 'phone';
+    }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(' ');
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+  }
+
+  void _launchPayment() {
+    String identifier;
+    switch (_selectedIdentifierType) {
+      case 'username':
+        identifier = _usernameController.text.trim();
+        break;
+      case 'email':
+        identifier = _emailController.text.trim();
+        break;
+      case 'phone':
+        identifier = _phoneController.text.trim();
+        break;
+      default:
+        identifier = '';
+    }
+
+    if (identifier.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid identifier')),
+      );
+      return;
+    }
+
+    if (_selectedPaymentApp == 'venmo') {
+      widget.onLaunchVenmo(identifier, _selectedIdentifierType);
+    } else {
+      widget.onLaunchPayPal(identifier, _selectedIdentifierType);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final isDark = theme.brightness == Brightness.dark;
+    final hasUsername = widget.profile.username?.isNotEmpty ?? false;
+    final hasEmail = widget.profile.email?.isNotEmpty ?? false;
+    final hasPhone = widget.profile.phoneNumber?.isNotEmpty ?? false;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            16,
+            24,
+            MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle bar
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Avatar and name
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  child: Text(
+                    _getInitials(widget.profile.fullName ?? 'U'),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pay ${widget.profile.fullName ?? 'User'}',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Amount
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${widget.currency} ${widget.amount.toStringAsFixed(2)}',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Payment App Selection
+                Text(
+                  'Choose Payment App',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PaymentAppButton(
+                        label: 'Venmo',
+                        color: const Color(0xFF3D95CE),
+                        isSelected: _selectedPaymentApp == 'venmo',
+                        onTap: () => setState(() => _selectedPaymentApp = 'venmo'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _PaymentAppButton(
+                        label: 'PayPal',
+                        color: const Color(0xFF003087),
+                        isSelected: _selectedPaymentApp == 'paypal',
+                        onTap: () => setState(() => _selectedPaymentApp = 'paypal'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Identifier Selection & Editing
+                Text(
+                  'Payment Identifier',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Show only available identifier options
+                if (hasUsername)
+                  _IdentifierOption(
+                    type: 'username',
+                    label: 'Username',
+                    icon: Icons.alternate_email,
+                    controller: _usernameController,
+                    isSelected: _selectedIdentifierType == 'username',
+                    onSelect: () => setState(() => _selectedIdentifierType = 'username'),
+                    theme: theme,
+                  ),
+                if (hasEmail)
+                  _IdentifierOption(
+                    type: 'email',
+                    label: 'Email',
+                    icon: Icons.email_outlined,
+                    controller: _emailController,
+                    isSelected: _selectedIdentifierType == 'email',
+                    onSelect: () => setState(() => _selectedIdentifierType = 'email'),
+                    theme: theme,
+                  ),
+                if (hasPhone)
+                  _IdentifierOption(
+                    type: 'phone',
+                    label: 'Phone',
+                    icon: Icons.phone_outlined,
+                    controller: _phoneController,
+                    isSelected: _selectedIdentifierType == 'phone',
+                    onSelect: () => setState(() => _selectedIdentifierType = 'phone'),
+                    theme: theme,
+                  ),
+
+                const SizedBox(height: 24),
+
+                // Launch Payment Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _launchPayment,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _selectedPaymentApp == 'venmo'
+                          ? const Color(0xFF3D95CE)
+                          : const Color(0xFF003087),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Center(
+                            child: Text(
+                              _selectedPaymentApp == 'venmo' ? 'V' : 'P',
+                              style: TextStyle(
+                                color: _selectedPaymentApp == 'venmo'
+                                    ? const Color(0xFF3D95CE)
+                                    : const Color(0xFF003087),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Open ${_selectedPaymentApp == 'venmo' ? 'Venmo' : 'PayPal'}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Payment app selection button
+class _PaymentAppButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _PaymentAppButton({
+    required this.label,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected ? color : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isSelected ? color : Colors.grey[400]!,
+              width: isSelected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white : color,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    label[0],
+                    style: TextStyle(
+                      color: isSelected ? color : Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : null,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Identifier option with editable text field
+class _IdentifierOption extends StatelessWidget {
+  final String type;
+  final String label;
+  final IconData icon;
+  final TextEditingController controller;
+  final bool isSelected;
+  final VoidCallback onSelect;
+  final ThemeData theme;
+
+  const _IdentifierOption({
+    required this.type,
+    required this.label,
+    required this.icon,
+    required this.controller,
+    required this.isSelected,
+    required this.onSelect,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: onSelect,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                : (isDark ? Colors.grey[800] : Colors.grey[100]),
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : (isDark ? Colors.grey[700]! : Colors.grey[300]!),
+              width: isSelected ? 2 : 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              // Radio-style indicator
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : (isDark ? Colors.grey[600]! : Colors.grey[400]!),
+                    width: 2,
+                  ),
+                  color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check, size: 16, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected
+                    ? theme.colorScheme.primary
+                    : (isDark ? Colors.grey[400] : Colors.grey[600]),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$label:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  onTap: onSelect,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: theme.colorScheme.primary,
+                        width: 2,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: isDark ? Colors.grey[900] : Colors.white,
+                  ),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
