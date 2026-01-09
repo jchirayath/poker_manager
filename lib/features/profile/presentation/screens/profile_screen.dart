@@ -11,60 +11,81 @@ class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   Widget _avatar(BuildContext context, String? url, String initials) {
-    debugPrint('🎯 Avatar URL: "$url" | Initials: "$initials"');
     if ((url ?? '').isEmpty) {
-      debugPrint('📭 Using initials avatar (no URL)');
       return _initialsAvatar(context, initials);
     }
 
     if (url!.toLowerCase().contains('svg')) {
-      debugPrint('🖼️ Loading SVG: $url');
-      return ClipOval(
-        child: SvgPicture.network(
-          fixDiceBearUrl(url)!,
-          width: 120,
-          height: 120,
-          placeholderBuilder: (_) => const SizedBox(
-            width: 40,
-            height: 40,
-            child: CircularProgressIndicator(strokeWidth: 2),
+      return Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary,
+            width: 3,
+          ),
+        ),
+        child: ClipOval(
+          child: SvgPicture.network(
+            fixDiceBearUrl(url)!,
+            width: 100,
+            height: 100,
+            placeholderBuilder: (_) => const SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           ),
         ),
       );
     }
-    debugPrint('🖼️ Loading image: $url');
-    return ClipOval(
-      child: Image.network(
-        url,
-        width: 120,
-        height: 120,
-        fit: BoxFit.cover,
-        errorBuilder: (ctx, error, stackTrace) {
-          debugPrint('🔴 Error loading image avatar: $error');
-          return _initialsAvatar(context, initials);
-        },
-        loadingBuilder: (ctx, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
-                  : null,
-            ),
-          );
-        },
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary,
+          width: 3,
+        ),
+      ),
+      child: ClipOval(
+        child: Image.network(
+          url,
+          width: 100,
+          height: 100,
+          fit: BoxFit.cover,
+          errorBuilder: (ctx, error, stackTrace) {
+            return _initialsAvatar(context, initials);
+          },
+          loadingBuilder: (ctx, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _initialsAvatar(BuildContext context, String initials) {
     return Container(
-      width: 120,
-      height: 120,
+      width: 100,
+      height: 100,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
         shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary,
+          width: 3,
+        ),
       ),
       child: Center(
         child: Text(
@@ -82,11 +103,14 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authUserAsync = ref.watch(authStateProvider);
     final canPop = Navigator.of(context).canPop();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       drawer: canPop ? null : const AppDrawer(),
       appBar: AppBar(
         title: const Text('Profile'),
+        centerTitle: true,
         leading: canPop
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -100,18 +124,9 @@ class ProfileScreen extends ConsumerWidget {
               ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Profile',
             onPressed: () => context.push(RouteConstants.editProfile),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              final controller = ref.read(authControllerProvider);
-              await controller.signOut();
-              if (context.mounted) {
-                context.go(RouteConstants.signIn);
-              }
-            },
           ),
         ],
       ),
@@ -121,57 +136,145 @@ class ProfileScreen extends ConsumerWidget {
             return const Center(child: Text('Not signed in'));
           }
 
+          final initials = (user.firstName.isNotEmpty ? user.firstName[0] : '') +
+              (user.lastName.isNotEmpty ? user.lastName[0] : '');
+
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                _avatar(
-                  context,
-                  user.avatarUrl,
-                  (user.firstName.isNotEmpty ? user.firstName[0] : '') +
-                      (user.lastName.isNotEmpty ? user.lastName[0] : ''),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  user.firstName.isNotEmpty || user.lastName.isNotEmpty
-                      ? user.fullName
-                      : 'User',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (user.username != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '@${user.username}',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                // Header section with gradient background
+                Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        colorScheme.primaryContainer.withValues(alpha: 0.3),
+                        colorScheme.surface,
+                      ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 32),
-                _buildInfoCard(
-                  context,
-                  'Contact Information',
-                  [
-                    _InfoRow(icon: Icons.email, label: user.email),
-                    if (user.phoneNumber != null)
-                      _InfoRow(icon: Icons.phone, label: user.phoneNumber!),
-                  ],
-                ),
-                if (user.hasAddress) ...[
-                  const SizedBox(height: 16),
-                  _buildInfoCard(
-                    context,
-                    'Address',
-                    [
-                      _InfoRow(
-                        icon: Icons.location_on,
-                        label: user.fullAddress,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 24),
+                      _avatar(context, user.avatarUrl, initials),
+                      const SizedBox(height: 16),
+                      Text(
+                        user.firstName.isNotEmpty || user.lastName.isNotEmpty
+                            ? user.fullName
+                            : 'User',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
+                      if (user.username != null && user.username!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '@${user.username}',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
                     ],
                   ),
-                ],
+                ),
+
+                // Content section
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Contact Information Card
+                      _buildSectionCard(
+                        context: context,
+                        icon: Icons.contact_mail_outlined,
+                        title: 'Contact Information',
+                        children: [
+                          _buildInfoTile(
+                            context: context,
+                            icon: Icons.email_outlined,
+                            label: 'Email',
+                            value: user.email,
+                          ),
+                          if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty)
+                            _buildInfoTile(
+                              context: context,
+                              icon: Icons.phone_outlined,
+                              label: 'Phone',
+                              value: user.phoneNumber!,
+                            ),
+                        ],
+                      ),
+
+                      // Address Card
+                      if (user.hasAddress) ...[
+                        const SizedBox(height: 12),
+                        _buildSectionCard(
+                          context: context,
+                          icon: Icons.location_on_outlined,
+                          title: 'Address',
+                          children: [
+                            _buildInfoTile(
+                              context: context,
+                              icon: Icons.home_outlined,
+                              label: 'Location',
+                              value: user.fullAddress,
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 24),
+
+                      // Sign Out Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Sign Out'),
+                                content: const Text('Are you sure you want to sign out?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('Sign Out'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirmed == true && context.mounted) {
+                              final controller = ref.read(authControllerProvider);
+                              await controller.signOut();
+                              if (context.mounted) {
+                                context.go(RouteConstants.signIn);
+                              }
+                            }
+                          },
+                          icon: Icon(Icons.logout, color: colorScheme.error),
+                          label: Text(
+                            'Sign Out',
+                            style: TextStyle(color: colorScheme.error),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: colorScheme.error.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -182,22 +285,48 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoCard(
-    BuildContext context,
-    String title,
-    List<Widget> children,
-  ) {
+  Widget _buildSectionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ...children,
@@ -206,26 +335,43 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
+  Widget _buildInfoTile({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-  const _InfoRow({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(
+            icon,
+            size: 20,
+            color: colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyLarge,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ],
             ),
           ),
         ],
