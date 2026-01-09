@@ -12,6 +12,12 @@ final groupsListProvider = FutureProvider<List<GroupModel>>((ref) async {
   return result is Success<List<GroupModel>> ? result.data : [];
 });
 
+final publicGroupsProvider = FutureProvider<List<GroupModel>>((ref) async {
+  final repository = ref.watch(groupsRepositoryProvider);
+  final result = await repository.getPublicGroups();
+  return result is Success<List<GroupModel>> ? result.data : [];
+});
+
 final groupProvider = FutureProvider.family<GroupModel?, String>((ref, groupId) async {
   final repository = ref.watch(groupsRepositoryProvider);
   final result = await repository.getGroup(groupId);

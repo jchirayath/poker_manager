@@ -267,4 +267,55 @@ class GroupsRepository {
       return Failure('Failed to check admin status: ${e.toString()}');
     }
   }
+
+  /// Fetch all public groups (privacy = 'public')
+  Future<Result<List<GroupModel>>> getPublicGroups() async {
+    try {
+      final response = await _client
+          .from('groups')
+          .select()
+          .eq('privacy', 'public')
+          .order('created_at', ascending: false);
+
+      final groups = (response as List).map((json) {
+        // Fix DiceBear URLs to exclude metadata tags
+        if (json['avatar_url'] != null) {
+          json['avatar_url'] = fixDiceBearUrl(json['avatar_url']);
+        }
+        return GroupModel.fromJson(json);
+      }).toList();
+
+      return Success(groups);
+    } catch (e) {
+      return Failure('Failed to load public groups: ${e.toString()}');
+    }
+  }
+
+  /// Fetch public groups with pagination
+  Future<Result<List<GroupModel>>> getPublicGroupsPaginated({
+    required int page,
+    required int pageSize,
+  }) async {
+    try {
+      final offset = (page - 1) * pageSize;
+
+      final response = await _client
+          .from('groups')
+          .select()
+          .eq('privacy', 'public')
+          .order('created_at', ascending: false)
+          .range(offset, offset + pageSize - 1);
+
+      final groups = (response as List).map((json) {
+        if (json['avatar_url'] != null) {
+          json['avatar_url'] = fixDiceBearUrl(json['avatar_url']);
+        }
+        return GroupModel.fromJson(json);
+      }).toList();
+
+      return Success(groups);
+    } catch (e) {
+      return Failure('Failed to load public groups: ${e.toString()}');
+    }
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../../core/constants/app_constants.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -10,8 +11,6 @@ class AboutScreen extends StatefulWidget {
 
 class _AboutScreenState extends State<AboutScreen> {
   String _version = '';
-  String _appName = 'Poker Manager';
-  String _copyright = '© 2026 Poker Manager Team';
 
   @override
   void initState() {
@@ -24,7 +23,6 @@ class _AboutScreenState extends State<AboutScreen> {
       final info = await PackageInfo.fromPlatform();
       setState(() {
         _version = info.version;
-        _appName = info.appName;
       });
     } catch (_) {}
   }
@@ -39,19 +37,19 @@ class _AboutScreenState extends State<AboutScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _appName,
+              AppConstants.appName,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text('Version: ${_version.isNotEmpty ? _version : 'Loading...'}'),
             const SizedBox(height: 16),
-            const Text(
-              'Poker Manager helps you organize, track, and enjoy your poker nights with friends. Manage groups, schedule games, track stats, and more!\n',
+            Text(
+              '${AppConstants.appName} helps you organize, track, and enjoy your poker nights with friends. Manage groups, schedule games, track stats, and more!\n',
             ),
             const SizedBox(height: 16),
-            Text(_copyright),
+            Text(AppConstants.copyright),
             const SizedBox(height: 8),
-            const Text('Developed by the Poker Manager Team.'),
+            Text('Developed by ${AppConstants.companyName}.'),
           ],
         ),
       ),

@@ -51,4 +51,18 @@ class AppConstants {
   static const double minBuyin = 1.0;
   static const double maxBuyin = 100000.0;
   static const double settlementTolerance = 0.01; // 1 cent tolerance
+
+  // App Developer/Company Info
+  static const String appName = 'Poker Manager';
+  static const String companyName = 'Poker Manager Team';
+  static const String developerEmail = 'support@pokermanager.app';
+  static const String copyright = '© 2026 Poker Manager Team';
+  static const String websiteUrl = 'https://pokermanager.app';
+
+  // Feedback categories
+  static const List<String> feedbackCategories = [
+    'Feature Request',
+    'Bug Report',
+    'General Feedback',
+  ];
 }
