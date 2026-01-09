@@ -26,6 +26,9 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
   final GlobalKey _cancelledGamesKey = GlobalKey();
   final GlobalKey _createGameKey = GlobalKey();
 
+  // Cache date formatters to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('EEEE, MMMM d, yyyy');
+  static final DateFormat _timeFormatter = DateFormat('h:mm a');
 
   @override
   void dispose() {
@@ -70,8 +73,6 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final dateFormatter = DateFormat('EEEE, MMMM d, yyyy');
-    final timeFormatter = DateFormat('h:mm a');
 
     final dateTimeCard = Card(
       child: Padding(
@@ -83,18 +84,20 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                dateFormatter.format(now),
+                _dateFormatter.format(now),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
+                      overflow: TextOverflow.ellipsis,
                     ),
               ),
               const SizedBox(width: 8),
               Text(
-                timeFormatter.format(now),
+                _timeFormatter.format(now),
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
+                      overflow: TextOverflow.ellipsis,
                     ),
               ),
             ],
@@ -138,7 +141,8 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4), // reduce padding
+                shrinkWrap: true,
                 children: [
                   _NavigationChip(
                     label: 'Active',
@@ -146,21 +150,21 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                     color: Colors.green,
                     onTap: () => _scrollToSection(_activeGamesKey),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   _NavigationChip(
                     label: 'Scheduled',
                     icon: Icons.schedule,
                     color: Colors.orange,
                     onTap: () => _scrollToSection(_scheduledGamesKey),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   _NavigationChip(
                     label: 'Completed',
                     icon: Icons.check_circle,
                     color: Colors.blue,
                     onTap: () => _scrollToSection(_completedGamesKey),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   _NavigationChip(
                     label: 'Cancelled',
                     icon: Icons.cancel,
@@ -208,26 +212,31 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                 child: Text('Error loading games: $error'),
               ),
               data: (allGames) {
-                final inProgressGames = allGames
-                    .where((gwg) => gwg.game.status == 'in_progress')
-                    .toList();
-                
-                // Show all scheduled games, sorted by most recent date
-                final allScheduledGames = allGames
-                    .where((gwg) => gwg.game.status == 'scheduled')
-                    .toList()
-                  ..sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
+                // Single pass filtering for better performance
+                final inProgressGames = <GameWithGroup>[];
+                final scheduledGames = <GameWithGroup>[];
+
+                for (final gwg in allGames) {
+                  if (gwg.game.status == 'in_progress') {
+                    inProgressGames.add(gwg);
+                  } else if (gwg.game.status == 'scheduled') {
+                    scheduledGames.add(gwg);
+                  }
+                }
+
+                // Sort scheduled games by date
+                scheduledGames.sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Active Games Section
-                    SizedBox(
-                      key: _activeGamesKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (inProgressGames.isNotEmpty) ...[
+                    if (inProgressGames.isNotEmpty)
+                      SizedBox(
+                        key: _activeGamesKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Padding(
                               padding: const EdgeInsets.only(left: 4, bottom: 8),
                               child: Text(
@@ -237,24 +246,24 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                                     ),
                               ),
                             ),
-                            ...inProgressGames.map((gwg) => _GameCard(
-                                  gameWithGroup: gwg,
-                                  onTap: () => _openGameDetail(context, gwg.game.id),
-                                )),
+                            for (final gwg in inProgressGames)
+                              _GameCard(
+                                key: ValueKey(gwg.game.id),
+                                gameWithGroup: gwg,
+                                onTap: () => _openGameDetail(context, gwg.game.id),
+                              ),
                             const SizedBox(height: 24),
-                          ] else
-                            const SizedBox.shrink(),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    
+
                     // Start Games Section (scheduled)
-                    SizedBox(
-                      key: _scheduledGamesKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (allScheduledGames.isNotEmpty) ...[
+                    if (scheduledGames.isNotEmpty)
+                      SizedBox(
+                        key: _scheduledGamesKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Padding(
                               padding: const EdgeInsets.only(left: 4, bottom: 8),
                               child: Text(
@@ -264,16 +273,16 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
                                     ),
                               ),
                             ),
-                            ...allScheduledGames.map((gwg) => _GameCard(
-                                  gameWithGroup: gwg,
-                                  onTap: () => _openGameDetail(context, gwg.game.id),
-                                )),
+                            for (final gwg in scheduledGames)
+                              _GameCard(
+                                key: ValueKey(gwg.game.id),
+                                gameWithGroup: gwg,
+                                onTap: () => _openGameDetail(context, gwg.game.id),
+                              ),
                             const SizedBox(height: 24),
-                          ] else
-                            const SizedBox.shrink(),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 );
               },
@@ -294,114 +303,128 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
             ),
             const SizedBox(height: 24),
             
-            // Completed Games Section
-            SizedBox(
-              key: _completedGamesKey,
-              child: pastGamesAsync.when(
-                loading: () => const Center(
+            // Completed and Cancelled Games Section
+            pastGamesAsync.when(
+              loading: () => SizedBox(
+                key: _completedGamesKey,
+                child: const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
                     child: CircularProgressIndicator(),
                   ),
                 ),
-                error: (error, stack) => Padding(
+              ),
+              error: (error, stack) => SizedBox(
+                key: _completedGamesKey,
+                child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text('Error loading past games: $error'),
                 ),
-                data: (allPastGames) {
-                  final completedGames = allPastGames
-                      .where((gwg) => gwg.game.status == 'completed')
-                      .toList();
-                  
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 8),
-                        child: Text(
-                          'Completed Games',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ),
-                      if (completedGames.isNotEmpty) ...
-                        completedGames.take(10).map((gwg) => _GameCard(
-                            gameWithGroup: gwg,
-                            onTap: () => _openGameDetail(context, gwg.game.id),
-                          )),
-                      if (completedGames.length > 10)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Center(
-                            child: TextButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => const ActiveGamesScreen(),
+              ),
+              data: (allPastGames) {
+                // Single pass filtering for completed and cancelled games
+                final completedGames = <GameWithGroup>[];
+                final cancelledGames = <GameWithGroup>[];
+
+                for (final gwg in allPastGames) {
+                  if (gwg.game.status == 'completed') {
+                    completedGames.add(gwg);
+                  } else if (gwg.game.status == 'cancelled') {
+                    cancelledGames.add(gwg);
+                  }
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Completed Games Section
+                    SizedBox(
+                      key: _completedGamesKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 8),
+                            child: Text(
+                              'Completed Games',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                );
-                              },
-                              child: Text('View All ${completedGames.length} Completed Games'),
                             ),
                           ),
-                        ),
-                      const SizedBox(height: 24),
-                    ],
-                  );
-                },
-              ),
-            ),
-            
-            // Cancelled Games Section
-            SizedBox(
-              key: _cancelledGamesKey,
-              child: pastGamesAsync.when(
-                loading: () => const SizedBox.shrink(),
-                error: (error, stack) => const SizedBox.shrink(),
-                data: (allPastGames) {
-                  final cancelledGames = allPastGames
-                      .where((gwg) => gwg.game.status == 'cancelled')
-                      .toList();
-                  
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 8),
-                        child: Text(
-                          'Cancelled Games',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
+                          if (completedGames.isNotEmpty)
+                            for (var i = 0; i < (completedGames.length > 10 ? 10 : completedGames.length); i++)
+                              _GameCard(
+                                key: ValueKey(completedGames[i].game.id),
+                                gameWithGroup: completedGames[i],
+                                onTap: () => _openGameDetail(context, completedGames[i].game.id),
                               ),
-                        ),
+                          if (completedGames.length > 10)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Center(
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => const ActiveGamesScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Text('View All ${completedGames.length} Completed Games'),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 24),
+                        ],
                       ),
-                      if (cancelledGames.isNotEmpty) ...
-                        cancelledGames.take(10).map((gwg) => _GameCard(
-                            gameWithGroup: gwg,
-                            onTap: () => _openGameDetail(context, gwg.game.id),
-                          )),
-                      if (cancelledGames.length > 10)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Center(
-                            child: TextButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => const ActiveGamesScreen(),
+                    ),
+
+                    // Cancelled Games Section
+                    SizedBox(
+                      key: _cancelledGamesKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, bottom: 8),
+                            child: Text(
+                              'Cancelled Games',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                );
-                              },
-                              child: Text('View All ${cancelledGames.length} Cancelled Games'),
                             ),
                           ),
-                        ),
-                      const SizedBox(height: 24),
-                    ],
-                  );
-                },
-              ),
+                          if (cancelledGames.isNotEmpty)
+                            for (var i = 0; i < (cancelledGames.length > 10 ? 10 : cancelledGames.length); i++)
+                              _GameCard(
+                                key: ValueKey(cancelledGames[i].game.id),
+                                gameWithGroup: cancelledGames[i],
+                                onTap: () => _openGameDetail(context, cancelledGames[i].game.id),
+                              ),
+                          if (cancelledGames.length > 10)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Center(
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => const ActiveGamesScreen(),
+                                      ),
+                                    );
+                                  },
+                                  child: Text('View All ${cancelledGames.length} Cancelled Games'),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -509,9 +532,14 @@ class _GameCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _GameCard({
+    super.key,
     required this.gameWithGroup,
     required this.onTap,
   });
+
+  // Cache date formatters to avoid recreation
+  static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
+  static final DateFormat _timeFormatter = DateFormat('h:mm a');
 
   static Widget _buildGroupAvatar(String? url, String fallback, BuildContext context) {
     final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : 'G';
@@ -554,9 +582,7 @@ class _GameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final game = gameWithGroup.game;
-    final dateFormatter = DateFormat('MMM d, yyyy');
-    final timeFormatter = DateFormat('h:mm a');
-    
+
     Color iconColor;
     IconData iconData;
     Color backgroundColor;
@@ -626,7 +652,7 @@ class _GameCard extends StatelessWidget {
               children: [
                 const Icon(Icons.calendar_today, size: 12),
                 const SizedBox(width: 4),
-                Text('${dateFormatter.format(game.gameDate)} at ${timeFormatter.format(game.gameDate)}'),
+                Text('${_dateFormatter.format(game.gameDate)} at ${_timeFormatter.format(game.gameDate)}'),
               ],
             ),
             if (game.location?.isNotEmpty == true) ...[

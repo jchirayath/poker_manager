@@ -40,7 +40,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.home),
-            title: const Text('Home'),
+            title: const Text('Home', overflow: TextOverflow.ellipsis),
             onTap: () {
               Navigator.of(context).pop();
               // Use GoRouter for navigation to home
@@ -53,7 +53,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('How to Use'),
+            title: const Text('How to Use', overflow: TextOverflow.ellipsis),
             onTap: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(
@@ -65,7 +65,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.feedback_outlined),
-            title: const Text('Feedback'),
+            title: const Text('Feedback', overflow: TextOverflow.ellipsis),
             onTap: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(
@@ -77,7 +77,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.info),
-            title: const Text('About'),
+            title: const Text('About', overflow: TextOverflow.ellipsis),
             onTap: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(

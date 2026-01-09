@@ -7,6 +7,8 @@ import '../../../../core/services/error_logger_service.dart';
 import '../../../../shared/models/result.dart';
 import '../../../games/data/repositories/games_repository.dart';
 import '../../data/models/settlement_model.dart';
+
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/repositories/settlements_repository.dart';
 
 final settlementsRepositoryProvider = Provider((ref) => SettlementsRepository());
@@ -110,6 +112,25 @@ class SettlementScreen extends ConsumerStatefulWidget {
 }
 
 class _SettlementScreenState extends ConsumerState<SettlementScreen> {
+    Future<void> _launchPaymentApp({required String method, required double amount, required String? payeeName}) async {
+      String url = '';
+      final formattedAmount = amount.toStringAsFixed(2);
+      // You may want to map payeeName to an email/username/phone in real app
+      // For demo, just use the name as a placeholder
+      if (method == 'paypal') {
+        // PayPal.me link (replace with real username if available)
+        url = 'https://www.paypal.me/${payeeName ?? ''}/$formattedAmount';
+      } else if (method == 'venmo') {
+        // Venmo deep link (replace with real username if available)
+        url = 'venmo://paycharge?txn=pay&amount=$formattedAmount&note=Poker%20Settlement';
+      }
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        // Fallback: open in browser
+        await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
+      }
+    }
   bool _isCalculating = false;
 
   Future<void> _calculateSettlement() async {
@@ -353,7 +374,6 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                                 ? 'Pay $otherUserName'
                                 : 'Get Paid from $otherUserName';
                               final amountColor = isPayer ? Colors.red : Colors.green;
-                              
                               return TableRow(
                                 children: [
                                   Padding(
@@ -378,6 +398,26 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                                             color: Colors.green,
                                             size: 20,
                                           ),
+                                        if (isPayer && settlement.status != 'completed') ...[
+                                          IconButton(
+                                            icon: const Icon(Icons.account_balance_wallet, color: Colors.blue, size: 20),
+                                            tooltip: 'Pay with PayPal',
+                                            onPressed: () => _launchPaymentApp(
+                                              method: 'paypal',
+                                              amount: settlement.amount,
+                                              payeeName: settlement.payeeName,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.mobile_friendly, color: Colors.green, size: 20),
+                                            tooltip: 'Pay with Venmo',
+                                            onPressed: () => _launchPaymentApp(
+                                              method: 'venmo',
+                                              amount: settlement.amount,
+                                              payeeName: settlement.payeeName,
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
