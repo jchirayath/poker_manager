@@ -10,13 +10,13 @@ import '../../../common/widgets/app_drawer.dart';
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  Widget _avatar(String? url, String initials) {
+  Widget _avatar(BuildContext context, String? url, String initials) {
     debugPrint('🎯 Avatar URL: "$url" | Initials: "$initials"');
     if ((url ?? '').isEmpty) {
       debugPrint('📭 Using initials avatar (no URL)');
-      return _initialsAvatar(initials);
+      return _initialsAvatar(context, initials);
     }
-    
+
     if (url!.toLowerCase().contains('svg')) {
       debugPrint('🖼️ Loading SVG: $url');
       return ClipOval(
@@ -39,11 +39,11 @@ class ProfileScreen extends ConsumerWidget {
         width: 120,
         height: 120,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
+        errorBuilder: (ctx, error, stackTrace) {
           debugPrint('🔴 Error loading image avatar: $error');
-          return _initialsAvatar(initials);
+          return _initialsAvatar(context, initials);
         },
-        loadingBuilder: (context, child, loadingProgress) {
+        loadingBuilder: (ctx, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return Center(
             child: CircularProgressIndicator(
@@ -58,18 +58,21 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _initialsAvatar(String initials) {
+  Widget _initialsAvatar(BuildContext context, String initials) {
     return Container(
       width: 120,
       height: 120,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: Theme.of(context).colorScheme.primaryContainer,
         shape: BoxShape.circle,
       ),
       child: Center(
         child: Text(
           initials.isNotEmpty ? initials : '?',
-          style: const TextStyle(fontSize: 32),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -78,17 +81,23 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authUserAsync = ref.watch(authStateProvider);
-    
+    final canPop = Navigator.of(context).canPop();
+
     return Scaffold(
-      drawer: const AppDrawer(),
+      drawer: canPop ? null : const AppDrawer(),
       appBar: AppBar(
         title: const Text('Profile'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
+        leading: canPop
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -117,6 +126,7 @@ class ProfileScreen extends ConsumerWidget {
             child: Column(
               children: [
                 _avatar(
+                  context,
                   user.avatarUrl,
                   (user.firstName.isNotEmpty ? user.firstName[0] : '') +
                       (user.lastName.isNotEmpty ? user.lastName[0] : ''),
@@ -126,8 +136,7 @@ class ProfileScreen extends ConsumerWidget {
                   user.firstName.isNotEmpty || user.lastName.isNotEmpty
                       ? user.fullName
                       : 'User',
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -135,9 +144,8 @@ class ProfileScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     '@${user.username}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -187,8 +195,7 @@ class ProfileScreen extends ConsumerWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 18,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -213,12 +220,12 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Colors.grey[600]),
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 16),
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
         ],

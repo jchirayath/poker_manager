@@ -47,11 +47,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     super.initState();
     _scrollController = ScrollController();
     _initAdminStatus();
-    @override
-    void dispose() {
-      _scrollController.dispose();
-      super.dispose();
-    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _initAdminStatus() async {
@@ -268,7 +269,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.red),
               ),
@@ -367,78 +368,49 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   Widget build(BuildContext context) {
     final groupAsync = ref.watch(groupProvider(widget.groupId));
     final membersAsync = ref.watch(groupMembersProvider(widget.groupId));
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Floating button to scroll to top (left of title)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_upward, size: 20),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text('Group Details'),
-            const SizedBox(width: 8),
-            // Floating button to scroll to bottom (right of title)
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      _scrollController.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_downward, size: 20),
-                ),
-              ),
-            ),
-          ],
+        title: groupAsync.whenOrNull(
+          data: (group) => Text(group?.name ?? 'Group Details'),
+        ) ?? const Text('Group Details'),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/groups');
+            }
+          },
         ),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              } else {
-                context.go('/groups');
-              }
-            },
-          ),
-        ),
+        actions: [
+          groupAsync.whenOrNull(
+            data: (group) => group != null
+                ? IconButton(
+                    icon: const Icon(Icons.edit),
+                    tooltip: 'Edit Group',
+                    onPressed: () {
+                      context.push(
+                        '/groups/${widget.groupId}/edit',
+                        extra: {
+                          'name': group.name,
+                          'description': group.description,
+                          'avatarUrl': group.avatarUrl,
+                          'privacy': group.privacy,
+                          'currency': group.defaultCurrency,
+                          'defaultBuyin': group.defaultBuyin,
+                          'additionalBuyins': group.additionalBuyinValues,
+                        },
+                      );
+                    },
+                  )
+                : null,
+          ) ?? const SizedBox.shrink(),
+        ],
       ),
       body: groupAsync.when(
         data: (group) {
@@ -450,68 +422,131 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
-              ListTile(
-                leading: _avatar(group.avatarUrl, group.name),
-                title: Text(group.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (group.description?.isNotEmpty == true) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        group.description!,
-                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    membersAsync.when(
-                      data: (members) => Text('${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • ${members.length} member${members.length == 1 ? '' : 's'}'),
-                      loading: () => Text('${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • loading members...'),
-                      error: (e, _) => Text('${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • members unavailable'),
-                    ),
-                  ],
+              // Group Info Card
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.edit),
-                  onPressed: () {
-                    context.push(
-                      '/groups/${widget.groupId}/edit',
-                      extra: {
-                        'name': group.name,
-                        'description': group.description,
-                        'avatarUrl': group.avatarUrl,
-                        'privacy': group.privacy,
-                        'currency': group.defaultCurrency,
-                        'defaultBuyin': group.defaultBuyin,
-                        'additionalBuyins': group.additionalBuyinValues,
-                      },
-                    );
-                  },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _buildGroupAvatar(group.avatarUrl, group.name, 32),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (group.description?.isNotEmpty == true)
+                                  Text(
+                                    group.description!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStatColumn(
+                              icon: Icons.attach_money,
+                              value: '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(0)}',
+                              label: 'Buy-in',
+                              colorScheme: colorScheme,
+                            ),
+                            Container(
+                              height: 32,
+                              width: 1,
+                              color: colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                            membersAsync.when(
+                              data: (members) => _buildStatColumn(
+                                icon: Icons.people,
+                                value: '${members.length}',
+                                label: members.length == 1 ? 'Member' : 'Members',
+                                colorScheme: colorScheme,
+                              ),
+                              loading: () => _buildStatColumn(
+                                icon: Icons.people,
+                                value: '-',
+                                label: 'Members',
+                                colorScheme: colorScheme,
+                              ),
+                              error: (_, __) => _buildStatColumn(
+                                icon: Icons.people,
+                                value: '-',
+                                label: 'Members',
+                                colorScheme: colorScheme,
+                              ),
+                            ),
+                            Container(
+                              height: 32,
+                              width: 1,
+                              color: colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                            ref.watch(groupGamesProvider(widget.groupId)).when(
+                              data: (games) => _buildStatColumn(
+                                icon: Icons.casino,
+                                value: '${games.length}',
+                                label: games.length == 1 ? 'Game' : 'Games',
+                                colorScheme: colorScheme,
+                              ),
+                              loading: () => _buildStatColumn(
+                                icon: Icons.casino,
+                                value: '-',
+                                label: 'Games',
+                                colorScheme: colorScheme,
+                              ),
+                              error: (_, __) => _buildStatColumn(
+                                icon: Icons.casino,
+                                value: '-',
+                                label: 'Games',
+                                colorScheme: colorScheme,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  membersAsync.when(
-                    data: (members) => Text('Members (${members.length})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    loading: () => const Text('Members', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    error: (e, _) => const Text('Members', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.person_add),
-                    tooltip: 'Add Members',
-                    onPressed: () {
-                      context.push('/groups/${widget.groupId}/members');
-                    },
-                  ),
-                ],
+              const SizedBox(height: 24),
+
+              // Members Section Header
+              _buildSectionHeader(
+                title: 'Members',
+                count: membersAsync.whenOrNull(data: (m) => m.length),
+                actionIcon: Icons.person_add,
+                actionTooltip: 'Manage Members',
+                onAction: () => context.push('/groups/${widget.groupId}/members'),
+                theme: theme,
               ),
               const SizedBox(height: 8),
               membersAsync.when(
                 data: (members) {
                   if (members.isEmpty) {
-                    return const Text('No members yet');
+                    return _buildEmptyState(
+                      icon: Icons.people_outline,
+                      message: 'No members yet',
+                      colorScheme: colorScheme,
+                    );
                   }
                   // Sort: non-local users first, then local users
                   final sortedMembers = [...members]
@@ -521,209 +556,172 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                       if (aIsLocal == bIsLocal) return 0;
                       return aIsLocal ? 1 : -1;
                     });
+                  // Show max 5 members, with "View All" link
+                  final displayMembers = sortedMembers.take(5).toList();
                   return Column(
-                    children: sortedMembers.map((m) {
-                      final profile = m.profile;
-                      final fallback = (profile?.firstName?.isNotEmpty == true)
-                          ? profile!.firstName!
-                          : (profile?.lastName?.isNotEmpty == true ? profile!.lastName! : '?');
-                      final isLocal = profile?.isLocalUser ?? false;
-                      return Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: _avatar(profile?.avatarUrl, fallback),
-                          title: GestureDetector(
-                            onTap: () => _showMemberDetails(context, m, profile),
-                            child: Text(
-                              profile?.fullName ?? 'Unknown',
-                              style: const TextStyle(
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ),
-                          subtitle: Text(
-                            m.isCreator
-                                ? 'Creator'
-                                : (m.role == 'admin' ? 'Admin' : 'Member'),
-                            style: TextStyle(
-                              fontWeight: m.isCreator || m.role == 'admin' ? FontWeight.bold : FontWeight.normal,
-                              color: m.isCreator ? Colors.orange : (m.role == 'admin' ? Colors.blue : null),
-                            ),
-                          ),
-                          trailing: _isAdmin && !m.isCreator
-                              ? (isLocal
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade300,
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: const Text(
-                                            'Local',
-                                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                          onPressed: () => _removeUser(m.userId),
-                                          tooltip: 'Remove Member',
-                                        ),
-                                      ],
-                                    )
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            const Text('Admin', style: TextStyle(fontSize: 11)),
-                                            Transform.scale(
-                                              scale: 0.8,
-                                              child: Switch(
-                                                value: m.role == 'admin',
-                                                onChanged: (value) {
-                                                  final target = value ? 'admin' : 'member';
-                                                  _updateRole(m.userId, target);
-                                                },
-                                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                          onPressed: () => _removeUser(m.userId),
-                                          tooltip: 'Remove Member',
-                                        ),
-                                      ],
-                                    ))
-                              : null,
+                    children: [
+                      ...displayMembers.map((m) {
+                        final profile = m.profile;
+                        final fallback = (profile?.firstName?.isNotEmpty == true)
+                            ? profile!.firstName!
+                            : (profile?.lastName?.isNotEmpty == true ? profile!.lastName! : '?');
+                        final isLocal = profile?.isLocalUser ?? false;
+                        return _buildMemberTile(
+                          member: m,
+                          profile: profile,
+                          fallback: fallback,
+                          isLocal: isLocal,
+                          theme: theme,
+                          colorScheme: colorScheme,
+                        );
+                      }),
+                      if (sortedMembers.length > 5)
+                        TextButton.icon(
+                          icon: const Icon(Icons.people),
+                          label: Text('View all ${sortedMembers.length} members'),
+                          onPressed: () => context.push('/groups/${widget.groupId}/members'),
                         ),
-                      );
-                    }).toList(),
+                    ],
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
                 error: (e, st) => Text('Error loading members: $e'),
               ),
-              const SizedBox(height: 32),
-              
-              // Games Section
-              const Text(
-                'Games',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              const SizedBox(height: 24),
+
+              // Games Section Header
+              _buildSectionHeader(
+                title: 'Games',
+                count: ref.watch(groupGamesProvider(widget.groupId)).whenOrNull(data: (g) => g.length),
+                actionIcon: Icons.add,
+                actionTooltip: 'Create Game',
+                onAction: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => GamesListScreen(groupId: widget.groupId),
+                    ),
+                  );
+                },
+                theme: theme,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               ref.watch(groupGamesProvider(widget.groupId)).when(
                 data: (games) {
                   final activeGames = games.where((g) => g.status == 'in_progress').toList();
                   final scheduledGames = games.where((g) => g.status == 'scheduled').toList();
                   final pastGames = games.where((g) => g.status == 'completed' || g.status == 'cancelled').toList();
-                  
+
                   if (games.isEmpty) {
-                    return const Text('No games yet');
+                    return _buildEmptyState(
+                      icon: Icons.casino_outlined,
+                      message: 'No games yet',
+                      colorScheme: colorScheme,
+                    );
                   }
-                  
+
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Active Games
                       if (activeGames.isNotEmpty) ...[
-                        Text(
-                          'Active Games (${activeGames.length})',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                          ),
+                        _buildGameSubsection(
+                          title: 'Active',
+                          count: activeGames.length,
+                          color: Colors.green,
+                          theme: theme,
                         ),
                         const SizedBox(height: 8),
-                        ...activeGames.map((game) => _buildGameCard(game)),
+                        ...activeGames.map((game) => _buildGameCard(game, colorScheme)),
                         const SizedBox(height: 16),
                       ],
-                      
+
                       // Scheduled Games
                       if (scheduledGames.isNotEmpty) ...[
-                        Text(
-                          'Scheduled Games (${scheduledGames.length})',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                          ),
+                        _buildGameSubsection(
+                          title: 'Scheduled',
+                          count: scheduledGames.length,
+                          color: Colors.orange,
+                          theme: theme,
                         ),
                         const SizedBox(height: 8),
-                        ...scheduledGames.map((game) => _buildGameCard(game)),
+                        ...scheduledGames.map((game) => _buildGameCard(game, colorScheme)),
                         const SizedBox(height: 16),
                       ],
-                      
+
                       // Past Games
                       if (pastGames.isNotEmpty) ...[
-                        Text(
-                          'Past Games (${pastGames.length})',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[700],
-                          ),
+                        _buildGameSubsection(
+                          title: 'Past',
+                          count: pastGames.length,
+                          color: Colors.grey,
+                          theme: theme,
                         ),
                         const SizedBox(height: 8),
-                        ...pastGames.take(3).map((game) => _buildGameCard(game)),
+                        ...pastGames.take(3).map((game) => _buildGameCard(game, colorScheme)),
                         if (pastGames.length > 3)
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => GamesListScreen(groupId: widget.groupId),
-                                ),
-                              );
-                            },
-                            child: Text('View all ${pastGames.length} past games'),
+                          Center(
+                            child: TextButton.icon(
+                              icon: const Icon(Icons.history),
+                              label: Text('View all ${pastGames.length} past games'),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => GamesListScreen(groupId: widget.groupId),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                       ],
                     ],
                   );
                 },
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
                 error: (e, st) => Text('Error loading games: $e'),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               
               // Delete Group Section
-              if (_isAdmin)
-                Column(
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.delete_forever, color: Colors.red),
-                        label: const Text(
-                          'Delete Group',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.red),
-                        ),
-                        onPressed: () => _showDeleteConfirmation(context, group),
+              if (_isAdmin) ...[
+                const SizedBox(height: 8),
+                Card(
+                  color: colorScheme.errorContainer.withValues(alpha: 0.3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: colorScheme.error.withValues(alpha: 0.5)),
+                  ),
+                  child: ListTile(
+                    leading: Icon(Icons.delete_forever, color: colorScheme.error),
+                    title: Text(
+                      'Delete Group',
+                      style: TextStyle(
+                        color: colorScheme.error,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Warning: This action cannot be undone',
+                    subtitle: Text(
+                      'This action cannot be undone',
                       style: TextStyle(
-                        color: Colors.red[700],
+                        color: colorScheme.error.withValues(alpha: 0.7),
                         fontSize: 12,
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                  ],
+                    trailing: Icon(Icons.chevron_right, color: colorScheme.error),
+                    onTap: () => _showDeleteConfirmation(context, group),
+                  ),
                 ),
+              ],
+              const SizedBox(height: 100), // Space for bottom bar
             ],
           );
         },
@@ -733,26 +731,25 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       bottomNavigationBar: groupAsync.when(
         data: (group) {
           if (group == null) return null;
-          
+
           return Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
+              color: colorScheme.surface,
+              border: Border(
+                top: BorderSide(
+                  color: colorScheme.outlineVariant,
+                  width: 1,
                 ),
-              ],
+              ),
             ),
             child: SafeArea(
               child: Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.games),
-                      label: const Text('Manage Games'),
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.casino, size: 18),
+                      label: const Text('Games'),
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -762,11 +759,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.group_add),
-                      label: const Text('Manage Members'),
+                    child: FilledButton.tonalIcon(
+                      icon: const Icon(Icons.people, size: 18),
+                      label: const Text('Members'),
                       onPressed: () {
                         context.push('/groups/${widget.groupId}/members');
                       },
@@ -783,39 +780,60 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Widget _buildGameCard(GameModel game) {
-    final dateFormatter = DateFormat('MMM d, yyyy HH:mm');
-    final gameDate = dateFormatter.format(game.gameDate);
+  Widget _buildGameCard(GameModel game, ColorScheme colorScheme) {
+    final dateFormatter = DateFormat('MMM d, yyyy');
+    final timeFormatter = DateFormat('h:mm a');
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: ListTile(
-        title: Text(game.name),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: CircleAvatar(
+          backgroundColor: _getStatusColor(game.status),
+          radius: 20,
+          child: Icon(
+            _getStatusIcon(game.status),
+            color: _getStatusIconColor(game.status),
+            size: 20,
+          ),
+        ),
+        title: Text(
+          game.name,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(gameDate),
-            if (game.location != null) Text('📍 ${game.location}'),
-            Text(
-              'Buy-in: ${game.currency} ${game.buyinAmount}',
-              style: Theme.of(context).textTheme.bodySmall,
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 12, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Text(
+                  '${dateFormatter.format(game.gameDate)} at ${timeFormatter.format(game.gameDate)}',
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(Icons.attach_money, size: 12, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Text(
+                  '${game.currency} ${game.buyinAmount}',
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                ),
+              ],
             ),
           ],
         ),
-        trailing: Container(
-          decoration: BoxDecoration(
-            color: _getStatusColor(game.status),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 4,
-          ),
-          child: Text(
-            _getStatusLabel(game.status),
-            style: const TextStyle(fontSize: 12),
-          ),
-        ),
+        trailing: const Icon(Icons.chevron_right),
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -827,33 +845,402 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'scheduled':
-        return Colors.blue.withValues(alpha: 0.3);
-      case 'in_progress':
-        return Colors.green.withValues(alpha: 0.3);
-      case 'completed':
-        return Colors.grey.withValues(alpha: 0.3);
-      case 'cancelled':
-        return Colors.red.withValues(alpha: 0.3);
-      default:
-        return Colors.grey.withValues(alpha: 0.3);
+  Widget _buildGroupAvatar(String? url, String fallback, double radius) {
+    final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
+    if ((url ?? '').isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+      );
+    }
+
+    if (url!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: ClipOval(
+          child: SvgPicture.network(
+            fixDiceBearUrl(url)!,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholderBuilder: (_) => SizedBox(
+              width: radius,
+              height: radius,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: NetworkImage(url),
+    );
+  }
+
+  Widget _buildStatColumn({
+    required IconData icon,
+    required String value,
+    required String label,
+    required ColorScheme colorScheme,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: colorScheme.primary),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String title,
+    int? count,
+    required IconData actionIcon,
+    required String actionTooltip,
+    required VoidCallback onAction,
+    required ThemeData theme,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (count != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        IconButton(
+          icon: Icon(actionIcon),
+          tooltip: actionTooltip,
+          onPressed: onAction,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+    required ColorScheme colorScheme,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Column(
+        children: [
+          Icon(icon, size: 48, color: colorScheme.outline),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: TextStyle(color: colorScheme.outline),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameSubsection({
+    required String title,
+    required int count,
+    required Color color,
+    required ThemeData theme,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '$title ($count)',
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMemberTile({
+    required GroupMemberModel member,
+    required ProfileModel? profile,
+    required String fallback,
+    required bool isLocal,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            // Tappable avatar for details
+            GestureDetector(
+              onTap: () => _showMemberDetails(context, member, profile),
+              child: Stack(
+                children: [
+                  _avatar(profile?.avatarUrl, fallback),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 12,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Name and role badges
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    profile?.fullName ?? 'Unknown',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: member.isCreator
+                              ? Colors.orange.withValues(alpha: 0.2)
+                              : (member.role == 'admin'
+                                  ? Colors.blue.withValues(alpha: 0.2)
+                                  : colorScheme.surfaceContainerHighest),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          member.isCreator ? 'Creator' : (member.role == 'admin' ? 'Admin' : 'Member'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: member.isCreator
+                                ? Colors.orange[800]
+                                : (member.role == 'admin' ? Colors.blue[800] : colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ),
+                      if (isLocal) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Local',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Admin controls (only for admins, not for creator or local users)
+            if (_isAdmin && !member.isCreator && !isLocal)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Admin',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      SizedBox(
+                        height: 24,
+                        child: Transform.scale(
+                          scale: 0.7,
+                          child: Switch(
+                            value: member.role == 'admin',
+                            onChanged: (value) {
+                              final newRole = value ? 'admin' : 'member';
+                              _updateRole(member.userId, newRole);
+                            },
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.remove_circle_outline, color: colorScheme.error, size: 20),
+                    onPressed: () => _confirmRemoveMember(member, profile),
+                    tooltip: 'Remove Member',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            // Remove button only for local users (admins can remove them)
+            if (_isAdmin && !member.isCreator && isLocal)
+              IconButton(
+                icon: Icon(Icons.remove_circle_outline, color: colorScheme.error, size: 20),
+                onPressed: () => _confirmRemoveMember(member, profile),
+                tooltip: 'Remove Member',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmRemoveMember(GroupMemberModel member, ProfileModel? profile) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Member?'),
+        content: Text('Are you sure you want to remove ${profile?.fullName ?? 'this member'} from the group?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _removeUser(member.userId);
     }
   }
 
-  String _getStatusLabel(String status) {
+  Color _getStatusColor(String status) {
     switch (status) {
-      case 'in_progress':
-        return 'Active';
       case 'scheduled':
-        return 'Scheduled';
+        return Colors.orange.withValues(alpha: 0.2);
+      case 'in_progress':
+        return Colors.green.withValues(alpha: 0.2);
       case 'completed':
-        return 'Completed';
+        return Colors.blue.withValues(alpha: 0.2);
       case 'cancelled':
-        return 'Cancelled';
+        return Colors.grey.withValues(alpha: 0.2);
       default:
-        return status;
+        return Colors.grey.withValues(alpha: 0.2);
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'scheduled':
+        return Icons.schedule;
+      case 'in_progress':
+        return Icons.play_arrow;
+      case 'completed':
+        return Icons.check_circle;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.help;
+    }
+  }
+
+  Color _getStatusIconColor(String status) {
+    switch (status) {
+      case 'scheduled':
+        return Colors.orange;
+      case 'in_progress':
+        return Colors.green;
+      case 'completed':
+        return Colors.blue;
+      case 'cancelled':
+        return Colors.grey;
+      default:
+        return Colors.grey;
     }
   }
 }

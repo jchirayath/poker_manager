@@ -4,7 +4,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/utils/avatar_utils.dart';
-import 'active_games_screen.dart';
 import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
 import '../providers/games_provider.dart';
@@ -18,21 +17,19 @@ class GamesEntryScreen extends ConsumerStatefulWidget {
   ConsumerState<GamesEntryScreen> createState() => _GamesEntryScreenState();
 }
 
-class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
-  final ScrollController _scrollController = ScrollController();
-  final GlobalKey _activeGamesKey = GlobalKey();
-  final GlobalKey _scheduledGamesKey = GlobalKey();
-  final GlobalKey _completedGamesKey = GlobalKey();
-  final GlobalKey _cancelledGamesKey = GlobalKey();
-  final GlobalKey _createGameKey = GlobalKey();
+class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
-  // Cache date formatters to avoid recreation
-  static final DateFormat _dateFormatter = DateFormat('EEEE, MMMM d, yyyy');
-  static final DateFormat _timeFormatter = DateFormat('h:mm a');
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+  }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -49,63 +46,8 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
     }
   }
 
-  void _scrollToSection(GlobalKey key) {
-    // Wait for the next frame to ensure widgets are laid out
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        final context = key.currentContext;
-        if (context != null) {
-          // Use Scrollable.ensureVisible with proper delay
-          // This ensures the widget is visible in the scroll area
-          Scrollable.ensureVisible(
-            context,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-            alignment: 0.05, // Position target near the top
-          );
-        }
-      } catch (e) {
-        // Removed debugPrint
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-
-    final dateTimeCard = Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                _dateFormatter.format(now),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _timeFormatter.format(now),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    
     final activeGamesAsync = ref.watch(activeGamesProvider);
     final pastGamesAsync = ref.watch(pastGamesProvider);
 
@@ -120,314 +62,71 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: const [
+            Tab(icon: Icon(Icons.play_circle), text: 'Active'),
+            Tab(icon: Icon(Icons.schedule), text: 'Scheduled'),
+            Tab(icon: Icon(Icons.check_circle), text: 'Completed'),
+            Tab(icon: Icon(Icons.cancel), text: 'Cancelled'),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateGameOptions(context),
         icon: const Icon(Icons.add),
         label: const Text('Create Game'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(activeGamesProvider);
-          ref.invalidate(pastGamesProvider);
-        },
-        child: ListView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(16),
-          children: [
-            dateTimeCard,
-            Container(
-              height: 56,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 4), // reduce padding
-                shrinkWrap: true,
-                children: [
-                  _NavigationChip(
-                    label: 'Active',
-                    icon: Icons.play_circle,
-                    color: Colors.green,
-                    onTap: () => _scrollToSection(_activeGamesKey),
-                  ),
-                  const SizedBox(width: 4),
-                  _NavigationChip(
-                    label: 'Scheduled',
-                    icon: Icons.schedule,
-                    color: Colors.orange,
-                    onTap: () => _scrollToSection(_scheduledGamesKey),
-                  ),
-                  const SizedBox(width: 4),
-                  _NavigationChip(
-                    label: 'Completed',
-                    icon: Icons.check_circle,
-                    color: Colors.blue,
-                    onTap: () => _scrollToSection(_completedGamesKey),
-                  ),
-                  const SizedBox(width: 4),
-                  _NavigationChip(
-                    label: 'Cancelled',
-                    icon: Icons.cancel,
-                    color: Colors.grey,
-                    onTap: () => _scrollToSection(_cancelledGamesKey),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            
-            // Create New Group or Game
-            SizedBox(
-              key: _createGameKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, bottom: 8),
-                    child: Text(
-                      'Create New Game',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ),
-                  _EntryCard(
-                    icon: Icons.add_circle,
-                    title: 'Create New Game',
-                    subtitle: 'Start a new poker game in a group.',
-                    onTap: () {
-                      _showCreateGameOptions(context);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            // Active Games (in_progress)
-            activeGamesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Text('Error loading games: $error'),
-              ),
-              data: (allGames) {
-                // Single pass filtering for better performance
-                final inProgressGames = <GameWithGroup>[];
-                final scheduledGames = <GameWithGroup>[];
-
-                for (final gwg in allGames) {
-                  if (gwg.game.status == 'in_progress') {
-                    inProgressGames.add(gwg);
-                  } else if (gwg.game.status == 'scheduled') {
-                    scheduledGames.add(gwg);
-                  }
-                }
-
-                // Sort scheduled games by date
-                scheduledGames.sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Active Games Section
-                    if (inProgressGames.isNotEmpty)
-                      SizedBox(
-                        key: _activeGamesKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4, bottom: 8),
-                              child: Text(
-                                'Active Games',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                            ),
-                            for (final gwg in inProgressGames)
-                              _GameCard(
-                                key: ValueKey(gwg.game.id),
-                                gameWithGroup: gwg,
-                                onTap: () => _openGameDetail(context, gwg.game.id),
-                              ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-
-                    // Start Games Section (scheduled)
-                    if (scheduledGames.isNotEmpty)
-                      SizedBox(
-                        key: _scheduledGamesKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4, bottom: 8),
-                              child: Text(
-                                'Scheduled Games',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                              ),
-                            ),
-                            for (final gwg in scheduledGames)
-                              _GameCard(
-                                key: ValueKey(gwg.game.id),
-                                gameWithGroup: gwg,
-                                onTap: () => _openGameDetail(context, gwg.game.id),
-                              ),
-                            const SizedBox(height: 24),
-                          ],
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-            
-            // Select group for game
-            _EntryCard(
-              icon: Icons.group,
-              title: 'Select group for game',
-              subtitle: 'Pick a group to view its games or start a new one.',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const GamesGroupSelectorScreen(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            
-            // Completed and Cancelled Games Section
-            pastGamesAsync.when(
-              loading: () => SizedBox(
-                key: _completedGamesKey,
-                child: const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: CircularProgressIndicator(),
-                  ),
-                ),
-              ),
-              error: (error, stack) => SizedBox(
-                key: _completedGamesKey,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text('Error loading past games: $error'),
-                ),
-              ),
-              data: (allPastGames) {
-                // Single pass filtering for completed and cancelled games
-                final completedGames = <GameWithGroup>[];
-                final cancelledGames = <GameWithGroup>[];
-
-                for (final gwg in allPastGames) {
-                  if (gwg.game.status == 'completed') {
-                    completedGames.add(gwg);
-                  } else if (gwg.game.status == 'cancelled') {
-                    cancelledGames.add(gwg);
-                  }
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Completed Games Section
-                    SizedBox(
-                      key: _completedGamesKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, bottom: 8),
-                            child: Text(
-                              'Completed Games',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                          ),
-                          if (completedGames.isNotEmpty)
-                            for (var i = 0; i < (completedGames.length > 10 ? 10 : completedGames.length); i++)
-                              _GameCard(
-                                key: ValueKey(completedGames[i].game.id),
-                                gameWithGroup: completedGames[i],
-                                onTap: () => _openGameDetail(context, completedGames[i].game.id),
-                              ),
-                          if (completedGames.length > 10)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Center(
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) => const ActiveGamesScreen(),
-                                      ),
-                                    );
-                                  },
-                                  child: Text('View All ${completedGames.length} Completed Games'),
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-
-                    // Cancelled Games Section
-                    SizedBox(
-                      key: _cancelledGamesKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4, bottom: 8),
-                            child: Text(
-                              'Cancelled Games',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                          ),
-                          if (cancelledGames.isNotEmpty)
-                            for (var i = 0; i < (cancelledGames.length > 10 ? 10 : cancelledGames.length); i++)
-                              _GameCard(
-                                key: ValueKey(cancelledGames[i].game.id),
-                                gameWithGroup: cancelledGames[i],
-                                onTap: () => _openGameDetail(context, cancelledGames[i].game.id),
-                              ),
-                          if (cancelledGames.length > 10)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Center(
-                                child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) => const ActiveGamesScreen(),
-                                      ),
-                                    );
-                                  },
-                                  child: Text('View All ${cancelledGames.length} Cancelled Games'),
-                                ),
-                              ),
-                            ),
-                          const SizedBox(height: 24),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Active Games Tab
+          _GamesTabContent(
+            gamesAsync: activeGamesAsync,
+            filterStatus: 'in_progress',
+            emptyMessage: 'No active games',
+            onGameTap: (gameId) => _openGameDetail(context, gameId),
+            onRefresh: () async {
+              ref.invalidate(activeGamesProvider);
+              ref.invalidate(pastGamesProvider);
+            },
+          ),
+          // Scheduled Games Tab
+          _GamesTabContent(
+            gamesAsync: activeGamesAsync,
+            filterStatus: 'scheduled',
+            emptyMessage: 'No scheduled games',
+            onGameTap: (gameId) => _openGameDetail(context, gameId),
+            onRefresh: () async {
+              ref.invalidate(activeGamesProvider);
+              ref.invalidate(pastGamesProvider);
+            },
+          ),
+          // Completed Games Tab
+          _GamesTabContent(
+            gamesAsync: pastGamesAsync,
+            filterStatus: 'completed',
+            emptyMessage: 'No completed games',
+            onGameTap: (gameId) => _openGameDetail(context, gameId),
+            onRefresh: () async {
+              ref.invalidate(activeGamesProvider);
+              ref.invalidate(pastGamesProvider);
+            },
+          ),
+          // Cancelled Games Tab
+          _GamesTabContent(
+            gamesAsync: pastGamesAsync,
+            filterStatus: 'cancelled',
+            emptyMessage: 'No cancelled games',
+            onGameTap: (gameId) => _openGameDetail(context, gameId),
+            onRefresh: () async {
+              ref.invalidate(activeGamesProvider);
+              ref.invalidate(pastGamesProvider);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -441,9 +140,9 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Create a New Game',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -481,49 +180,98 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen> {
   }
 }
 
-// Navigation Chip Widget
-class _NavigationChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+// Tab content widget for each game status
+class _GamesTabContent extends StatelessWidget {
+  final AsyncValue<List<GameWithGroup>> gamesAsync;
+  final String filterStatus;
+  final String emptyMessage;
+  final void Function(String gameId) onGameTap;
+  final Future<void> Function() onRefresh;
 
-  const _NavigationChip({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
+  const _GamesTabContent({
+    required this.gamesAsync,
+    required this.filterStatus,
+    required this.emptyMessage,
+    required this.onGameTap,
+    required this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color, width: 1.5),
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: gamesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text('Error loading games: $error'),
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
+        data: (allGames) {
+          final filteredGames = allGames
+              .where((gwg) => gwg.game.status == filterStatus)
+              .toList();
+
+          if (filteredGames.isEmpty) {
+            return ListView(
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _getIconForStatus(filterStatus),
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          emptyMessage,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: filteredGames.length,
+            itemBuilder: (context, index) {
+              final gwg = filteredGames[index];
+              return _GameCard(
+                key: ValueKey(gwg.game.id),
+                gameWithGroup: gwg,
+                onTap: () => onGameTap(gwg.game.id),
+              );
+            },
+          );
+        },
       ),
     );
+  }
+
+  IconData _getIconForStatus(String status) {
+    switch (status) {
+      case 'in_progress':
+        return Icons.play_circle;
+      case 'scheduled':
+        return Icons.schedule;
+      case 'completed':
+        return Icons.check_circle;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.help;
+    }
   }
 }
 
@@ -604,9 +352,9 @@ class _GameCard extends StatelessWidget {
         backgroundColor = Colors.grey;
         break;
       default: // scheduled
-        iconColor = Theme.of(context).colorScheme.onPrimaryContainer;
+        iconColor = Colors.white;
         iconData = Icons.schedule;
-        backgroundColor = Theme.of(context).colorScheme.primaryContainer;
+        backgroundColor = Colors.orange;
     }
     
     return Card(
@@ -664,36 +412,6 @@ class _GameCard extends StatelessWidget {
             ],
           ],
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
-    );
-  }
-}
-
-class _EntryCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _EntryCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Icon(icon),
-        ),
-        title: Text(title),
-        subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),

@@ -12,43 +12,6 @@ class GroupsListScreen extends ConsumerWidget {
   const GroupsListScreen({super.key});
   static final ScrollController _scrollController = ScrollController();
 
-  Widget _buildUserAvatar(String? url, String fallback) {
-    final initials = fallback.isNotEmpty ? fallback : '?';
-    if ((url ?? '').isEmpty) {
-      return CircleAvatar(
-        radius: 24,
-        backgroundColor: Colors.grey.shade200,
-        child: Text(
-          initials,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-    
-    if (url!.toLowerCase().contains('svg')) {
-      return CircleAvatar(
-        radius: 24,
-        backgroundColor: Colors.grey.shade200,
-        child: SvgPicture.network(
-          fixDiceBearUrl(url)!,
-          width: 48,
-          height: 48,
-          placeholderBuilder: (_) => const SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    
-    return CircleAvatar(
-      radius: 24,
-      backgroundImage: NetworkImage(url),
-      child: const SizedBox.shrink(),
-    );
-  }
-
   Widget _buildGroupAvatar(String? url, String fallback) {
     final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
     if ((url ?? '').isEmpty) {
@@ -85,7 +48,6 @@ class GroupsListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groupsAsync = ref.watch(groupsListProvider);
     final userAsync = ref.watch(authStateProvider);
-    final user = userAsync.value;
     final groups = groupsAsync.asData?.value ?? [];
 
     return Scaffold(
@@ -102,67 +64,22 @@ class GroupsListScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          // User Profile Card at top
+          // User Profile Card with Stats
           userAsync.when(
             data: (user) {
               if (user == null) return const SizedBox.shrink();
               final displayName = user.firstName.isNotEmpty || user.lastName.isNotEmpty
                   ? user.fullName
                   : user.username ?? user.email.split('@').first;
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).dividerColor,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    _buildUserAvatar(user.avatarUrl, 
-                      (user.firstName.isNotEmpty ? user.firstName[0] : '') +
-                      (user.lastName.isNotEmpty ? user.lastName[0] : '')),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'logged in user',
-                            style: TextStyle(
-                              color: Colors.green[700],
-                              fontSize: 13,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                          Text(
-                            displayName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          if (user.username != null && user.username!.isNotEmpty)
-                            Text(
-                              '@${user.username}',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.person),
-                      onPressed: () => context.push(RouteConstants.profile),
-                      tooltip: 'View Profile',
-                    ),
-                  ],
-                ),
+              final initials = (user.firstName.isNotEmpty ? user.firstName[0] : '') +
+                  (user.lastName.isNotEmpty ? user.lastName[0] : '');
+              return _UserProfileCard(
+                displayName: displayName,
+                username: user.username,
+                avatarUrl: user.avatarUrl,
+                initials: initials,
+                groupCount: groups.length,
+                onProfileTap: () => context.push(RouteConstants.profile),
               );
             },
             loading: () => const SizedBox.shrink(),
@@ -185,15 +102,16 @@ class GroupsListScreen extends ConsumerWidget {
                         const SizedBox(height: 16),
                         Text(
                           'No groups yet',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Colors.grey[600],
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Create your first poker group',
-                          style: TextStyle(color: Colors.grey[500]),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
                         ),
                       ],
                     ),
@@ -238,7 +156,9 @@ class GroupsListScreen extends ConsumerWidget {
                                       group.description!,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
                                     ),
                                   ],
                                 ],
@@ -282,6 +202,147 @@ class GroupsListScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Create Group'),
       ),
+    );
+  }
+}
+
+class _UserProfileCard extends StatelessWidget {
+  final String displayName;
+  final String? username;
+  final String? avatarUrl;
+  final String initials;
+  final int groupCount;
+  final VoidCallback onProfileTap;
+
+  const _UserProfileCard({
+    required this.displayName,
+    required this.username,
+    required this.avatarUrl,
+    required this.initials,
+    required this.groupCount,
+    required this.onProfileTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: onProfileTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              _buildAvatar(context),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      displayName,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (username != null && username!.isNotEmpty)
+                      Text(
+                        '@$username',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.group,
+                      size: 16,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$groupCount',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(BuildContext context) {
+    final fallbackInitials = initials.isNotEmpty ? initials : '?';
+
+    if ((avatarUrl ?? '').isEmpty) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        child: Text(
+          fallbackInitials,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimary,
+          ),
+        ),
+      );
+    }
+
+    if (avatarUrl!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        child: ClipOval(
+          child: SvgPicture.network(
+            fixDiceBearUrl(avatarUrl)!,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+            placeholderBuilder: (_) => const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 20,
+      backgroundImage: NetworkImage(avatarUrl!),
     );
   }
 }
