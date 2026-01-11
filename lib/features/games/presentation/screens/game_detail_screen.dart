@@ -4068,48 +4068,54 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                           Row(
                                             children: [
                                               Expanded(
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () async {
-                                                    await _showAdditionalBuyinDialog(
-                                                      context,
-                                                      ref,
-                                                      game,
-                                                      participant.userId,
-                                                    );
-                                                  },
-                                                  icon: const Icon(Icons.add),
-                                                  label: const Text('Buy-in'),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            Colors.blue,
-                                                        foregroundColor:
-                                                            Colors.white,
-                                                      ),
+                                                child: SizedBox(
+                                                  height: 36,
+                                                  child: ElevatedButton.icon(
+                                                    onPressed: () async {
+                                                      await _showAdditionalBuyinDialog(
+                                                        context,
+                                                        ref,
+                                                        game,
+                                                        participant.userId,
+                                                      );
+                                                    },
+                                                    icon: const Icon(Icons.add, size: 18),
+                                                    label: const Text('Buy-in', style: TextStyle(fontSize: 13)),
+                                                    style:
+                                                        ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.blue,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                        ),
+                                                  ),
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
                                               Expanded(
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () async {
-                                                    await _showCashoutDialog(
-                                                      context,
-                                                      ref,
-                                                      game,
-                                                      participant.userId,
-                                                    );
-                                                  },
-                                                  icon: const Icon(
-                                                    Icons.remove,
+                                                child: SizedBox(
+                                                  height: 36,
+                                                  child: ElevatedButton.icon(
+                                                    onPressed: () async {
+                                                      await _showCashoutDialog(
+                                                        context,
+                                                        ref,
+                                                        game,
+                                                        participant.userId,
+                                                      );
+                                                    },
+                                                    icon: const Icon(Icons.remove, size: 18),
+                                                    label: const Text('Cash-out', style: TextStyle(fontSize: 13)),
+                                                    style:
+                                                        ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.orange,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                                                        ),
                                                   ),
-                                                  label: const Text('Cash-out'),
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            Colors.orange,
-                                                        foregroundColor:
-                                                            Colors.white,
-                                                      ),
                                                 ),
                                               ),
                                             ],
