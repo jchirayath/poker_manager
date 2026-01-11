@@ -160,7 +160,31 @@ class GroupsRepository {
 
   Future<Result<void>> deleteGroup(String groupId) async {
     try {
+      // First verify the group exists and user has permission
+      final checkResponse = await _client
+          .from('groups')
+          .select('id, created_by')
+          .eq('id', groupId)
+          .maybeSingle();
+
+      if (checkResponse == null) {
+        return const Failure('Group not found or you do not have permission to delete it');
+      }
+
+      // Perform the delete
       await _client.from('groups').delete().eq('id', groupId);
+
+      // Verify deletion was successful
+      final verifyResponse = await _client
+          .from('groups')
+          .select('id')
+          .eq('id', groupId)
+          .maybeSingle();
+
+      if (verifyResponse != null) {
+        return const Failure('Group was not deleted. You may not have permission to delete this group.');
+      }
+
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete group: ${e.toString()}');

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../providers/games_provider.dart';
 import 'create_game_screen.dart';
@@ -22,28 +23,39 @@ class GamesListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_upward),
-          tooltip: 'Go to top',
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Go back',
           onPressed: () {
-            final controller = PrimaryScrollController.of(context);
-            if (controller != null && controller.hasClients) {
-              controller.animateTo(
-                0,
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeInOut,
-              );
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go('/groups');
             }
           },
         ),
-        title: const Text('My Games'),
+        title: const Text('Games'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.arrow_upward),
+            tooltip: 'Go to top',
+            onPressed: () {
+              final controller = PrimaryScrollController.of(context);
+              if (controller.hasClients) {
+                controller.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeInOut,
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.arrow_downward),
             tooltip: 'Go to bottom',
             onPressed: () {
               final controller = PrimaryScrollController.of(context);
-              if (controller != null && controller.hasClients) {
+              if (controller.hasClients) {
                 controller.animateTo(
                   controller.position.maxScrollExtent,
                   duration: const Duration(milliseconds: 500),
@@ -112,7 +124,7 @@ class GamesListScreen extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.casino, size: 64, color: Colors.grey),
+                        Icon(Icons.casino, size: 64, color: Theme.of(context).colorScheme.outline),
                         const SizedBox(height: 16),
                         const Text('No games yet'),
                         const SizedBox(height: 24),
@@ -187,11 +199,29 @@ class GamesListScreen extends ConsumerWidget {
                 // Active Games Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    'Active Games',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  child: Row(
+                    children: [
+                      Text(
+                        'Active Games',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: Text(
+                          '${activeGames.length}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (activeGames.isEmpty)
@@ -207,11 +237,29 @@ class GamesListScreen extends ConsumerWidget {
                 // Scheduled Games Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    'Scheduled Games',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  child: Row(
+                    children: [
+                      Text(
+                        'Scheduled Games',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: Text(
+                          '${scheduledGames.length}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (scheduledGames.isEmpty)
@@ -227,11 +275,29 @@ class GamesListScreen extends ConsumerWidget {
                 // Past Games Section
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(
-                    'Past Games',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  child: Row(
+                    children: [
+                      Text(
+                        'Past Games',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: Text(
+                          '${pastGames.length}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (pastGames.isEmpty)

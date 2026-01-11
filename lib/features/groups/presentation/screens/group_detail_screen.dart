@@ -311,8 +311,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     if (confirmed == true && context.mounted) {
       try {
         final controller = ref.read(groupControllerProvider);
-        final success = await controller.deleteGroup(widget.groupId);
-        
+        final (success, errorMessage) = await controller.deleteGroup(widget.groupId);
+
         if (success && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Group deleted successfully')),
@@ -321,7 +321,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           context.go('/groups');
         } else if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to delete group')),
+            SnackBar(content: Text(errorMessage ?? 'Failed to delete group')),
           );
         }
       } catch (e) {

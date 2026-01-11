@@ -99,14 +99,15 @@ class GroupController {
     return false;
   }
 
-  Future<bool> deleteGroup(String groupId) async {
+  Future<(bool, String?)> deleteGroup(String groupId) async {
     final result = await _repository.deleteGroup(groupId);
 
     if (result is Success) {
       _ref.invalidate(groupsListProvider);
-      return true;
+      return (true, null);
     }
-    return false;
+    final errorMessage = result is Failure ? (result as Failure).message : 'Unknown error';
+    return (false, errorMessage);
   }
 
   Future<bool> addMember(String groupId, String userId) async {

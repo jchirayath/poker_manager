@@ -217,7 +217,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
 
     try {
       final controller = ref.read(groupControllerProvider);
-      final success = await controller.deleteGroup(widget.groupId);
+      final (success, errorMessage) = await controller.deleteGroup(widget.groupId);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -231,7 +231,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         context.pop();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete group')),
+          SnackBar(content: Text(errorMessage ?? 'Failed to delete group')),
         );
       }
     } catch (e) {
