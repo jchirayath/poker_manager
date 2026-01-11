@@ -9,6 +9,8 @@ class RouteConstants {
   static const String groupDetail = '/groups/:id';
   static const String createGroup = '/groups/create';
   static const String manageMembers = '/groups/:id/members';
+  static const String inviteMembers = '/groups/:id/invite';
+  static const String editGroup = '/groups/:id/edit';
   static const String localUserCreate = '/groups/:id/local-user';
   static const String localUserEdit = '/groups/:groupId/local-user/:userId';
 

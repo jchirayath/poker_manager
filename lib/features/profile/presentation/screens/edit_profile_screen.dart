@@ -7,6 +7,7 @@ import '../../../../core/utils/avatar_utils.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/input_validators.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -204,8 +205,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile deleted successfully')),
         );
-        // Sign out and go to login
-        context.go('/login');
+        // Sign out and go to sign-in
+        context.go(RouteConstants.signIn);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to delete profile')),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
@@ -166,7 +167,7 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
               child: OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
-                  context.push('/groups/create');
+                  context.push(RouteConstants.createGroup);
                 },
                 icon: const Icon(Icons.add),
                 label: const Text('Create New Group'),

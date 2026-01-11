@@ -75,54 +75,75 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteConstants.groupDetail,
         builder: (context, state) {
-          final id = state.pathParameters['id']!;
+          final id = state.pathParameters['id'] ?? '';
+          if (id.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Invalid group ID')));
+          }
           return GroupDetailScreen(groupId: id);
         },
       ),
       GoRoute(
         path: RouteConstants.manageMembers,
         builder: (context, state) {
-          final id = state.pathParameters['id']!;
+          final id = state.pathParameters['id'] ?? '';
+          if (id.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Invalid group ID')));
+          }
           return ManageMembersScreen(groupId: id);
         },
       ),
       GoRoute(
         path: RouteConstants.localUserCreate,
         builder: (context, state) {
-          final id = state.pathParameters['id']!;
+          final id = state.pathParameters['id'] ?? '';
+          if (id.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Invalid group ID')));
+          }
           return LocalUserFormScreen(groupId: id);
         },
       ),
       GoRoute(
         path: RouteConstants.localUserEdit,
         builder: (context, state) {
-          final groupId = state.pathParameters['groupId']!;
-          final userId = state.pathParameters['userId']!;
+          final groupId = state.pathParameters['groupId'] ?? '';
+          final userId = state.pathParameters['userId'] ?? '';
+          if (groupId.isEmpty || userId.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Invalid parameters')));
+          }
           final profile = state.extra is ProfileModel ? state.extra as ProfileModel : null;
           return LocalUserFormScreen(groupId: groupId, userId: userId, initialProfile: profile);
         },
       ),
       GoRoute(
-        path: '/groups/:id/invite',
+        path: RouteConstants.inviteMembers,
         builder: (context, state) {
-          final id = state.pathParameters['id']!;
+          final id = state.pathParameters['id'] ?? '';
+          if (id.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Invalid group ID')));
+          }
           return InviteMembersScreen(groupId: id);
         },
       ),
       GoRoute(
-        path: '/groups/:id/edit',
+        path: RouteConstants.editGroup,
         builder: (context, state) {
-          // Note: We'll pass group data via extra or fetch it in the screen
-          final id = state.pathParameters['id']!;
+          final id = state.pathParameters['id'] ?? '';
+          if (id.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Invalid group ID')));
+          }
+          final extra = state.extra;
+          final extraMap = extra is Map<String, dynamic> ? extra : <String, dynamic>{};
           return EditGroupScreen(
             groupId: id,
-            name: state.extra is Map ? (state.extra as Map)['name'] ?? '' : '',
-            description: state.extra is Map ? (state.extra as Map)['description'] : null,
-            avatarUrl: state.extra is Map ? (state.extra as Map)['avatarUrl'] : null,
-            privacy: state.extra is Map ? (state.extra as Map)['privacy'] ?? 'private' : 'private',
-            currency: state.extra is Map ? (state.extra as Map)['currency'] ?? 'USD' : 'USD',
-            defaultBuyin: state.extra is Map ? (state.extra as Map)['defaultBuyin'] ?? 100.0 : 100.0,
-            additionalBuyins: state.extra is Map ? (state.extra as Map)['additionalBuyins'] ?? [] : [],
+            name: extraMap['name'] as String? ?? '',
+            description: extraMap['description'] as String?,
+            avatarUrl: extraMap['avatarUrl'] as String?,
+            privacy: extraMap['privacy'] as String? ?? 'private',
+            currency: extraMap['currency'] as String? ?? 'USD',
+            defaultBuyin: (extraMap['defaultBuyin'] as num?)?.toDouble() ?? 100.0,
+            additionalBuyins: extraMap['additionalBuyins'] is List
+                ? List<double>.from((extraMap['additionalBuyins'] as List).map((e) => (e as num).toDouble()))
+                : <double>[],
           );
         },
       ),

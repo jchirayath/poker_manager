@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -535,7 +536,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 count: membersAsync.whenOrNull(data: (m) => m.length),
                 actionIcon: Icons.person_add,
                 actionTooltip: 'Manage Members',
-                onAction: () => context.push('/groups/${widget.groupId}/members'),
+                onAction: () => context.push(RouteConstants.manageMembers.replaceFirst(':id', widget.groupId)),
                 theme: theme,
               ),
               const SizedBox(height: 8),
@@ -579,7 +580,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                         TextButton.icon(
                           icon: const Icon(Icons.people),
                           label: Text('View all ${sortedMembers.length} members'),
-                          onPressed: () => context.push('/groups/${widget.groupId}/members'),
+                          onPressed: () => context.push(RouteConstants.manageMembers.replaceFirst(':id', widget.groupId)),
                         ),
                     ],
                   );
@@ -765,7 +766,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                       icon: const Icon(Icons.people, size: 18),
                       label: const Text('Members'),
                       onPressed: () {
-                        context.push('/groups/${widget.groupId}/members');
+                        context.push(RouteConstants.manageMembers.replaceFirst(':id', widget.groupId));
                       },
                     ),
                   ),

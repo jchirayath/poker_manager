@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
@@ -250,7 +251,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
               // Invite Members Button
               ElevatedButton.icon(
                 onPressed: () {
-                  context.push('/groups/${widget.groupId}/invite');
+                  context.push(RouteConstants.inviteMembers.replaceFirst(':id', widget.groupId));
                 },
                 icon: const Icon(Icons.mail_outline),
                 label: const Text('Invite Members by Email'),
