@@ -3,14 +3,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/avatar_utils.dart';
+import '../../data/models/group_model.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../common/widgets/app_drawer.dart';
 
-class GroupsListScreen extends ConsumerWidget {
+class GroupsListScreen extends ConsumerStatefulWidget {
   const GroupsListScreen({super.key});
+
+  @override
+  ConsumerState<GroupsListScreen> createState() => _GroupsListScreenState();
+}
+
+class _GroupsListScreenState extends ConsumerState<GroupsListScreen>
+    with SingleTickerProviderStateMixin {
   static final ScrollController _scrollController = ScrollController();
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   Widget _buildGroupAvatar(String? url, String fallback) {
     final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
@@ -20,7 +41,7 @@ class GroupsListScreen extends ConsumerWidget {
         child: Text(letter),
       );
     }
-    
+
     // Check contains 'svg' - handles DiceBear URLs like /svg?seed=...
     if (url!.toLowerCase().contains('svg')) {
       return CircleAvatar(
@@ -37,18 +58,94 @@ class GroupsListScreen extends ConsumerWidget {
         ),
       );
     }
-    
+
     return CircleAvatar(
       backgroundImage: NetworkImage(url),
       child: const SizedBox.shrink(),
     );
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final groupsAsync = ref.watch(groupsListProvider);
+  Widget _buildUserAvatarAction(BuildContext context) {
     final userAsync = ref.watch(authStateProvider);
-    final groups = groupsAsync.asData?.value ?? [];
+
+    return userAsync.when(
+      data: (user) {
+        if (user == null) {
+          return IconButton(
+            icon: const Icon(Icons.account_circle),
+            onPressed: () => context.push(RouteConstants.profile),
+          );
+        }
+
+        final initials = (user.firstName.isNotEmpty ? user.firstName[0] : '') +
+            (user.lastName.isNotEmpty ? user.lastName[0] : '');
+        final fallbackInitials = initials.isNotEmpty ? initials : '?';
+        final avatarUrl = user.avatarUrl;
+
+        Widget avatar;
+        if ((avatarUrl ?? '').isEmpty) {
+          avatar = CircleAvatar(
+            radius: 16,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            child: Text(
+              fallbackInitials,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimary,
+              ),
+            ),
+          );
+        } else if (avatarUrl!.toLowerCase().contains('svg')) {
+          avatar = CircleAvatar(
+            radius: 16,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            child: ClipOval(
+              child: SvgPicture.network(
+                fixDiceBearUrl(avatarUrl)!,
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+                placeholderBuilder: (_) => Text(
+                  fallbackInitials,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        } else {
+          avatar = CircleAvatar(
+            radius: 16,
+            backgroundImage: NetworkImage(avatarUrl),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: GestureDetector(
+            onTap: () => context.push(RouteConstants.profile),
+            child: avatar,
+          ),
+        );
+      },
+      loading: () => const SizedBox(width: 40),
+      error: (_, __) => IconButton(
+        icon: const Icon(Icons.account_circle),
+        onPressed: () => context.push(RouteConstants.profile),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final myGroupsAsync = ref.watch(groupsListProvider);
+    final publicGroupsAsync = ref.watch(publicGroupsProvider);
+    final myGroupsCount = myGroupsAsync.asData?.value.length ?? 0;
+    final publicGroupsCount = publicGroupsAsync.asData?.value.length ?? 0;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -61,139 +158,45 @@ class GroupsListScreen extends ConsumerWidget {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-      ),
-      body: Column(
-        children: [
-          // User Profile Card with Stats
-          userAsync.when(
-            data: (user) {
-              if (user == null) return const SizedBox.shrink();
-              final displayName = user.firstName.isNotEmpty || user.lastName.isNotEmpty
-                  ? user.fullName
-                  : user.username ?? user.email.split('@').first;
-              final initials = (user.firstName.isNotEmpty ? user.firstName[0] : '') +
-                  (user.lastName.isNotEmpty ? user.lastName[0] : '');
-              return _UserProfileCard(
-                displayName: displayName,
-                username: user.username,
-                avatarUrl: user.avatarUrl,
-                initials: initials,
-                groupCount: groups.length,
-                onProfileTap: () => context.push(RouteConstants.profile),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-          // Groups list
-          Expanded(
-            child: groupsAsync.when(
-              data: (groups) {
-                if (groups.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.group_outlined,
-                          size: 100,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No groups yet',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Create your first poker group',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return RefreshIndicator(
-                  onRefresh: () => ref.refresh(groupsListProvider.future),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: groups.length,
-                    itemBuilder: (context, index) {
-                      final group = groups[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final membersAsync = ref.watch(groupMembersProvider(group.id));
-                            final subtitleText = membersAsync.when(
-                              data: (members) => '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • ${members.length} member${members.length == 1 ? '' : 's'}',
-                              loading: () => '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • loading...',
-                              error: (e, _) => '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)}',
-                            );
-                            return ListTile(
-                              leading: Builder(
-                                builder: (context) {
-                                  // Removed group debug info
-                                  return _buildGroupAvatar(group.avatarUrl, group.name);
-                                },
-                              ),
-                              title: Text(
-                                group.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(subtitleText),
-                                  if (group.description?.isNotEmpty == true) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      group.description!,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () {
-                                context.push(
-                                  RouteConstants.groupDetail.replaceAll(':id', group.id),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text('Error: $error'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.invalidate(groupsListProvider),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
+        actions: [
+          _buildUserAvatarAction(context),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(
+              icon: const Icon(Icons.groups),
+              child: Text(
+                'My Groups ($myGroupsCount)',
+                style: const TextStyle(fontSize: 11),
               ),
             ),
+            Tab(
+              icon: const Icon(Icons.public),
+              child: Text(
+                'Public ($publicGroupsCount)',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // My Groups Tab
+          _GroupsListTab(
+            groupsProvider: groupsListProvider,
+            isPublic: false,
+            buildGroupAvatar: _buildGroupAvatar,
+            scrollController: _scrollController,
+          ),
+          // Public Groups Tab
+          _GroupsListTab(
+            groupsProvider: publicGroupsProvider,
+            isPublic: true,
+            buildGroupAvatar: _buildGroupAvatar,
+            scrollController: ScrollController(),
           ),
         ],
       ),
@@ -206,137 +209,127 @@ class GroupsListScreen extends ConsumerWidget {
   }
 }
 
-class _UserProfileCard extends StatelessWidget {
-  final String displayName;
-  final String? username;
-  final String? avatarUrl;
-  final String initials;
-  final int groupCount;
-  final VoidCallback onProfileTap;
+class _GroupsListTab extends ConsumerWidget {
+  final FutureProvider<List<GroupModel>> groupsProvider;
+  final bool isPublic;
+  final Widget Function(String?, String) buildGroupAvatar;
+  final ScrollController scrollController;
 
-  const _UserProfileCard({
-    required this.displayName,
-    required this.username,
-    required this.avatarUrl,
-    required this.initials,
-    required this.groupCount,
-    required this.onProfileTap,
+  const _GroupsListTab({
+    required this.groupsProvider,
+    required this.isPublic,
+    required this.buildGroupAvatar,
+    required this.scrollController,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupsAsync = ref.watch(groupsProvider);
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        onTap: onProfileTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              _buildAvatar(context),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      displayName,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (username != null && username!.isNotEmpty)
-                      Text(
-                        '@$username',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                  ],
+    return groupsAsync.when(
+      data: (groups) {
+        if (groups.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isPublic ? Icons.public : Icons.group_outlined,
+                  size: 100,
+                  color: Colors.grey[400],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 16),
+                Text(
+                  isPublic ? 'No public groups' : 'No groups yet',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.group,
-                      size: 16,
-                      color: colorScheme.onPrimaryContainer,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$groupCount',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 8),
+                Text(
+                  isPublic
+                      ? 'Public groups will appear here'
+                      : 'Create your first poker group',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAvatar(BuildContext context) {
-    final fallbackInitials = initials.isNotEmpty ? initials : '?';
-
-    if ((avatarUrl ?? '').isEmpty) {
-      return CircleAvatar(
-        radius: 20,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        child: Text(
-          fallbackInitials,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onPrimary,
-          ),
-        ),
-      );
-    }
-
-    if (avatarUrl!.toLowerCase().contains('svg')) {
-      return CircleAvatar(
-        radius: 20,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        child: ClipOval(
-          child: SvgPicture.network(
-            fixDiceBearUrl(avatarUrl)!,
-            width: 40,
-            height: 40,
-            fit: BoxFit.cover,
-            placeholderBuilder: (_) => const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              ],
             ),
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () => ref.refresh(groupsProvider.future),
+          child: ListView.builder(
+            controller: scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: groups.length,
+            itemBuilder: (context, index) {
+              final group = groups[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final membersAsync = ref.watch(groupMembersProvider(group.id));
+                    final subtitleText = membersAsync.when(
+                      data: (members) => '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • ${members.length} member${members.length == 1 ? '' : 's'}',
+                      loading: () => '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)} • loading...',
+                      error: (e, _) => '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(2)}',
+                    );
+                    return ListTile(
+                      leading: buildGroupAvatar(group.avatarUrl, group.name),
+                      title: Text(
+                        group.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(subtitleText),
+                          if (group.description?.isNotEmpty == true) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              group.description!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        context.push(
+                          RouteConstants.groupDetail.replaceAll(':id', group.id),
+                        );
+                      },
+                    );
+                  },
+                ),
+              );
+            },
           ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text('Error: $error'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => ref.invalidate(groupsProvider),
+              child: const Text('Retry'),
+            ),
+          ],
         ),
-      );
-    }
-
-    return CircleAvatar(
-      radius: 20,
-      backgroundImage: NetworkImage(avatarUrl!),
+      ),
     );
   }
 }
+
