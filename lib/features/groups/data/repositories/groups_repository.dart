@@ -295,11 +295,16 @@ class GroupsRepository {
   /// Fetch all public groups (privacy = 'public')
   Future<Result<List<GroupModel>>> getPublicGroups() async {
     try {
+      debugPrint('[GroupsRepository] Fetching all public groups');
+      debugPrint('[GroupsRepository] Current user ID: ${SupabaseService.currentUserId}');
+
       final response = await _client
           .from('groups')
           .select()
           .eq('privacy', 'public')
           .order('created_at', ascending: false);
+
+      debugPrint('[GroupsRepository] getPublicGroups response: $response');
 
       final groups = (response as List).map((json) {
         // Fix DiceBear URLs to exclude metadata tags
@@ -309,8 +314,10 @@ class GroupsRepository {
         return GroupModel.fromJson(json);
       }).toList();
 
+      debugPrint('[GroupsRepository] Loaded ${groups.length} public groups (non-paginated)');
       return Success(groups);
     } catch (e) {
+      debugPrint('[GroupsRepository] Error loading public groups: $e');
       return Failure('Failed to load public groups: ${e.toString()}');
     }
   }
@@ -322,6 +329,8 @@ class GroupsRepository {
   }) async {
     try {
       final offset = (page - 1) * pageSize;
+      debugPrint('[GroupsRepository] Fetching public groups: page=$page, pageSize=$pageSize, offset=$offset');
+      debugPrint('[GroupsRepository] Current user ID: ${SupabaseService.currentUserId}');
 
       final response = await _client
           .from('groups')
@@ -330,6 +339,8 @@ class GroupsRepository {
           .order('created_at', ascending: false)
           .range(offset, offset + pageSize - 1);
 
+      debugPrint('[GroupsRepository] Response: $response');
+
       final groups = (response as List).map((json) {
         if (json['avatar_url'] != null) {
           json['avatar_url'] = fixDiceBearUrl(json['avatar_url']);
@@ -337,8 +348,10 @@ class GroupsRepository {
         return GroupModel.fromJson(json);
       }).toList();
 
+      debugPrint('[GroupsRepository] Loaded ${groups.length} public groups');
       return Success(groups);
     } catch (e) {
+      debugPrint('[GroupsRepository] Error loading public groups: $e');
       return Failure('Failed to load public groups: ${e.toString()}');
     }
   }

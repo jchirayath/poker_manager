@@ -8,6 +8,69 @@ import 'package:uuid/uuid.dart';
 
 void main() {
   group('Setup Dummy Data for Testing', () {
+    test('Clean up and reset all database tables', () async {
+      // Load environment from env.json
+      final envFile = File('env.json');
+      if (!envFile.existsSync()) {
+        throw Exception('env.json file not found. Please create it with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+      }
+      final envJson = jsonDecode(envFile.readAsStringSync()) as Map<String, dynamic>;
+      final supabaseUrl = envJson['SUPABASE_URL'] as String? ?? '';
+      final supabaseServiceKey = envJson['SUPABASE_SERVICE_ROLE_KEY'] as String? ?? '';
+      if (supabaseUrl.isEmpty || supabaseServiceKey.isEmpty) {
+        throw Exception('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in env.json');
+      }
+      final client = SupabaseClient(supabaseUrl, supabaseServiceKey);
+
+      print('\n🧹 Cleaning up all database tables...\n');
+      // List of actual tables in the database
+      final tables = [
+        'app_feedback',
+        'financial_audit_log',
+        'group_invitations',
+        'transactions',
+        'settlements',
+        'player_statistics',
+        'game_participants',
+        'games',
+        'group_members',
+        'locations',
+        'groups',
+        'profiles',
+      ];
+      // Clear public tables
+      for (final table in tables) {
+        try {
+          await client.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          print('  - Cleared $table');
+        } catch (e) {
+          print('  ⚠️  Failed to clear $table: $e');
+        }
+      }
+      // Clear flow_state in auth schema (Supabase system table)
+      try {
+        final response = await client.rpc('delete_all_from_auth_flow_state', params: {});
+        print('  - Cleared auth.flow_state');
+      } catch (e) {
+        print('  ⚠️  Failed to clear auth.flow_state: $e');
+      }
+
+      // Delete all Supabase Auth users except protected ones (e.g., admin)
+      final existingUsers = await client.auth.admin.listUsers();
+      for (final user in existingUsers) {
+        // Optionally, skip protected users (e.g., admin)
+        final email = user.email ?? '';
+        if (email.endsWith('@dummy.test') || email.isNotEmpty) {
+          try {
+            await client.auth.admin.deleteUser(user.id);
+            print('  - Removed auth user $email');
+          } catch (e) {
+            print('  ⚠️  Failed to delete auth user $email: $e');
+          }
+        }
+      }
+      print('\n✅ Database cleanup complete. All tables reset.\n');
+    });
     late SupabaseClient client;
     late String supabaseUrl;
     late String supabaseServiceKey;
@@ -328,7 +391,7 @@ void main() {
       }
 
       // Create or reuse admin user with broad group access
-      const adminEmail = 'jacobjc@gmail.com';
+      const adminEmail = 'jacobc@aspl.net';
       const adminFirst = 'Jacob';
       const adminLast = 'C';
       const adminUsername = 'jacob.admin';
