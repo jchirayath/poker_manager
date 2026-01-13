@@ -20,20 +20,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Get full address display
-CREATE OR REPLACE FUNCTION get_full_address(p profiles)
-RETURNS TEXT AS $$
-BEGIN
-  RETURN CONCAT_WS(', ',
-    NULLIF(p.street_address, ''),
-    NULLIF(p.city, ''),
-    NULLIF(p.state_province, ''),
-    NULLIF(p.postal_code, ''),
-    NULLIF(p.country, '')
-  );
-END;
-$$ LANGUAGE plpgsql STABLE;
-
 -- =============================================
 -- TABLE: profiles
 -- =============================================
@@ -59,6 +45,20 @@ CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON profiles
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Get full address display (must be after profiles table)
+CREATE OR REPLACE FUNCTION get_full_address(p profiles)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN CONCAT_WS(', ',
+    NULLIF(p.street_address, ''),
+    NULLIF(p.city, ''),
+    NULLIF(p.state_province, ''),
+    NULLIF(p.postal_code, ''),
+    NULLIF(p.country, '')
+  );
+END;
+$$ LANGUAGE plpgsql STABLE;
 
 -- Auto-create a profile when a new auth user is created
 CREATE OR REPLACE FUNCTION public.handle_new_user()

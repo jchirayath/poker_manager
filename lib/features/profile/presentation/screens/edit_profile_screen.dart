@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/input_validators.dart';
@@ -222,6 +223,34 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  Future<void> _showLogoutConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final controller = ref.read(authControllerProvider);
+      await controller.signOut();
+      if (mounted) {
+        context.go(RouteConstants.signIn);
+      }
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -295,16 +324,26 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       appBar: AppBar(
         title: const Text('Edit Profile'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+            onPressed: _isLoading ? null : _showLogoutConfirmation,
+          ),
           if (_isLoading)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
             )
           else
             IconButton(
               icon: const Icon(Icons.check),
+              tooltip: 'Save',
               onPressed: _saveProfile,
             ),
         ],
@@ -557,6 +596,25 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Save Updates Button
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Save Updates',
+                            style: TextStyle(fontSize: 16),
+                          ),
                   ),
                   const SizedBox(height: 32),
 
