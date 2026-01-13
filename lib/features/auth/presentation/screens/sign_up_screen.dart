@@ -209,15 +209,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             'assets/images/img_app_logo.svg',
             width: 56,
             height: 56,
-            colorFilter: ColorFilter.mode(
-              colorScheme.primary,
-              BlendMode.srcIn,
-            ),
           ),
         ),
         const SizedBox(height: 16),
         Text(
-          'Join Poker Manager',
+          'Join ${AppConstants.appNameWithBeta}',
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
@@ -226,31 +222,45 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.check_circle_outline,
-                size: 16,
-                color: colorScheme.secondary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Track groups, games & stats across devices',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.onSecondaryContainer,
-                  fontWeight: FontWeight.w500,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Container(
+              width: constraints.maxWidth,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.outline.withValues(alpha: 0.2),
                 ),
               ),
-            ],
-          ),
+              child: Column(
+                children: [
+                  Text(
+                    'Organize poker nights with friends, track buy-ins, manage groups, and settle up effortlessly.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSecondaryContainer,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      _buildFeatureChip(Icons.group, 'Groups', colorScheme),
+                      _buildFeatureChip(Icons.casino_outlined, 'Games', colorScheme),
+                      _buildFeatureChip(Icons.trending_up, 'Stats', colorScheme),
+                      _buildFeatureChip(Icons.payments, 'Settle', colorScheme),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -466,10 +476,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   Widget _buildBenefitsList(ColorScheme colorScheme) {
     final benefits = [
-      'Create and manage poker groups',
-      'Track buy-ins and cash-outs',
-      'View detailed game statistics',
-      'Settle up with other players',
+      {'icon': Icons.group_outlined, 'text': 'Create and manage poker groups'},
+      {'icon': Icons.casino_outlined, 'text': 'Track and play games'},
+      {'icon': Icons.analytics_outlined, 'text': 'View detailed game statistics'},
+      {'icon': Icons.account_balance_wallet_outlined, 'text': 'Settle up with other players'},
     ];
 
     return Container(
@@ -508,14 +518,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.check,
-                      size: 14,
-                      color: colorScheme.secondary,
+                      benefit['icon'] as IconData,
+                      size: 16,
+                      color: colorScheme.primary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        benefit,
+                        benefit['text'] as String,
                         style: TextStyle(
                           fontSize: 12,
                           color: colorScheme.onSurfaceVariant,
@@ -546,6 +556,36 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               style: TextStyle(
                 color: colorScheme.primary,
                 fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureChip(IconData icon, String label, ColorScheme colorScheme) {
+    return IntrinsicWidth(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: colorScheme.primary),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

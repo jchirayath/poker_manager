@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_constants.dart';
 
 class HowToUseScreen extends StatelessWidget {
   const HowToUseScreen({super.key});
@@ -11,7 +12,7 @@ class HowToUseScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'How to Use Poker Manager',
+            'How to Use ${AppConstants.appNameWithBeta}',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 16),

@@ -73,7 +73,7 @@ class PokerManagerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: 'Poker Manager',
+      title: AppConstants.appNameWithBeta,
       // Light and dark themes from centralized AppTheme
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

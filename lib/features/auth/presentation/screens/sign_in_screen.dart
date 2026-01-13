@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/auth_provider.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/input_validators.dart';
 import '../../../common/widgets/app_drawer.dart';
@@ -184,16 +185,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             'assets/images/img_app_logo.svg',
             width: 80,
             height: 80,
-            colorFilter: ColorFilter.mode(
-              colorScheme.primary,
-              BlendMode.srcIn,
-            ),
           ),
         ),
         const SizedBox(height: 24),
         // App Name
         Text(
-          'Poker Manager',
+          AppConstants.appNameWithBeta,
           style: TextStyle(
             fontSize: 32,
             fontWeight: FontWeight.bold,
@@ -203,7 +200,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Your Game, Your Way',
+          AppConstants.appTagline,
           style: TextStyle(
             fontSize: 16,
             color: colorScheme.primary,
@@ -226,11 +223,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.casino_outlined,
-            size: 28,
-            color: colorScheme.secondary,
-          ),
+          // Icon(
+          //   Icons.casino_outlined,
+          //   size: 28,
+          //   color: colorScheme.secondary,
+          // ),
           const SizedBox(height: 8),
           Text(
             'Organize poker nights with friends, track buy-ins, manage groups, and settle up effortlessly.',
@@ -241,13 +238,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 4,
+            runSpacing: 4,
             children: [
+              _buildFeatureChip(Icons.games, 'Games', colorScheme),
               _buildFeatureChip(Icons.group, 'Groups', colorScheme),
-              const SizedBox(width: 8),
               _buildFeatureChip(Icons.trending_up, 'Stats', colorScheme),
-              const SizedBox(width: 8),
               _buildFeatureChip(Icons.payments, 'Settle', colorScheme),
             ],
           ),
@@ -257,26 +255,31 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Widget _buildFeatureChip(IconData icon, String label, ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: colorScheme.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: colorScheme.primary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.primary,
-              fontWeight: FontWeight.w600,
+    return IntrinsicWidth(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: colorScheme.primary),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

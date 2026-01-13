@@ -46,7 +46,9 @@ class AuthRepository {
     required String country,
   }) async {
     try {
-      // Step 1: Create auth user
+      // Create auth user - the database trigger (handle_new_user) will automatically
+      // create the profile using the metadata we pass here. The trigger runs with
+      // SECURITY DEFINER so it bypasses RLS policies.
       final response = await _client.auth.signUp(
         email: email,
         password: password,
@@ -61,82 +63,21 @@ class AuthRepository {
         return const Failure('Sign up failed');
       }
 
-      // Step 2: Immediately create profile (don't wait for trigger)
-      // This prevents race conditions and ensures profile exists
-      try {
-        final profile = await _createProfileSync(
-          userId: response.user!.id,
-          email: email,
-          firstName: firstName,
-          lastName: lastName,
-          country: country,
-        );
-        return Success(profile);
-      } catch (e) {
-        developer.log('Profile creation failed: $e', name: 'AuthRepository');
-        
-        // Profile creation failed - cleanup auth user to prevent orphaned accounts
-        try {
-          await _client.auth.signOut();
-        } catch (cleanupError) {
-          developer.log('Failed to cleanup auth user: $cleanupError', name: 'AuthRepository');
-        }
-        
-        return Failure('Profile creation failed: ${e.toString()}');
-      }
+      developer.log('User signed up successfully: ${response.user!.id}', name: 'AuthRepository');
+
+      // Return a user model with the data we provided
+      // The profile is created by the database trigger (SECURITY DEFINER)
+      // We don't try to read/write it here as the user may need email confirmation first
+      return Success(UserModel(
+        id: response.user!.id,
+        email: email,
+        firstName: firstName,
+        lastName: lastName,
+        country: country,
+      ));
     } catch (e) {
       developer.log('Sign up error: $e', name: 'AuthRepository');
       return Failure('Sign up failed: ${e.toString()}');
-    }
-  }
-
-  /// Create profile synchronously during signup
-  /// This prevents race conditions with database triggers
-  Future<UserModel> _createProfileSync({
-    required String userId,
-    required String email,
-    required String firstName,
-    required String lastName,
-    required String country,
-  }) async {
-    try {
-      // First, check if profile already exists (in case trigger already created it)
-      final existing = await _client
-          .from('profiles')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
-
-      if (existing != null) {
-        developer.log('Profile already exists (created by trigger)', name: 'AuthRepository');
-        return UserModel.fromJson(existing);
-      }
-
-      // Create profile explicitly
-      final created = await _client
-          .from('profiles')
-          .insert({
-            'id': userId,
-            'email': email,
-            'first_name': firstName,
-            'last_name': lastName,
-            'country': country,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      developer.log('Profile created synchronously for user: $userId', name: 'AuthRepository');
-      return UserModel.fromJson(created);
-    } on PostgrestException catch (e) {
-      // If it's a duplicate key error, the trigger might have created it
-      if (e.code == '23505') {
-        developer.log('Profile already exists (race with trigger)', name: 'AuthRepository');
-        final profile = await _getProfile(userId);
-        return profile;
-      }
-      rethrow;
     }
   }
 
