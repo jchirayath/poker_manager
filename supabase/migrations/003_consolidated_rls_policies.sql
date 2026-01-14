@@ -393,10 +393,7 @@ CREATE POLICY "Users can view group statistics"
     )
   );
 
-CREATE POLICY "System can manage statistics"
-  ON player_statistics FOR ALL
-  USING (true)
-  WITH CHECK (true);
+
 
 -- =============================================
 -- RLS POLICIES: group_invitations

@@ -8,4 +8,4 @@ BEGIN
     c.amount
   FROM calculate_settlement_atomic(game_uuid) c;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
