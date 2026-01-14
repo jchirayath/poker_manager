@@ -113,8 +113,19 @@ void main() {
       Future<void> clearExistingData() async {
         print('🧹 Clearing existing data...\n');
 
-        Future<void> deleteAll(String table) async {
-          await client.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+        Future<void> deleteAll(String table, {bool skipIdCheck = false}) async {
+          if (skipIdCheck) {
+            // PostgREST requires a WHERE clause for DELETE; use a filter that matches all rows
+            // Try 'id' column first, fallback to 'created_at' if 'id' does not exist
+            try {
+              await client.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            } catch (_) {
+              await client.from(table).delete().neq('created_at', '');
+            }
+          } else {
+            await client.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          }
           print('  ✓ Cleared $table');
         }
 
@@ -127,6 +138,7 @@ void main() {
         await deleteAll('locations');
         await deleteAll('groups');
         await deleteAll('profiles');
+        await deleteAll('financial_audit_log', skipIdCheck: true); // No id column constraint
 
         final existingUsers = await client.auth.admin.listUsers();
         for (final user in existingUsers) {
@@ -864,10 +876,8 @@ void main() {
               'created_at': nowIso,
             });
 
-            // Only collect transactions for completed games
-            // (in-progress games have unbalanced totals which would fail the financial integrity trigger)
-            if (gameStatus == 'completed') {
-              // Collect buy-in transactions
+            // Collect buy-in transactions for both completed and in-progress games
+            if (gameStatus == 'completed' || gameStatus == 'in_progress') {
               for (var j = 0; j < buyins.length; j++) {
                 transactionRows.add({
                   'game_id': gameId,
@@ -878,9 +888,8 @@ void main() {
                   'notes': j == 0 ? 'Initial buy-in' : 'Additional buy-in',
                 });
               }
-
-              // Collect cash-out transaction
-              if (cashout > 0) {
+              // Only completed games get cash-out transactions
+              if (gameStatus == 'completed' && cashout > 0) {
                 transactionRows.add({
                   'game_id': gameId,
                   'user_id': participant['userId'],
