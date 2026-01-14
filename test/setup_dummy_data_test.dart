@@ -715,24 +715,25 @@ void main() {
         {'groupId': group3Id, 'members': group3Members, 'prefix': 'Desert'},
       ];
 
+      // Only completed, cancelled, and scheduled games are created (in_progress skipped)
       for (final cfg in gameConfigs) {
         final gid = cfg['groupId'] as String;
         final members = (cfg['members'] as List<String>);
         final prefix = cfg['prefix'] as String;
         final neutralAddr = neutralLocations.firstWhere((l) => l['group_id'] == gid);
         for (var i = 0; i < 5; i++) {
+          // --- ACTIVE (in-progress) game population removed as requested ---
+          if (i == 3) {
+            // Skipping in-progress game population
+            continue;
+          }
+
           final gameId = uuid.v4();
           final gameName = '$prefix Game ${i + 1}';
-          // Create games with varied statuses:
-          // i=0: completed (2 weeks ago) with additional buy-ins
-          // i=1: completed (1 week ago) with varied results
-          // i=2: cancelled (3 days ago)
-          // i=3: in_progress (2 hours ago)
-          // i=4: scheduled (next week)
-          final String gameStatus;
-          final DateTime gameDate;
-          final bool hasTransactions;
-          
+          String gameStatus;
+          DateTime gameDate;
+          bool hasTransactions;
+
           if (i == 0) {
             gameStatus = 'completed';
             gameDate = now.subtract(const Duration(days: 14));
@@ -745,16 +746,12 @@ void main() {
             gameStatus = 'cancelled';
             gameDate = now.subtract(const Duration(days: 3));
             hasTransactions = false; // Cancelled games have no transactions
-          } else if (i == 3) {
-            gameStatus = 'in_progress';
-            gameDate = now.subtract(const Duration(hours: 2));
-            hasTransactions = true;
           } else {
             gameStatus = 'scheduled';
             gameDate = now.add(const Duration(days: 2)); // Within 3-day window for "Start Games"
             hasTransactions = false; // Scheduled games have no transactions yet
           }
-          
+
           await client.from('games').insert({
             'id': gameId,
             'group_id': gid,
@@ -779,7 +776,6 @@ void main() {
               {'userId': members.length > 1 ? members[1] : adminId},
               {'userId': members.length > 2 ? members[2] : adminId},
             ];
-            
             for (final participant in participants) {
               final participantId = uuid.v4();
               await client.from('game_participants').insert({
@@ -795,68 +791,26 @@ void main() {
             continue;
           }
 
-          // For completed and in-progress games, create realistic transaction data
+          // For completed games, create realistic transaction data
           List<Map<String, dynamic>> participants;
-          
           if (i == 0) {
-            // First completed game: One loser, two winners (balanced)
-            // Net Positions: -100, +50, +50 (sum = 0)
-            // Settlements expected: P0 pays P1 $50, P0 pays P2 $50
-            // Player 0: buy $200 ($100+$50+$50), cash $100 = net -$100
-            // Player 1: buy $100, cash $150 = net +$50
-            // Player 2: buy $150 ($100+$50), cash $200 = net +$50
-            // Total: buy $450 = cash $450 ✓
             participants = [
               {'userId': members[0], 'buyins': [100.0, 50.0, 50.0], 'cashout': 100.0},
               {'userId': members.length > 1 ? members[1] : adminId, 'buyins': [100.0], 'cashout': 150.0},
               {'userId': members.length > 2 ? members[2] : adminId, 'buyins': [100.0, 50.0], 'cashout': 200.0},
             ];
           } else if (i == 1) {
-            // Second completed game: Two losers, one winner (balanced)
-            // Net Positions: -20, +50, -30 (sum = 0)
-            // Settlements expected: P0 pays P1 $20, P2 pays P1 $30
-            // Player 0: buy $100, cash $80 = net -$20
-            // Player 1: buy $150 ($100+$50), cash $200 = net +$50
-            // Player 2: buy $100, cash $70 = net -$30
-            // Total: buy $350 = cash $350 ✓
-            // Player 1: buy $150, cashout $240 = +$90  
-            // Player 2: buy $100, cashout $90 = -$10
-            // Total: -$20 + $90 - $10 = +$60... still unbalanced. Let me recalculate:
-            // Need: total_buyin = total_cashout
-            // Player 1 wins: cashout $240, needs buyin of $240 + 20 + 10 = $270? No.
-            // Let's make it simple: 
-            // P0: 100 buy, 80 cash = -20
-            // P1: 150 buy, 230 cash = +80
-            // P2: 100 buy, 90 cash = -10
-            // Total buy = 350, total cash = 400... still wrong
-            // CORRECT approach:
-            // P0: 100 buy, 80 cash = -20  
-            // P1: 150 buy, 200 cash = +50
-            // P2: 100 buy, 90 cash = -10
-            // Total: 350 buy, 370 cash... -20 unmatched
-            // RIGHT approach for BALANCED:
-            // Total buyin = $350
-            // Total cashout must = $350
-            // P0: 100 buy → 80 cash = -20
-            // P1: 150 buy → 200 cash = +50
-            // P2: 100 buy → 70 cash = -30
-            // Check: 350 = 350 ✓, net = -20+50-30 = 0 ✓
             participants = [
               {'userId': members[0], 'buyins': [100.0], 'cashout': 80.0},
               {'userId': members.length > 1 ? members[1] : adminId, 'buyins': [100.0, 50.0], 'cashout': 200.0},
               {'userId': members.length > 2 ? members[2] : adminId, 'buyins': [100.0], 'cashout': 70.0},
             ];
           } else {
-            // In-progress game: Only initial buy-ins, no cash-outs yet
-            participants = [
-              {'userId': members[0], 'buyins': [100.0], 'cashout': 0.0},
-              {'userId': members.length > 1 ? members[1] : adminId, 'buyins': [100.0], 'cashout': 0.0},
-              {'userId': members.length > 2 ? members[2] : adminId, 'buyins': [100.0, 50.0], 'cashout': 0.0},
-            ];
+            // Should not reach here for in-progress (i==3) due to continue above
+            continue;
           }
 
-          // Batch insert all participants at once to avoid triggering
-          // financial integrity check before all participants are added
+          // Batch insert all participants at once
           final participantRows = <Map<String, dynamic>>[];
           final transactionRows = <Map<String, dynamic>>[];
 
@@ -876,8 +830,8 @@ void main() {
               'created_at': nowIso,
             });
 
-            // Collect buy-in transactions for both completed and in-progress games
-            if (gameStatus == 'completed' || gameStatus == 'in_progress') {
+            // Collect buy-in transactions for completed games
+            if (gameStatus == 'completed') {
               for (var j = 0; j < buyins.length; j++) {
                 transactionRows.add({
                   'game_id': gameId,
@@ -889,7 +843,7 @@ void main() {
                 });
               }
               // Only completed games get cash-out transactions
-              if (gameStatus == 'completed' && cashout > 0) {
+              if (cashout > 0) {
                 transactionRows.add({
                   'game_id': gameId,
                   'user_id': participant['userId'],
@@ -922,8 +876,8 @@ void main() {
       expect(groupIds.length, 3, reason: 'Three groups should be present');
       expect(locationIds.length, 14, reason: '11 personal locations (including admin) + 3 neutral group locations');
       expect(memberRows.length, 16, reason: 'Group1:6, Group2:6, Group3:4 memberships total');
-      expect(allParticipants.length, 27, reason: 'Nine games with transactions * 3 participants each (3 per group: 2 completed + 1 in_progress)');
-      expect(gamesCreated.length, 15, reason: 'Five games per group (3 groups) = 15 total games');
+      expect(allParticipants.length, 18, reason: 'Six games with transactions * 3 participants each (3 per group: 2 completed games)');
+      expect(gamesCreated.length, 12, reason: 'Four games per group (3 groups) = 12 total games (in_progress skipped)');
 
       // Verify all users have avatar URLs
       final profilesWithAvatars = await client.from('profiles').select('id, avatar_url').gt('avatar_url', '');
@@ -988,8 +942,8 @@ void main() {
         expectCount(personalLocationsCount, 11, 'locations table should contain 11 personal addresses');
         expectCount(neutralLocationsCount, expectedNeutrals, 'locations table should contain neutral group addresses');
         expectCount(locationsTable.length, expectedLocations, 'locations table should contain total addresses');
-        expectCount(gamesTable.length, 15, 'games table should contain 15 games (5 per group: 2 completed, 1 cancelled, 1 in_progress, 1 scheduled)');
-        expectCount(participantsTable.length, 45, 'game_participants table should contain 45 participants (15 games * 3 participants)');
+        expectCount(gamesTable.length, 12, 'games table should contain 12 games (4 per group: 2 completed, 1 cancelled, 1 scheduled; in_progress skipped)');
+        expectCount(participantsTable.length, 36, 'game_participants table should contain 36 participants (12 games * 3 participants; in_progress skipped)');
         // Transactions: 3 games per group have transactions (2 completed + 1 in_progress)
         // Completed games: varied buy-ins + 1 cash-out each; In-progress: buy-ins only, no cash-outs yet
         // This is approximate since games have different numbers of buy-ins

@@ -559,55 +559,97 @@ class GamesRepository {
     String status,
   ) async {
     try {
-      final response = await _client
-          .from('games')
-          .update({'status': status})
-          .eq('id', gameId)
-          .select()
-          .single();
-
-      final game = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
-
-      // If game is being started, create initial buy-in transactions for all participants
+      // If game is being started, ensure all group members are participants, then create buy-in transactions for all participants BEFORE setting status to in_progress
       if (status == 'in_progress') {
-        debugPrint('🎮 Game started - creating buy-in transactions for participants');
-        
+        debugPrint('🎮 Preparing to start game - ensuring all group members are participants and creating buy-in transactions');
         try {
-          // Fetch all participants for this game
+          // Fetch the game to get groupId and buyinAmount
+          final gameResponse = await _client
+              .from('games')
+              .select()
+              .eq('id', gameId)
+              .single();
+          final game = _mapGameRowToModel(Map<String, dynamic>.from(gameResponse as Map));
+
+          // Fetch all group members for this game
+          final groupId = game.groupId;
+          final groupMembersResponse = await _client
+              .from('group_members')
+              .select('user_id')
+              .eq('group_id', groupId);
+          final groupMembers = groupMembersResponse as List? ?? [];
+          final groupMemberIds = groupMembers.map((m) => m['user_id'] as String).toSet();
+
+          // Fetch all current participants for this game
           final participantsResponse = await _client
               .from('game_participants')
               .select('user_id')
               .eq('game_id', gameId);
-
           final participants = participantsResponse as List? ?? [];
-          debugPrint('📋 Creating buy-ins for ${participants.length} participants');
+          final participantIds = participants.map((p) => p['user_id'] as String).toSet();
 
-          // Create buy-in transaction for each participant
-          for (final participantJson in participants) {
-            final userId = participantJson['user_id'] as String;
-            
-            // Create buy-in transaction with the game's buy-in amount
-            final txnResult = await addTransaction(
-              gameId: gameId,
-              userId: userId,
-              type: 'buyin',
-              amount: game.buyinAmount,
-            );
-
-            if (txnResult is Failure) {
-              debugPrint('⚠️ Warning: Failed to create buy-in for $userId: ${(txnResult as Failure).message}');
-              // Don't fail the entire game start if one transaction fails
-            } else {
-              debugPrint('✅ Created buy-in transaction for $userId: ${game.currency} ${game.buyinAmount}');
-            }
+          // Find group members not yet participants
+          final missingParticipantIds = groupMemberIds.difference(participantIds);
+          if (missingParticipantIds.isNotEmpty) {
+            debugPrint('➕ Adding missing participants: ${missingParticipantIds.join(", ")}');
+            final newParticipants = missingParticipantIds.map((userId) => {
+              'game_id': gameId,
+              'user_id': userId,
+              'rsvp_status': 'going',
+            }).toList();
+            await _client.from('game_participants').insert(newParticipants);
           }
-        } catch (e) {
-          debugPrint('⚠️ Warning: Error creating buy-in transactions: $e');
-          // Don't fail the game start if transaction creation fails
-        }
-      }
 
-      return Success(game);
+          // Fetch updated participants list
+          final allParticipantsResponse = await _client
+              .from('game_participants')
+              .select('user_id')
+              .eq('game_id', gameId);
+          final allParticipants = allParticipantsResponse as List? ?? [];
+          debugPrint('📋 Creating buy-ins for ${allParticipants.length} participants');
+
+          // Batch insert buy-in and zero cash-out transactions for all participants
+          final nowIso = DateTime.now().toIso8601String();
+          final transactions = <Map<String, dynamic>>[];
+          for (final participantJson in allParticipants) {
+            final userId = participantJson['user_id'] as String;
+            transactions.add({
+              'game_id': gameId,
+              'user_id': userId,
+              'type': 'buyin',
+              'amount': game.buyinAmount,
+              'timestamp': nowIso,
+            });
+          }
+          if (transactions.isNotEmpty) {
+            final txnResponse = await _client.from('transactions').insert(transactions).select();
+            debugPrint('✅ Batch inserted ${transactions.length} buy-in transactions for all participants');
+          }
+
+          // Now update the game status to in_progress
+          final response = await _client
+              .from('games')
+              .update({'status': status})
+              .eq('id', gameId)
+              .select()
+              .single();
+          final updatedGame = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
+          return Success(updatedGame);
+        } catch (e) {
+          debugPrint('⚠️ Warning: Error creating buy-in transactions or updating status: $e');
+          return Failure('Failed to start game: ${e.toString()}');
+        }
+      } else {
+        // For other status updates, just update status as before
+        final response = await _client
+            .from('games')
+            .update({'status': status})
+            .eq('id', gameId)
+            .select()
+            .single();
+        final game = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
+        return Success(game);
+      }
     } catch (e) {
       return Failure('Failed to update game status: ${e.toString()}');
     }
