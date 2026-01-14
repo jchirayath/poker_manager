@@ -6,6 +6,9 @@ import '../../../../core/utils/avatar_utils.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../common/widgets/app_drawer.dart';
+import '../providers/profile_provider.dart';
+import '../../../groups/presentation/providers/groups_provider.dart';
+import '../../../games/presentation/providers/games_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -148,6 +151,13 @@ class ProfileScreen extends ConsumerWidget {
               if (confirmed == true && context.mounted) {
                 final controller = ref.read(authControllerProvider);
                 await controller.signOut();
+                // Invalidate user/profile and group providers to clear cached data
+                ref.invalidate(currentProfileProvider);
+                ref.invalidate(authStateProvider);
+                ref.invalidate(groupsListProvider);
+                ref.invalidate(publicGroupsProvider);
+                ref.invalidate(activeGamesProvider);
+                ref.invalidate(pastGamesProvider);
                 if (context.mounted) {
                   context.go(RouteConstants.signIn);
                 }
@@ -313,6 +323,13 @@ class ProfileScreen extends ConsumerWidget {
                             if (confirmed == true && context.mounted) {
                               final controller = ref.read(authControllerProvider);
                               await controller.signOut();
+                              // Invalidate user/profile and group providers to clear cached data
+                              ref.invalidate(currentProfileProvider);
+                              ref.invalidate(authStateProvider);
+                              ref.invalidate(groupsListProvider);
+                              ref.invalidate(publicGroupsProvider);
+                              ref.invalidate(activeGamesProvider);
+                              ref.invalidate(pastGamesProvider);
                               if (context.mounted) {
                                 context.go(RouteConstants.signIn);
                               }
