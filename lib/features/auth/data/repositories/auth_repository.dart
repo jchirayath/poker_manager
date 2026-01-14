@@ -46,9 +46,7 @@ class AuthRepository {
     required String country,
   }) async {
     try {
-      // Create auth user - the database trigger (handle_new_user) will automatically
-      // create the profile using the metadata we pass here. The trigger runs with
-      // SECURITY DEFINER so it bypasses RLS policies.
+      // Create auth user with metadata
       final response = await _client.auth.signUp(
         email: email,
         password: password,
@@ -65,19 +63,95 @@ class AuthRepository {
 
       developer.log('User signed up successfully: ${response.user!.id}', name: 'AuthRepository');
 
-      // Return a user model with the data we provided
-      // The profile is created by the database trigger (SECURITY DEFINER)
-      // We don't try to read/write it here as the user may need email confirmation first
-      return Success(UserModel(
-        id: response.user!.id,
-        email: email,
-        firstName: firstName,
-        lastName: lastName,
-        country: country,
-      ));
+      // Create profile synchronously to ensure first/last name are saved
+      try {
+        final profile = await _createProfileSync(
+          userId: response.user!.id,
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          country: country,
+        );
+        return Success(profile);
+      } catch (e) {
+        developer.log('Profile creation failed: $e', name: 'AuthRepository');
+        // Return user model with provided data even if profile creation fails
+        // The database trigger may still create it, or user can update later
+        return Success(UserModel(
+          id: response.user!.id,
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          country: country,
+        ));
+      }
     } catch (e) {
       developer.log('Sign up error: $e', name: 'AuthRepository');
       return Failure('Sign up failed: ${e.toString()}');
+    }
+  }
+
+  Future<UserModel> _createProfileSync({
+    required String userId,
+    required String email,
+    required String firstName,
+    required String lastName,
+    required String country,
+  }) async {
+    // Check if trigger already created the profile
+    final existing = await _client
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (existing != null) {
+      developer.log('Profile already exists (created by trigger)', name: 'AuthRepository');
+      // Update the profile with first/last name if they're empty
+      if ((existing['first_name'] ?? '').isEmpty || (existing['last_name'] ?? '').isEmpty) {
+        await _client
+            .from('profiles')
+            .update({
+              'first_name': firstName,
+              'last_name': lastName,
+              'country': country,
+            })
+            .eq('id', userId);
+        return UserModel(
+          id: userId,
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          country: country,
+        );
+      }
+      return UserModel.fromJson(existing);
+    }
+
+    // Create profile explicitly
+    try {
+      final created = await _client
+          .from('profiles')
+          .insert({
+            'id': userId,
+            'email': email,
+            'first_name': firstName,
+            'last_name': lastName,
+            'country': country,
+          })
+          .select()
+          .single();
+
+      developer.log('Profile created synchronously for user: $userId', name: 'AuthRepository');
+      return UserModel.fromJson(created);
+    } on PostgrestException catch (e) {
+      // Duplicate key error - trigger created it
+      if (e.code == '23505') {
+        developer.log('Profile already exists (race with trigger)', name: 'AuthRepository');
+        final profile = await _getProfile(userId);
+        return profile;
+      }
+      rethrow;
     }
   }
 

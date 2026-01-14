@@ -73,14 +73,51 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     setState(() => _isLoading = false);
 
     result.when(
-      success: (user) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Account created successfully!'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
+      success: (user) async {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            icon: Icon(
+              Icons.mark_email_read_outlined,
+              size: 48,
+              color: Theme.of(ctx).colorScheme.primary,
+            ),
+            title: const Text('Check Your Email'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'A verification email has been sent to:',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _emailController.text.trim(),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Please click the link in the email to activate your account before signing in.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Got it'),
+              ),
+            ],
           ),
         );
-        context.go(RouteConstants.signIn);
+        if (context.mounted) {
+          context.go(RouteConstants.signIn);
+        }
       },
       failure: (message, exception) {
         ScaffoldMessenger.of(context).showSnackBar(

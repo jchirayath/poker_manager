@@ -1,4 +1,23 @@
 // ignore_for_file: avoid_print
+//
+// Database Setup Test - Clear data and/or insert dummy data
+//
+// Usage (environment variables control behavior):
+//
+//   # Clear all data only:
+//   CLEAR_DATA=true INSERT_DATA=false flutter test test/setup_dummy_data_test.dart
+//   # Or using legacy variable:
+//   CLEAR_DUMMY_DATA=true INSERT_DATA=false flutter test test/setup_dummy_data_test.dart
+//
+//   # Insert dummy data only (without clearing first):
+//   INSERT_DATA=true flutter test test/setup_dummy_data_test.dart
+//
+//   # Clear all data AND insert dummy data (default):
+//   flutter test test/setup_dummy_data_test.dart
+//
+//   # Or explicitly:
+//   CLEAR_DATA=true INSERT_DATA=true flutter test test/setup_dummy_data_test.dart
+//
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,71 +25,54 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
+/// Check if an environment variable is set to 'true'
+bool _envBool(String name) {
+  final value = Platform.environment[name]?.toLowerCase();
+  return value == 'true' || value == '1' || value == 'yes';
+}
+
+/// Check if an environment variable is explicitly set to 'false'
+bool _envExplicitlyFalse(String name) {
+  final value = Platform.environment[name]?.toLowerCase();
+  return value == 'false' || value == '0' || value == 'no';
+}
+
+/// Get operation mode from environment variables
+/// Returns (shouldClear, shouldInsert)
+(bool, bool) _getOperationMode() {
+  // Support both old (CLEAR_DUMMY_DATA) and new (CLEAR_DATA) variable names
+  final clearData = _envBool('CLEAR_DATA') || _envBool('CLEAR_DUMMY_DATA');
+  final insertData = _envBool('INSERT_DATA');
+
+  // Check if INSERT_DATA is explicitly set to false
+  final insertExplicitlyFalse = _envExplicitlyFalse('INSERT_DATA');
+
+  // If clear is requested but insert is explicitly false, only clear
+  if (clearData && insertExplicitlyFalse) {
+    return (true, false);
+  }
+
+  // If clear is requested (and insert not explicitly false), do both for backwards compatibility
+  if (clearData && !insertData) {
+    return (true, true);
+  }
+
+  // If only insert is requested
+  if (insertData && !clearData) {
+    return (false, true);
+  }
+
+  // If both are explicitly set
+  if (clearData && insertData) {
+    return (true, true);
+  }
+
+  // Default: do both
+  return (true, true);
+}
+
 void main() {
   group('Setup Dummy Data for Testing', () {
-    test('Clean up and reset all database tables', () async {
-      // Load environment from env.json
-      final envFile = File('env.json');
-      if (!envFile.existsSync()) {
-        throw Exception('env.json file not found. Please create it with SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
-      }
-      final envJson = jsonDecode(envFile.readAsStringSync()) as Map<String, dynamic>;
-      final supabaseUrl = envJson['SUPABASE_URL'] as String? ?? '';
-      final supabaseServiceKey = envJson['SUPABASE_SERVICE_ROLE_KEY'] as String? ?? '';
-      if (supabaseUrl.isEmpty || supabaseServiceKey.isEmpty) {
-        throw Exception('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in env.json');
-      }
-      final client = SupabaseClient(supabaseUrl, supabaseServiceKey);
-
-      print('\n🧹 Cleaning up all database tables...\n');
-      // List of actual tables in the database
-      final tables = [
-        'app_feedback',
-        'financial_audit_log',
-        'group_invitations',
-        'transactions',
-        'settlements',
-        'player_statistics',
-        'game_participants',
-        'games',
-        'group_members',
-        'locations',
-        'groups',
-        'profiles',
-      ];
-      // Clear public tables
-      for (final table in tables) {
-        try {
-          await client.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          print('  - Cleared $table');
-        } catch (e) {
-          print('  ⚠️  Failed to clear $table: $e');
-        }
-      }
-      // Clear flow_state in auth schema (Supabase system table)
-      try {
-        final response = await client.rpc('delete_all_from_auth_flow_state', params: {});
-        print('  - Cleared auth.flow_state');
-      } catch (e) {
-        print('  ⚠️  Failed to clear auth.flow_state: $e');
-      }
-
-      // Delete all Supabase Auth users except protected ones (e.g., admin)
-      final existingUsers = await client.auth.admin.listUsers();
-      for (final user in existingUsers) {
-        // Optionally, skip protected users (e.g., admin)
-        final email = user.email ?? '';
-        if (email.endsWith('@dummy.test') || email.isNotEmpty) {
-          try {
-            await client.auth.admin.deleteUser(user.id);
-            print('  - Removed auth user $email');
-          } catch (e) {
-            print('  ⚠️  Failed to delete auth user $email: $e');
-          }
-        }
-      }
-      print('\n✅ Database cleanup complete. All tables reset.\n');
-    });
     late SupabaseClient client;
     late String supabaseUrl;
     late String supabaseServiceKey;
@@ -96,15 +98,24 @@ void main() {
     });
 
     test('Reset, seed, and validate dummy data', () async {
-      print('\n🚀 Starting dummy data setup...\n');
+      // Get operation mode from environment variables
+      final (shouldClear, shouldInsert) = _getOperationMode();
+
+      print('\n╔════════════════════════════════════════════════════════════╗');
+      print('║           DATABASE SETUP TEST                              ║');
+      print('╠════════════════════════════════════════════════════════════╣');
+      print('║  CLEAR_DATA:  ${shouldClear ? '✓ YES' : '✗ NO '}                                        ║');
+      print('║  INSERT_DATA: ${shouldInsert ? '✓ YES' : '✗ NO '}                                        ║');
+      print('╚════════════════════════════════════════════════════════════╝\n');
 
       const defaultPassword = 'TestPassword123!';
 
       Future<void> clearExistingData() async {
-        print('🧹 Clearing existing data...');
+        print('🧹 Clearing existing data...\n');
 
         Future<void> deleteAll(String table) async {
           await client.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          print('  ✓ Cleared $table');
         }
 
         await deleteAll('transactions');
@@ -118,23 +129,31 @@ void main() {
         await deleteAll('profiles');
 
         final existingUsers = await client.auth.admin.listUsers();
-        for (final user in existingUsers.where((u) => (u.email ?? '').endsWith('@dummy.test'))) {
-          await client.auth.admin.deleteUser(user.id);
-          print('  - Removed auth user ${user.email}');
+        for (final user in existingUsers) {
+          final email = user.email ?? '';
+          try {
+            await client.auth.admin.deleteUser(user.id);
+            print('  ✓ Removed auth user $email');
+          } catch (e) {
+            print('  ⚠️ Failed to delete auth user $email: $e');
+          }
         }
 
-        print('✅ Existing data cleared\n');
+        print('\n✅ Database cleared successfully!\n');
       }
 
-      // Allow opting in to destructive clear via env flag; default is to skip.
-      final clearFlag = Platform.environment['CLEAR_DUMMY_DATA'];
-      final shouldClear = clearFlag != null && clearFlag.toLowerCase() == 'true';
-
+      // Clear data if requested
       if (shouldClear) {
         await clearExistingData();
-      } else {
-        print('⚠️  Skipping data clear (CLEAR_DUMMY_DATA=${clearFlag ?? 'false'}). Using existing data for validation.');
       }
+
+      // Exit early if only clearing
+      if (!shouldInsert) {
+        print('ℹ️  INSERT_DATA not set. Skipping dummy data insertion.\n');
+        return;
+      }
+
+      print('🚀 Starting dummy data insertion...\n');
 
       final now = DateTime.now();
       final nowIso = now.toIso8601String();
@@ -824,13 +843,18 @@ void main() {
             ];
           }
 
+          // Batch insert all participants at once to avoid triggering
+          // financial integrity check before all participants are added
+          final participantRows = <Map<String, dynamic>>[];
+          final transactionRows = <Map<String, dynamic>>[];
+
           for (final participant in participants) {
             final buyins = participant['buyins'] as List<double>;
             final totalBuyin = buyins.fold<double>(0.0, (sum, amount) => sum + amount);
             final cashout = participant['cashout'] as double;
-            
+
             final participantId = uuid.v4();
-            await client.from('game_participants').insert({
+            participantRows.add({
               'id': participantId,
               'game_id': gameId,
               'user_id': participant['userId'],
@@ -840,29 +864,41 @@ void main() {
               'created_at': nowIso,
             });
 
-            // Create buy-in transactions
-            for (var j = 0; j < buyins.length; j++) {
-              await client.from('transactions').insert({
-                'game_id': gameId,
-                'user_id': participant['userId'],
-                'type': 'buyin',
-                'amount': buyins[j],
-                'timestamp': gameDate.add(Duration(minutes: j * 30)).toIso8601String(),
-                'notes': j == 0 ? 'Initial buy-in' : 'Additional buy-in',
-              });
-            }
+            // Only collect transactions for completed games
+            // (in-progress games have unbalanced totals which would fail the financial integrity trigger)
+            if (gameStatus == 'completed') {
+              // Collect buy-in transactions
+              for (var j = 0; j < buyins.length; j++) {
+                transactionRows.add({
+                  'game_id': gameId,
+                  'user_id': participant['userId'],
+                  'type': 'buyin',
+                  'amount': buyins[j],
+                  'timestamp': gameDate.add(Duration(minutes: j * 30)).toIso8601String(),
+                  'notes': j == 0 ? 'Initial buy-in' : 'Additional buy-in',
+                });
+              }
 
-            // Create cash-out transaction for completed games
-            if (gameStatus == 'completed' && cashout > 0) {
-              await client.from('transactions').insert({
-                'game_id': gameId,
-                'user_id': participant['userId'],
-                'type': 'cashout',
-                'amount': cashout,
-                'timestamp': gameDate.add(const Duration(hours: 4)).toIso8601String(),
-                'notes': 'Final cash out',
-              });
+              // Collect cash-out transaction
+              if (cashout > 0) {
+                transactionRows.add({
+                  'game_id': gameId,
+                  'user_id': participant['userId'],
+                  'type': 'cashout',
+                  'amount': cashout,
+                  'timestamp': gameDate.add(const Duration(hours: 4)).toIso8601String(),
+                  'notes': 'Final cash out',
+                });
+              }
             }
+          }
+
+          // Insert all participants in one batch
+          await client.from('game_participants').insert(participantRows);
+
+          // Insert all transactions
+          if (transactionRows.isNotEmpty) {
+            await client.from('transactions').insert(transactionRows);
           }
 
           allParticipants.addAll(participants.map((p) => {

@@ -189,7 +189,34 @@ class ProfileScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       const SizedBox(height: 24),
-                      _avatar(context, user.avatarUrl, initials),
+                      GestureDetector(
+                        onTap: () => context.push(RouteConstants.editProfile),
+                        child: Stack(
+                          children: [
+                            _avatar(context, user.avatarUrl, initials),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: colorScheme.surface,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.camera_alt,
+                                  size: 16,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         user.firstName.isNotEmpty || user.lastName.isNotEmpty

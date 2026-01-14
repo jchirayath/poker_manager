@@ -1,3 +1,4 @@
+CREATE OR REPLACE FUNCTION update_player_statistics()
 -- =============================================
 -- Consolidated Functions, Triggers, and Procedures
 -- Consolidates migrations 016, 017, 019-023
@@ -8,7 +9,6 @@
 -- =============================================
 
 -- Update player statistics when game completes
-CREATE OR REPLACE FUNCTION update_player_statistics()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Update statistics when game is completed
@@ -48,11 +48,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-CREATE TRIGGER update_stats_on_game_complete
-  AFTER UPDATE ON games
-  FOR EACH ROW
-  EXECUTE FUNCTION update_player_statistics();
 
 -- =============================================
 -- SETTLEMENT CALCULATION FUNCTION
@@ -340,11 +335,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER check_transaction_integrity
-  BEFORE INSERT OR UPDATE ON transactions
-  FOR EACH ROW
-  EXECUTE FUNCTION validate_game_financial_integrity();
-
 -- =============================================
 -- LOCAL USER SUPPORT FUNCTIONS
 -- Handle local users without auth FK
@@ -430,3 +420,19 @@ BEGIN
   FROM calculate_settlement_atomic(game_uuid) c;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.create_local_user TO authenticated;
+
+-- =============================================
+-- TRIGGERS (moved to end to ensure tables/functions exist)
+-- =============================================
+
+CREATE TRIGGER update_stats_on_game_complete
+  AFTER UPDATE ON games
+  FOR EACH ROW
+  EXECUTE FUNCTION update_player_statistics();
+
+CREATE TRIGGER check_transaction_integrity
+  BEFORE INSERT OR UPDATE ON transactions
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_game_financial_integrity();
