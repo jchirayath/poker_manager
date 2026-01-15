@@ -1,3 +1,4 @@
+import '../../../../core/constants/currencies.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -446,10 +447,11 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                 labelText: 'Currency',
                 border: OutlineInputBorder(),
               ),
-              items: AppConstants.currencies.map((currency) {
+              items: Currencies.symbols.keys.map((currency) {
+                final symbol = Currencies.symbols[currency] ?? '';
                 return DropdownMenuItem(
                   value: currency,
-                  child: Text(currency),
+                  child: Text('$symbol  $currency'),
                 );
               }).toList(),
               onChanged: (value) {
@@ -464,7 +466,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
               decoration: InputDecoration(
                 labelText: 'Default Buy-in',
                 border: const OutlineInputBorder(),
-                prefix: Text('$_currency '),
+                prefix: Text('${Currencies.symbols[_currency] ?? _currency} '),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: (value) {
@@ -491,7 +493,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                 labelText: 'Additional Buy-in (optional)',
                 border: const OutlineInputBorder(),
                 helperText: 'Single amount, leave blank if none',
-                prefix: Text('$_currency '),
+                prefix: Text('${Currencies.symbols[_currency] ?? _currency} '),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),

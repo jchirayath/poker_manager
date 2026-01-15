@@ -414,6 +414,16 @@ class _MyGamesTab extends ConsumerWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 1),
             ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              debugPrint('Error: $error');
+              return Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                child: Text('?', style: TextStyle(fontSize: 16)),
+              );
+            },
           ),
         ),
       );

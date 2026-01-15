@@ -48,15 +48,20 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     // Check if URL contains 'svg' - handles DiceBear URLs like /svg?seed=...
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        fixDiceBearUrl(url)!,
-        width: 40,
-        height: 40,
-        placeholderBuilder: (_) => const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
+          fixDiceBearUrl(url)!,
+          width: 40,
+          height: 40,
+          placeholderBuilder: (_) => const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+            debugPrint('Error: $error');
+            return Text('?');
+          },
+        );
     }
 
     return Image.network(

@@ -123,7 +123,8 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
               const SizedBox(height: 12),
               Column(
                 children: widget.additionalBuyins.map((amount) {
-                  final key = '${widget.currency} $amount';
+                  final symbol = Currencies.symbols[widget.currency] ?? widget.currency;
+                  final key = '$symbol $amount';
                   return GestureDetector(
                     onTap: () {
                       setState(() => _selectedBuyin = amount.toString());
@@ -170,7 +171,7 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
                 }
               },
               decoration: InputDecoration(
-                labelText: 'Amount (${widget.currency})',
+                labelText: 'Amount (${Currencies.symbols[widget.currency] ?? widget.currency})',
                 hintText: 'Enter amount',
                 border: const OutlineInputBorder(),
                 enabled: !_isLoading,

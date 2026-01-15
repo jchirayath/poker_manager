@@ -14,6 +14,8 @@ import '../../data/models/game_participant_model.dart';
 import '../../../../shared/models/result.dart';
 import 'edit_game_screen.dart';
 
+import '../../../../core/constants/currencies.dart';
+
 class GameDetailScreen extends ConsumerStatefulWidget {
   final String gameId;
 
@@ -24,6 +26,13 @@ class GameDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
+        Widget _buildPrivacyIcon(String privacy) {
+          if (privacy == 'private') {
+            return Icon(Icons.lock, color: Theme.of(context).colorScheme.error, size: 18);
+          } else {
+            return Icon(Icons.public, color: Theme.of(context).colorScheme.primary, size: 18);
+          }
+        }
       bool _shouldRefreshTransactions = true;
     bool _isStartingGame = false;
   // Track settlement status: key = "from_id|to_id", value = {settled: bool, method: String?}
@@ -65,6 +74,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           height: 20,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+          debugPrint('Error: $error');
+          return Text(initials);
+        },
       );
     }
 
@@ -102,6 +116,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
             height: size / 2,
             child: const CircularProgressIndicator(strokeWidth: 2),
           ),
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+            debugPrint('Error: $error');
+            return Text(letter);
+          },
         ),
       );
     }
@@ -128,8 +147,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     final sign = showSign ? (isPositive ? '+' : '') : '';
     final fontSize = size == 'small' ? 12.0 : (size == 'large' ? 15.0 : 13.0);
 
+    final symbol = Currencies.symbols[currency] ?? currency;
     return Text(
-      '$sign$currency ${amount.abs().toStringAsFixed(2)}',
+      '$sign$symbol ${amount.abs().toStringAsFixed(2)}',
       style: TextStyle(
         fontSize: fontSize,
         fontWeight: bold ? FontWeight.w600 : FontWeight.normal,
@@ -150,7 +170,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         borderRadius: BorderRadius.circular(compact ? 10 : 12),
       ),
       child: Text(
-        '$currency ${amount.toStringAsFixed(2)}',
+        '${Currencies.symbols[currency] ?? currency} ${amount.toStringAsFixed(2)}',
         style: TextStyle(
           fontWeight: FontWeight.w600,
           color: Colors.green[700],
@@ -165,11 +185,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Initial buy-in: $currency 0.00',
+          'Initial buy-in: ${Currencies.symbols[currency] ?? currency} 0.00',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         Text(
-          'Total cash: $currency 0.00',
+          'Total cash: ${Currencies.symbols[currency] ?? currency} 0.00',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -1825,6 +1845,8 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              _buildPrivacyIcon(group.privacy),
                             ],
                           ),
                         );
@@ -1878,7 +1900,17 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                               _buildInfoRow('Location', game.location!),
                             _buildInfoRow(
                               'Buy-in',
-                              '${game.currency} ${game.buyinAmount}${game.additionalBuyinValues.isNotEmpty ? ' (Additional: ${game.additionalBuyinValues.map((v) => '${game.currency} $v').join(', ')})' : ''}',
+                              '${Currencies.symbols[game.currency] ?? game.currency} ${game.buyinAmount.toStringAsFixed(2)}',
+                            ),
+                            _buildInfoRow(
+                              'Additional Buy-in',
+                              game.additionalBuyinValues.isNotEmpty
+                                  ? game.additionalBuyinValues.map((v) => '${Currencies.symbols[game.currency] ?? game.currency} ${v.toStringAsFixed(2)}').join(', ')
+                                  : '-',
+                            ),
+                            _buildInfoRow(
+                              'Group Privacy',
+                              groupAsync.hasValue && groupAsync.value != null && groupAsync.value!.privacy == 'private' ? 'Private' : 'Public',
                             ),
                             _buildInfoRow(
                               'Current Players',
@@ -2206,43 +2238,43 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                         ),
                                                         const SizedBox(width: 8),
                                                         // From name and arrow
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Text(
-                                                                from.profile?.fullName ?? 'Unknown',
-                                                                maxLines: 1,
-                                                                overflow: TextOverflow.ellipsis,
-                                                                style: theme.textTheme.bodyMedium?.copyWith(
-                                                                  fontWeight: FontWeight.w500,
-                                                                ),
-                                                              ),
-                                                              Row(
+                                                        groupAsync.when(
+                                                          loading: () => const SizedBox.shrink(),
+                                                          error: (_, __) => const SizedBox.shrink(),
+                                                          data: (group) {
+                                                            if (group == null) return const SizedBox.shrink();
+                                                            return Padding(
+                                                              padding: const EdgeInsets.only(bottom: 8),
+                                                              child: Row(
                                                                 children: [
-                                                                  Icon(
-                                                                    Icons.arrow_forward,
-                                                                    size: 12,
-                                                                    color: isSettled ? Colors.green : Colors.grey,
-                                                                  ),
-                                                                  const SizedBox(width: 4),
-                                                                  Expanded(
-                                                                    child: Text(
-                                                                      to.profile?.fullName ?? 'Unknown',
-                                                                      maxLines: 1,
-                                                                      overflow: TextOverflow.ellipsis,
-                                                                      style: theme.textTheme.bodySmall?.copyWith(
-                                                                        color: isDark ? Colors.grey[400] : Colors.grey[600],
-                                                                      ),
+                                                                  Padding(
+                                                                    padding: const EdgeInsets.only(right: 8),
+                                                                    child: _buildGroupAvatar(
+                                                                      group.avatarUrl,
+                                                                      group.name,
+                                                                      size: 24,
                                                                     ),
                                                                   ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      group.name,
+                                                                      style: Theme.of(context).textTheme.titleMedium
+                                                                          ?.copyWith(
+                                                                            color: Theme.of(
+                                                                              context,
+                                                                            ).colorScheme.primary,
+                                                                            fontWeight: FontWeight.bold,
+                                                                          ),
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(width: 8),
+                                                                  _buildPrivacyIcon(group.privacy),
                                                                 ],
                                                               ),
-                                                            ],
-                                                          ),
+                                                            );
+                                                          },
                                                         ),
-                                                        // Amount
-                                                        _buildAmountBadge(game.currency, amount, compact: true),
                                                       ],
                                                     ),
                                                   ),

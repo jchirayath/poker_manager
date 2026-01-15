@@ -42,16 +42,29 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     // Check contains 'svg' - handles DiceBear URLs like /svg?seed=...
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        fixDiceBearUrl(url)!,
-        width: 120,
-        height: 120,
-        fit: BoxFit.cover,
-        placeholderBuilder: (_) => Center(
-          child: CircularProgressIndicator(
-            value: 0,
+          fixDiceBearUrl(url)!,
+          width: 120,
+          height: 120,
+          fit: BoxFit.cover,
+          placeholderBuilder: (_) => Center(
+            child: CircularProgressIndicator(
+              value: 0,
+            ),
           ),
-        ),
-      );
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: 120,
+              height: 120,
+              color: Colors.grey[300],
+              child: Center(
+                child: Text(
+                  initials,
+                  style: const TextStyle(fontSize: 32),
+                ),
+              ),
+            );
+          },
+        );
     }
 
     return Image.network(
