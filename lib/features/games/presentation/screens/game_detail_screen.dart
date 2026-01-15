@@ -217,7 +217,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount (${game.currency})',
+            labelText: 'Amount (${Currencies.symbols[game.currency] ?? game.currency})',
             hintText: amount.toStringAsFixed(2),
           ),
         ),
@@ -271,7 +271,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Additional buy-in of ${game.currency} ${result.toStringAsFixed(2)} added',
+              'Additional buy-in of ${Currencies.symbols[game.currency] ?? game.currency} ${result.toStringAsFixed(2)} added',
             ),
           ),
         );
@@ -310,7 +310,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount (${game.currency})',
+            labelText: 'Amount (${Currencies.symbols[game.currency] ?? game.currency})',
             hintText: '0.00',
           ),
         ),
@@ -368,7 +368,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Cash-out of ${game.currency} ${result.toStringAsFixed(2)} recorded',
+              'Cash-out of ${Currencies.symbols[game.currency] ?? game.currency} ${result.toStringAsFixed(2)} recorded',
             ),
           ),
         );
@@ -410,7 +410,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount (${game.currency})',
+            labelText: 'Amount (${Currencies.symbols[game.currency] ?? game.currency})',
             hintText: transaction.amount.toStringAsFixed(2),
           ),
         ),
@@ -461,7 +461,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Buy-in updated to ${game.currency} ${result.toStringAsFixed(2)}',
+              'Buy-in updated to ${Currencies.symbols[game.currency] ?? game.currency} ${result.toStringAsFixed(2)}',
             ),
           ),
         );
@@ -503,7 +503,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: 'Amount (${game.currency})',
+            labelText: 'Amount (${Currencies.symbols[game.currency] ?? game.currency})',
             hintText: transaction.amount.toStringAsFixed(2),
           ),
         ),
@@ -554,7 +554,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Cash-out updated to ${game.currency} ${result.toStringAsFixed(2)}',
+              'Cash-out updated to ${Currencies.symbols[game.currency] ?? game.currency} ${result.toStringAsFixed(2)}',
             ),
           ),
         );
@@ -1987,7 +1987,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                 Padding(
                                                   padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
-                                                    '${game.currency} ${initialTotal.toStringAsFixed(2)}',
+                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${initialTotal.toStringAsFixed(2)}',
                                                     style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
@@ -2005,7 +2005,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                 Padding(
                                                   padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
-                                                    '${game.currency} ${additionalTotal.toStringAsFixed(2)}',
+                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${additionalTotal.toStringAsFixed(2)}',
                                                     style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
@@ -2023,7 +2023,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                 Padding(
                                                   padding: const EdgeInsets.symmetric(vertical: 4),
                                                   child: Text(
-                                                    '${game.currency} ${cashOutTotal.toStringAsFixed(2)}',
+                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${cashOutTotal.toStringAsFixed(2)}',
                                                     style: Theme.of(context).textTheme.bodySmall,
                                                   ),
                                                 ),
@@ -2041,7 +2041,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                 Padding(
                                                   padding: const EdgeInsets.symmetric(vertical: 6),
                                                   child: Text(
-                                                    '${game.currency} ${totalBalance.toStringAsFixed(2)}',
+                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${totalBalance.toStringAsFixed(2)}',
                                                     style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
                                                   ),
                                                 ),
@@ -3236,7 +3236,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                         Padding(
                                           padding: const EdgeInsets.all(8),
                                           child: Text(
-                                            '${game.currency} ${buyin.toStringAsFixed(2)}',
+                                            '${Currencies.symbols[game.currency] ?? game.currency} ${buyin.toStringAsFixed(2)}',
                                             style: Theme.of(
                                               context,
                                             ).textTheme.bodySmall,
@@ -3246,7 +3246,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                         Padding(
                                           padding: const EdgeInsets.all(8),
                                           child: Text(
-                                            '${game.currency} ${cashout.toStringAsFixed(2)}',
+                                            '${Currencies.symbols[game.currency] ?? game.currency} ${cashout.toStringAsFixed(2)}',
                                             style: Theme.of(
                                               context,
                                             ).textTheme.bodySmall,
@@ -3256,7 +3256,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                         Padding(
                                           padding: const EdgeInsets.all(8),
                                           child: Text(
-                                            '${game.currency} ${net.toStringAsFixed(2)}',
+                                            '${Currencies.symbols[game.currency] ?? game.currency} ${net.toStringAsFixed(2)}',
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodySmall
@@ -3313,7 +3313,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       Padding(
                                         padding: const EdgeInsets.all(8),
                                         child: Text(
-                                          '${game.currency} ${totalBuyin.toStringAsFixed(2)}',
+                                          '${Currencies.symbols[game.currency] ?? game.currency} ${totalBuyin.toStringAsFixed(2)}',
                                           style: Theme.of(context)
                                               .textTheme
                                               .labelMedium
@@ -3326,7 +3326,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       Padding(
                                         padding: const EdgeInsets.all(8),
                                         child: Text(
-                                          '${game.currency} ${totalCashout.toStringAsFixed(2)}',
+                                          '${Currencies.symbols[game.currency] ?? game.currency} ${totalCashout.toStringAsFixed(2)}',
                                           style: Theme.of(context)
                                               .textTheme
                                               .labelMedium
@@ -3339,7 +3339,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                       Padding(
                                         padding: const EdgeInsets.all(8),
                                         child: Text(
-                                          '${game.currency} ${totalNet.toStringAsFixed(2)}',
+                                          '${Currencies.symbols[game.currency] ?? game.currency} ${totalNet.toStringAsFixed(2)}',
                                           style: Theme.of(context)
                                               .textTheme
                                               .labelMedium
@@ -3415,7 +3415,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                               ),
                               title: Text(profileName),
                               subtitle: Text(
-                                'Buy-in: ${game.currency} ${game.buyinAmount.toStringAsFixed(2)}',
+                                'Buy-in: ${Currencies.symbols[game.currency] ?? game.currency} ${game.buyinAmount.toStringAsFixed(2)}',
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ),
@@ -3531,7 +3531,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                     ).textTheme.labelSmall,
                                                   ),
                                                   Text(
-                                                    '${game.currency} ${totalBuyin.toStringAsFixed(2)}',
+                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${totalBuyin.toStringAsFixed(2)}',
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .bodySmall
@@ -3553,7 +3553,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                     ).textTheme.labelSmall,
                                                   ),
                                                   Text(
-                                                    '${game.currency} ${totalCashout.toStringAsFixed(2)}',
+                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${totalCashout.toStringAsFixed(2)}',
                                                     style: Theme.of(context)
                                                         .textTheme
                                                         .bodySmall
@@ -3743,7 +3743,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                                   6,
                                                                 ),
                                                             child: Text(
-                                                              '${game.currency} ${txn.amount.toStringAsFixed(2)}',
+                                                              '${Currencies.symbols[game.currency] ?? game.currency} ${txn.amount.toStringAsFixed(2)}',
                                                               style:
                                                                   Theme.of(
                                                                         context,
@@ -3806,7 +3806,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                                 6,
                                                               ),
                                                           child: Text(
-                                                            '${game.currency} ${buyins.map((b) => b.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
+                                                            '${Currencies.symbols[game.currency] ?? game.currency} ${buyins.map((b) => b.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
                                                             style: Theme.of(context)
                                                                 .textTheme
                                                                 .labelSmall
@@ -3979,7 +3979,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                               children: [
                                                                 Expanded(
                                                                   child: Text(
-                                                                    '${game.currency} ${txn.amount.toStringAsFixed(2)}',
+                                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${txn.amount.toStringAsFixed(2)}',
                                                                     style: Theme.of(
                                                                       context,
                                                                     ).textTheme.bodySmall,
@@ -4069,7 +4069,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                                 6,
                                                               ),
                                                           child: Text(
-                                                            '${game.currency} ${cashouts.map((c) => c.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
+                                                            '${Currencies.symbols[game.currency] ?? game.currency} ${cashouts.map((c) => c.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
                                                             style: Theme.of(context)
                                                                 .textTheme
                                                                 .labelSmall
@@ -4389,7 +4389,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                                   6,
                                                                 ),
                                                             child: Text(
-                                                              '${game.currency} ${txn.amount.toStringAsFixed(2)}',
+                                                              '${Currencies.symbols[game.currency] ?? game.currency} ${txn.amount.toStringAsFixed(2)}',
                                                               style:
                                                                   Theme.of(
                                                                         context,
@@ -4452,7 +4452,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                                 6,
                                                               ),
                                                           child: Text(
-                                                            '${game.currency} ${buyins.map((b) => b.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
+                                                            '${Currencies.symbols[game.currency] ?? game.currency} ${buyins.map((b) => b.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
                                                             style: Theme.of(context)
                                                                 .textTheme
                                                                 .labelSmall
@@ -4625,7 +4625,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                               children: [
                                                                 Expanded(
                                                                   child: Text(
-                                                                    '${game.currency} ${txn.amount.toStringAsFixed(2)}',
+                                                                    '${Currencies.symbols[game.currency] ?? game.currency} ${txn.amount.toStringAsFixed(2)}',
                                                                     style: Theme.of(
                                                                       context,
                                                                     ).textTheme.bodySmall,
@@ -4715,7 +4715,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                                 6,
                                                               ),
                                                           child: Text(
-                                                            '${game.currency} ${cashouts.map((c) => c.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
+                                                            '${Currencies.symbols[game.currency] ?? game.currency} ${cashouts.map((c) => c.amount).fold<double>(0, (a, b) => a + b).toStringAsFixed(2)}',
                                                             style: Theme.of(context)
                                                                 .textTheme
                                                                 .labelSmall
@@ -4787,7 +4787,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                                                       ),
                                                 ),
                                                 Text(
-                                                  '${game.currency} ${netWinLoss.toStringAsFixed(2)}',
+                                                  '${Currencies.symbols[game.currency] ?? game.currency} ${netWinLoss.toStringAsFixed(2)}',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .titleLarge

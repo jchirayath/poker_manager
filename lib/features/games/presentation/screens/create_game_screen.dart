@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import '../../../../core/constants/currencies.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
@@ -1052,7 +1053,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                             items: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
                                 .map((currency) => DropdownMenuItem(
                                       value: currency,
-                                      child: Text(currency),
+                                      child: Text('${Currencies.symbols[currency] ?? currency} ($currency)'),
                                     ))
                                 .toList(),
                             onChanged: (value) {

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/currencies.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../profile/data/models/profile_model.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
@@ -564,7 +565,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               items: AppConstants.currencies.map((currency) {
                 return DropdownMenuItem(
                   value: currency,
-                  child: Text(currency),
+                  child: Text('${Currencies.symbols[currency] ?? currency} ($currency)'),
                 );
               }).toList(),
               onChanged: (value) {
@@ -580,7 +581,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               decoration: InputDecoration(
                 labelText: 'Default Buy-in',
                 border: const OutlineInputBorder(),
-                prefix: Text('$_currency '),
+                prefix: Text('${Currencies.symbols[_currency] ?? _currency} '),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: (value) {
@@ -610,7 +611,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 labelText: 'Additional Buy-in (optional)',
                 border: const OutlineInputBorder(),
                 helperText: 'Single amount, leave blank if none',
-                prefix: Text('$_currency '),
+                prefix: Text('${Currencies.symbols[_currency] ?? _currency} '),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
