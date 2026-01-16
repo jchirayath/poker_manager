@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import '../../../../core/constants/currencies.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
@@ -48,15 +49,20 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     // Check if URL contains 'svg' - handles DiceBear URLs like /svg?seed=...
     if (url!.toLowerCase().contains('svg')) {
       return SvgPicture.network(
-        fixDiceBearUrl(url)!,
-        width: 40,
-        height: 40,
-        placeholderBuilder: (_) => const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      );
+          fixDiceBearUrl(url)!,
+          width: 40,
+          height: 40,
+          placeholderBuilder: (_) => const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorBuilder: (context, error, stackTrace) {
+            debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+            debugPrint('Error: $error');
+            return Text('?');
+          },
+        );
     }
 
     return Image.network(
@@ -1047,7 +1053,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                             items: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
                                 .map((currency) => DropdownMenuItem(
                                       value: currency,
-                                      child: Text(currency),
+                                      child: Text('${Currencies.symbols[currency] ?? currency} ($currency)'),
                                     ))
                                 .toList(),
                             onChanged: (value) {

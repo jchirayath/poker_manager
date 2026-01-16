@@ -90,15 +90,6 @@ final gameSettlementsRealtimeProvider =
           );
           return [];
         }
-      })
-      .handleError((error, stackTrace) {
-        ErrorLoggerService.logError(
-          error,
-          stackTrace,
-          context: 'gameSettlementsRealtimeProvider.stream',
-          additionalData: {'gameId': gameId},
-        );
-        return [];
       });
 });
 

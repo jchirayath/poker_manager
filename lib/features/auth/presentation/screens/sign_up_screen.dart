@@ -614,15 +614,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           children: [
             Icon(icon, size: 11, color: colorScheme.primary),
             const SizedBox(width: 3),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: colorScheme.primary,
               ),
             ),
           ],

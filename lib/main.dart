@@ -55,6 +55,11 @@ final class _ProviderLogger extends ProviderObserver {
     Object error,
     StackTrace stackTrace,
   ) {
+    // Skip logging "Game not found" errors - expected after game deletion
+    final errorStr = error.toString();
+    if (errorStr.contains('Game not found')) {
+      return;
+    }
     final providerName = context.provider.name ?? 'unknown';
     debugPrint('🔴 Provider Error [$providerName]: $error');
     debugPrintStack(stackTrace: stackTrace);

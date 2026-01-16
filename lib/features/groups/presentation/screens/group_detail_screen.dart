@@ -1,3 +1,4 @@
+import '../../../../core/constants/currencies.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -40,6 +41,30 @@ class GroupDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
+
+      IconData _getCurrencyIcon(String currency) {
+        switch (currency) {
+          case 'EUR':
+            return Icons.euro;
+          case 'GBP':
+            return Icons.currency_pound;
+          case 'JPY':
+            return Icons.currency_yen;
+          case 'INR':
+            return Icons.currency_rupee;
+          case 'CNY':
+            return Icons.currency_yuan;
+          case 'KRW':
+            return Icons.currency_yen;
+          case 'RUB':
+            return Icons.currency_ruble;
+          case 'TRY':
+            return Icons.currency_lira;
+          case 'USD':
+          default:
+            return Icons.attach_money;
+        }
+      }
     late final ScrollController _scrollController;
   bool _isAdmin = false;
 
@@ -348,14 +373,19 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       return CircleAvatar(
         backgroundColor: Colors.grey.shade200,
         child: SvgPicture.network(
-          fixDiceBearUrl(url)!,
-          width: 40,
-          height: 40,
-          placeholderBuilder: (_) => const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+            fixDiceBearUrl(url)!,
+            width: 40,
+            height: 40,
+            placeholderBuilder: (_) => const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              debugPrint('Error: $error');
+              return Text('?');
+            },
         ),
       );
     }
@@ -462,64 +492,114 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           color: colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        child: Column(
                           children: [
-                            _buildStatColumn(
-                              icon: Icons.attach_money,
-                              value: '${group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(0)}',
-                              label: 'Buy-in',
-                              colorScheme: colorScheme,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildStatColumn(
+                                  icon: Icons.calendar_today,
+                                  value: group.createdAt != null
+                                      ? DateFormat('MMM yyyy').format(group.createdAt!)
+                                      : 'Unknown',
+                                  label: 'Created',
+                                  colorScheme: colorScheme,
+                                  valueFontSize: 13,
+                                ),
+                                Container(
+                                  height: 32,
+                                  width: 1,
+                                  color: colorScheme.outline.withValues(alpha: 0.3),
+                                ),
+                                _buildStatColumn(
+                                  icon: _getCurrencyIcon(group.defaultCurrency),
+                                  value: '${Currencies.symbols[group.defaultCurrency] ?? group.defaultCurrency} ${group.defaultBuyin.toStringAsFixed(0)}',
+                                  label: 'Buy-in',
+                                  colorScheme: colorScheme,
+                                ),
+                                Container(
+                                  height: 32,
+                                  width: 1,
+                                  color: colorScheme.outline.withValues(alpha: 0.3),
+                                ),
+                                membersAsync.when(
+                                  data: (members) => _buildStatColumn(
+                                    icon: Icons.people,
+                                    value: '${members.length}',
+                                    label: members.length == 1 ? 'Member' : 'Members',
+                                    colorScheme: colorScheme,
+                                  ),
+                                  loading: () => _buildStatColumn(
+                                    icon: Icons.people,
+                                    value: '-',
+                                    label: 'Members',
+                                    colorScheme: colorScheme,
+                                  ),
+                                  error: (_, __) => _buildStatColumn(
+                                    icon: Icons.people,
+                                    value: '-',
+                                    label: 'Members',
+                                    colorScheme: colorScheme,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Container(
-                              height: 32,
-                              width: 1,
-                              color: colorScheme.outline.withValues(alpha: 0.3),
+                            const SizedBox(height: 12),
+                            Divider(
+                              height: 1,
+                              color: colorScheme.outline.withValues(alpha: 0.2),
+                              indent: 16,
+                              endIndent: 16,
                             ),
-                            membersAsync.when(
-                              data: (members) => _buildStatColumn(
-                                icon: Icons.people,
-                                value: '${members.length}',
-                                label: members.length == 1 ? 'Member' : 'Members',
-                                colorScheme: colorScheme,
-                              ),
-                              loading: () => _buildStatColumn(
-                                icon: Icons.people,
-                                value: '-',
-                                label: 'Members',
-                                colorScheme: colorScheme,
-                              ),
-                              error: (_, __) => _buildStatColumn(
-                                icon: Icons.people,
-                                value: '-',
-                                label: 'Members',
-                                colorScheme: colorScheme,
-                              ),
-                            ),
-                            Container(
-                              height: 32,
-                              width: 1,
-                              color: colorScheme.outline.withValues(alpha: 0.3),
-                            ),
-                            ref.watch(groupGamesProvider(widget.groupId)).when(
-                              data: (games) => _buildStatColumn(
-                                icon: Icons.casino,
-                                value: '${games.length}',
-                                label: games.length == 1 ? 'Game' : 'Games',
-                                colorScheme: colorScheme,
-                              ),
-                              loading: () => _buildStatColumn(
-                                icon: Icons.casino,
-                                value: '-',
-                                label: 'Games',
-                                colorScheme: colorScheme,
-                              ),
-                              error: (_, __) => _buildStatColumn(
-                                icon: Icons.casino,
-                                value: '-',
-                                label: 'Games',
-                                colorScheme: colorScheme,
-                              ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildStatColumn(
+                                  icon: group.privacy == 'private' ? Icons.lock : Icons.public,
+                                  value: group.privacy == 'private' ? 'Private' : 'Public',
+                                  label: 'Visibility',
+                                  colorScheme: colorScheme,
+                                ),
+                                Container(
+                                  height: 32,
+                                  width: 1,
+                                  color: colorScheme.outline.withValues(alpha: 0.3),
+                                ),
+                                _buildStatColumn(
+                                  icon: Icons.add_circle_outline,
+                                  value: group.additionalBuyinValues.isNotEmpty
+                                      ? group.additionalBuyinValues.map((v) => '${Currencies.symbols[group.defaultCurrency] ?? group.defaultCurrency}${v.toStringAsFixed(0)}').join(', ')
+                                      : 'None',
+                                  label: 'Add-ons',
+                                  colorScheme: colorScheme,
+                                ),
+                                Container(
+                                  height: 32,
+                                  width: 1,
+                                  color: colorScheme.outline.withValues(alpha: 0.3),
+                                ),
+                                ref.watch(groupGamesProvider(widget.groupId)).when(
+                                  data: (games) => _buildStatColumn(
+                                    icon: Icons.casino,
+                                    value: '${games.length}',
+                                    label: games.length == 1 ? 'Game' : 'Games',
+                                    colorScheme: colorScheme,
+                                  ),
+                                  loading: () => _buildStatColumn(
+                                    icon: Icons.casino,
+                                    value: '-',
+                                    label: 'Games',
+                                    colorScheme: colorScheme,
+                                  ),
+                                  error: (_, __) => _buildStatColumn(
+                                    icon: Icons.casino,
+                                    value: '-',
+                                    label: 'Games',
+                                    colorScheme: colorScheme,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -827,7 +907,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 Icon(Icons.attach_money, size: 12, color: colorScheme.onSurfaceVariant),
                 const SizedBox(width: 4),
                 Text(
-                  '${game.currency} ${game.buyinAmount}',
+                  '${Currencies.symbols[game.currency] ?? game.currency} ${game.buyinAmount}',
                   style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                 ),
               ],
@@ -894,6 +974,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     required String value,
     required String label,
     required ColorScheme colorScheme,
+    double? valueFontSize,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -906,7 +987,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             Text(
               value,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: valueFontSize ?? 16,
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
               ),

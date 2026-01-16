@@ -39,6 +39,16 @@ class ProfileScreen extends ConsumerWidget {
               height: 40,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              debugPrint('Error: $error');
+              return Container(
+                width: 100,
+                height: 100,
+                alignment: Alignment.center,
+                child: Text('?', style: TextStyle(fontSize: 40)),
+              );
+            },
           ),
         ),
       );

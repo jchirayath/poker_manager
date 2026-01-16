@@ -337,6 +337,8 @@ class GamesRepository {
       // Round amount to 2 decimal places
       final roundedAmount = ValidationHelpers.roundToCurrency(amount);
 
+      debugPrint('💰 Adding transaction: type=$type, amount=$roundedAmount, gameId=$gameId, userId=$userId');
+
       // Insert transaction
       final txnResponse = await _client
           .from('transactions')
@@ -350,6 +352,8 @@ class GamesRepository {
           })
           .select()
           .single();
+
+      debugPrint('✅ Transaction inserted: ${txnResponse['id']}');
 
       // Update participant totals
       final participant = await _client
@@ -386,18 +390,22 @@ class GamesRepository {
         return Failure('Participant total exceeds reasonable bounds');
       }
 
-      await _client.from('game_participants').upsert(
-        {
-          'game_id': gameId,
-          'user_id': userId,
-          'total_buyin': currentBuyin,
-          'total_cashout': currentCashout,
-        },
-        onConflict: 'game_id,user_id',
-      );
+      // Update participant totals - RLS policy now allows group members to update
+      final updateResult = await _client
+          .from('game_participants')
+          .update({
+            'total_buyin': currentBuyin,
+            'total_cashout': currentCashout,
+          })
+          .eq('game_id', gameId)
+          .eq('user_id', userId)
+          .select();
+
+      debugPrint('📊 Update participant result: $updateResult (buyin: $currentBuyin, cashout: $currentCashout)');
 
       return Success(_mapTransactionRowToModel(Map<String, dynamic>.from(txnResponse as Map)));
     } catch (e) {
+      debugPrint('❌ Failed to add transaction: $e');
       return Failure('Failed to add transaction: ${e.toString()}');
     }
   }
@@ -470,15 +478,15 @@ class GamesRepository {
       currentBuyin = ValidationHelpers.roundToCurrency(currentBuyin);
       currentCashout = ValidationHelpers.roundToCurrency(currentCashout);
 
-      await _client.from('game_participants').upsert(
-        {
-          'game_id': gameId,
-          'user_id': userId,
-          'total_buyin': currentBuyin,
-          'total_cashout': currentCashout,
-        },
-        onConflict: 'game_id,user_id',
-      );
+      // Update participant totals - RLS policy now allows group members to update
+      await _client
+          .from('game_participants')
+          .update({
+            'total_buyin': currentBuyin,
+            'total_cashout': currentCashout,
+          })
+          .eq('game_id', gameId)
+          .eq('user_id', userId);
 
       return Success(_mapTransactionRowToModel(Map<String, dynamic>.from(updateResponse as Map)));
     } catch (e) {
@@ -841,9 +849,13 @@ class GamesRepository {
             avatar_url
           )
         )
-      ''').eq('id', gameId).single();
+      ''').eq('id', gameId).maybeSingle();
 
-      // Removed raw response debug info
+      // Handle case where game was deleted or doesn't exist
+      if (response == null) {
+        debugPrint('⚠️ Game not found: $gameId');
+        return const Failure('Game not found');
+      }
 
       final game = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
       debugPrint('✅ Game mapped: ${game.id}');

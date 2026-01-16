@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/currencies.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../profile/data/models/profile_model.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
@@ -42,6 +45,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final List<Map<String, String>> _pendingLocalUsers = [];
   bool _isInviting = false;
   bool _isAddingLocalUser = false;
+  File? _selectedImage;
+  final ImagePicker _imagePicker = ImagePicker();
 
   Widget _buildUserAvatar(String? url, String initials) {
     if ((url ?? '').isEmpty) {
@@ -91,6 +96,153 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     _buyinController.text = _defaultBuyin.toStringAsFixed(2);
   }
 
+  Future<void> _pickImage() async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.add_photo_alternate, color: colorScheme.primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Flexible(child: Text('Choose Image Source')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.photo_library, color: colorScheme.secondary),
+              ),
+              title: const Text('Gallery'),
+              subtitle: Text('Choose from photos', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.camera_alt, color: colorScheme.secondary),
+              ),
+              title: const Text('Camera'),
+              subtitle: Text('Take a new photo', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick image: $e')),
+        );
+      }
+    }
+  }
+
+  void _removeAvatar() {
+    setState(() {
+      _selectedImage = null;
+    });
+  }
+
+  Widget _buildAvatarPreview() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final letter = _nameController.text.isNotEmpty
+        ? _nameController.text[0].toUpperCase()
+        : '?';
+
+    Widget avatarContent;
+
+    if (_selectedImage != null) {
+      avatarContent = ClipOval(
+        child: Image.file(
+          _selectedImage!,
+          width: 100,
+          height: 100,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else {
+      avatarContent = Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            letter,
+            style: TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: colorScheme.primary,
+          width: 3,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withValues(alpha: 0.3),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: avatarContent,
+    );
+  }
+
   Future<void> _createGroup() async {
     // Removed group debug info
     
@@ -119,6 +271,50 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         defaultBuyin: _defaultBuyin,
         additionalBuyinValues: additionalBuyins,
       );
+
+      // Handle avatar upload if an image was selected
+      if (createResult is Success<String> && _selectedImage != null) {
+        try {
+          final groupId = createResult.data;
+          final fileName = 'group_${groupId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final bytes = await _selectedImage!.readAsBytes();
+
+          await ref.read(groupsRepositoryProvider).client
+              .storage
+              .from('group-avatars')
+              .uploadBinary(fileName, bytes);
+
+          final avatarUrl = ref.read(groupsRepositoryProvider).client
+              .storage
+              .from('group-avatars')
+              .getPublicUrl(fileName);
+
+          // Update group with avatar URL
+          await controller.updateGroup(
+            groupId: groupId,
+            name: _nameController.text.trim(),
+            description: _descriptionController.text.trim(),
+            avatarUrl: avatarUrl,
+            privacy: _privacy,
+            defaultCurrency: _currency,
+            defaultBuyin: _defaultBuyin,
+            additionalBuyinValues: additionalBuyins,
+          );
+
+          debugPrint('✅ Avatar uploaded: $avatarUrl');
+        } catch (storageError) {
+          debugPrint('⚠️ Storage upload failed: $storageError');
+          // Continue without avatar if storage fails
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Warning: Avatar upload failed. Group created successfully.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      }
 
       if (!mounted) return;
 
@@ -306,7 +502,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   void _addLocalUser() {
     setState(() => _isAddingLocalUser = true);
-    // Show a dialog to collect local user details (similar to AddLocalUserDialog)
+    final colorScheme = Theme.of(context).colorScheme;
+
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -315,26 +512,40 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         final emailCtrl = TextEditingController();
         final phoneCtrl = TextEditingController();
         final formKey = GlobalKey<FormState>();
-        
+
         return AlertDialog(
-          title: const Text('Add Local User'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.person_add, color: colorScheme.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Flexible(child: Text('Add Local User')),
+            ],
+          ),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Add a user who doesn\'t have an account.',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: firstNameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'First Name *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_outline),
+                    decoration: InputDecoration(
+                      labelText: 'First Name',
+                      prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -343,13 +554,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: lastNameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Last Name *',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person_outline),
+                    decoration: InputDecoration(
+                      labelText: 'Last Name',
+                      prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -358,14 +569,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: emailCtrl,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Email (Optional)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email_outlined),
+                      prefixIcon: Icon(Icons.email_outlined, color: colorScheme.primary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     validator: (value) {
                       if (value != null && value.isNotEmpty && !value.contains('@')) {
@@ -374,14 +585,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: phoneCtrl,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Phone (Optional)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone_outlined),
+                      prefixIcon: Icon(Icons.phone_outlined, color: colorScheme.primary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ],
@@ -393,15 +604,15 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
+            FilledButton(
               onPressed: () {
                 if (!formKey.currentState!.validate()) return;
-                
+
                 final firstName = firstNameCtrl.text.trim();
                 final lastName = lastNameCtrl.text.trim();
                 final email = emailCtrl.text.trim();
                 final phone = phoneCtrl.text.trim();
-                
+
                 setState(() {
                   _pendingLocalUsers.add({
                     'firstName': firstName,
@@ -410,7 +621,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     'phone': phone,
                   });
                 });
-                
+
                 Navigator.pop(dialogContext);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('$firstName $lastName added to pending list')),
@@ -491,382 +702,589 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         _privacy.isNotEmpty &&
         !_isLoading;
   }
+
+  Widget _buildSectionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 20, color: colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Group'),
+        centerTitle: true,
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Group Name *',
-                border: OutlineInputBorder(),
-              ),
-              maxLength: AppConstants.maxGroupNameLength,
-              onChanged: (value) {
-                setState(() {}); // Trigger button state update
-              },
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter a group name';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description (Optional)',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              initialValue: _privacy,
-              decoration: const InputDecoration(
-                labelText: 'Privacy',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'private', child: Text('Private')),
-                DropdownMenuItem(value: 'public', child: Text('Public')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _privacy = value);
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Default Game Settings',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            DropdownButtonFormField<String>(
-              initialValue: _currency,
-              decoration: const InputDecoration(
-                labelText: 'Currency',
-                border: OutlineInputBorder(),
-              ),
-              items: AppConstants.currencies.map((currency) {
-                return DropdownMenuItem(
-                  value: currency,
-                  child: Text(currency),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _currency = value);
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _buyinController,
-              decoration: InputDecoration(
-                labelText: 'Default Buy-in',
-                border: const OutlineInputBorder(),
-                prefix: Text('$_currency '),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter a default buy-in';
-                }
-                final amount = double.tryParse(value);
-                if (amount == null || amount < AppConstants.minBuyin) {
-                  return 'Invalid amount';
-                }
-                return null;
-              },
-              onChanged: (value) {
-                final amount = double.tryParse(value);
-                if (amount != null) {
-                  setState(() => _defaultBuyin = amount);
-                } else {
-                  setState(() {}); // Trigger button state update even if invalid
-                }
-              },
-            ),
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: _additionalBuyinsController,
-              decoration: InputDecoration(
-                labelText: 'Additional Buy-in (optional)',
-                border: const OutlineInputBorder(),
-                helperText: 'Single amount, leave blank if none',
-                prefix: Text('$_currency '),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Add Members',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _userSearchController,
-              decoration: InputDecoration(
-                labelText: 'Search Users',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _isSearching
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
-              ),
-              onChanged: (value) {
-                _searchUsers(value);
-              },
-            ),
-            const SizedBox(height: 8),
-
-            if (_searchResults.isNotEmpty)
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // Header section with gradient background
               Container(
-                constraints: const BoxConstraints(maxHeight: 200),
+                width: double.infinity,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(4),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      colorScheme.primaryContainer.withValues(alpha: 0.3),
+                      colorScheme.surface,
+                    ],
+                  ),
                 ),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final user = _searchResults[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: _buildUserAvatar(
-                          user.avatarUrl,
-                          (user.firstName?.isNotEmpty == true ? user.firstName![0] : '?'),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: Stack(
+                        children: [
+                          _buildAvatarPreview(),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.surface,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.camera_alt,
+                                size: 16,
+                                color: colorScheme.onPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _pickImage,
+                          icon: const Icon(Icons.add_photo_alternate, size: 18),
+                          label: Text(_selectedImage != null ? 'Change Photo' : 'Add Photo'),
+                        ),
+                        if (_selectedImage != null) ...[
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: _removeAvatar,
+                            icon: Icon(Icons.delete_outline, size: 18, color: colorScheme.error),
+                            label: Text('Remove', style: TextStyle(color: colorScheme.error)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+
+              // Content section
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Group Information Card
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.group_outlined,
+                      title: 'Group Information',
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                            labelText: 'Group Name',
+                            hintText: 'Enter group name',
+                            prefixIcon: Icon(Icons.badge_outlined, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          maxLength: AppConstants.maxGroupNameLength,
+                          onChanged: (value) => setState(() {}),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a group name';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _descriptionController,
+                          decoration: InputDecoration(
+                            labelText: 'Description',
+                            hintText: 'What is this group about?',
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.only(bottom: 48),
+                              child: Icon(Icons.description_outlined, color: colorScheme.primary),
+                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          maxLines: 3,
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: _privacy,
+                          decoration: InputDecoration(
+                            labelText: 'Privacy',
+                            prefixIcon: Icon(
+                              _privacy == 'private' ? Icons.lock_outlined : Icons.public,
+                              color: colorScheme.primary,
+                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'private', child: Text('Private')),
+                            DropdownMenuItem(value: 'public', child: Text('Public')),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) setState(() => _privacy = value);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Game Settings Card
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.casino_outlined,
+                      title: 'Game Settings',
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _currency,
+                          decoration: InputDecoration(
+                            labelText: 'Currency',
+                            prefixIcon: Icon(Icons.attach_money, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: AppConstants.currencies.map((currency) {
+                            final symbol = Currencies.symbols[currency] ?? '';
+                            return DropdownMenuItem(
+                              value: currency,
+                              child: Text('$symbol  $currency'),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            if (value != null) setState(() => _currency = value);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _buyinController,
+                          decoration: InputDecoration(
+                            labelText: 'Default Buy-in',
+                            prefixIcon: Icon(Icons.payments_outlined, color: colorScheme.primary),
+                            prefixText: '${Currencies.symbols[_currency] ?? _currency} ',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a default buy-in';
+                            }
+                            final amount = double.tryParse(value);
+                            if (amount == null || amount < AppConstants.minBuyin) {
+                              return 'Invalid amount';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            final amount = double.tryParse(value);
+                            if (amount != null) {
+                              setState(() => _defaultBuyin = amount);
+                            } else {
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _additionalBuyinsController,
+                          decoration: InputDecoration(
+                            labelText: 'Additional Buy-in (optional)',
+                            helperText: 'Secondary buy-in amount for rebuys',
+                            prefixIcon: Icon(Icons.add_card, color: colorScheme.primary),
+                            prefixText: '${Currencies.symbols[_currency] ?? _currency} ',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Members Card
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.people_outline,
+                      title: 'Add Members',
+                      children: [
+                        TextField(
+                          controller: _userSearchController,
+                          decoration: InputDecoration(
+                            labelText: 'Search Users',
+                            hintText: 'Search by name or username',
+                            prefixIcon: Icon(Icons.search, color: colorScheme.primary),
+                            suffixIcon: _isSearching
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    ),
+                                  )
+                                : null,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onChanged: (value) => _searchUsers(value),
+                        ),
+                        if (_searchResults.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            constraints: const BoxConstraints(maxHeight: 200),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: colorScheme.outlineVariant),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: _searchResults.length,
+                              itemBuilder: (context, index) {
+                                final user = _searchResults[index];
+                                return ListTile(
+                                  leading: CircleAvatar(
+                                    child: _buildUserAvatar(
+                                      user.avatarUrl,
+                                      (user.firstName?.isNotEmpty == true ? user.firstName![0] : '?'),
+                                    ),
+                                  ),
+                                  title: Text(user.fullName),
+                                  subtitle: user.username != null ? Text('@${user.username}') : null,
+                                  trailing: IconButton(
+                                    icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
+                                    onPressed: () => _addUser(user),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                        if (_selectedUsers.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            'Selected Members',
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _selectedUsers.map((user) {
+                              final initials = (user.firstName?.isNotEmpty == true ? user.firstName![0] : '?');
+                              return Chip(
+                                avatar: CircleAvatar(
+                                  child: _buildUserAvatar(user.avatarUrl, initials),
+                                ),
+                                label: Text(user.fullName),
+                                deleteIcon: Icon(Icons.close, size: 18, color: colorScheme.error),
+                                onDeleted: () => _removeUser(user),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Invite by Email Section
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                      child: ExpansionTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.email_outlined, size: 20, color: colorScheme.secondary),
+                        ),
+                        title: Text(
+                          'Invite by Email',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Invite people to join (optional)',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        initiallyExpanded: _showInviteSection,
+                        onExpansionChanged: (expanded) => setState(() => _showInviteSection = expanded),
+                        children: [
+                          TextFormField(
+                            controller: _inviteEmailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: InputDecoration(
+                              labelText: 'Email Address',
+                              prefixIcon: Icon(Icons.email_outlined, color: colorScheme.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _inviteNameController,
+                            decoration: InputDecoration(
+                              labelText: 'Full Name (Optional)',
+                              prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _isInviting ? null : _sendInvite,
+                              icon: _isInviting
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Icon(Icons.send),
+                              label: const Text('Add to Pending Invites'),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          if (_pendingInvites.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            const Divider(),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Pending Invites',
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _pendingInvites.length,
+                              itemBuilder: (context, index) {
+                                final invite = _pendingInvites[index];
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(Icons.email, size: 20, color: colorScheme.primary),
+                                  ),
+                                  title: Text(invite['email']!),
+                                  subtitle: invite['name']!.isNotEmpty ? Text(invite['name']!) : null,
+                                  trailing: IconButton(
+                                    icon: Icon(Icons.close, color: colorScheme.error),
+                                    onPressed: () => _removeInvite(invite['email']!),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Add Local Users Section
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                      child: ExpansionTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.person_add_outlined, size: 20, color: colorScheme.tertiary),
+                        ),
+                        title: Text(
+                          'Add Local Users',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Add members without accounts (optional)',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        initiallyExpanded: _showLocalUserSection,
+                        onExpansionChanged: (expanded) => setState(() => _showLocalUserSection = expanded),
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _isAddingLocalUser ? null : _addLocalUser,
+                              icon: _isAddingLocalUser
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Icon(Icons.person_add),
+                              label: const Text('Add Local User'),
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          if (_pendingLocalUsers.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            const Divider(),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Pending Local Users',
+                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _pendingLocalUsers.length,
+                              itemBuilder: (context, index) {
+                                final user = _pendingLocalUsers[index];
+                                final displayName = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(Icons.person, size: 20, color: colorScheme.primary),
+                                  ),
+                                  title: Text(displayName),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (user['email']?.isNotEmpty == true)
+                                        Text('Email: ${user['email']}'),
+                                      if (user['phone']?.isNotEmpty == true)
+                                        Text('Phone: ${user['phone']}'),
+                                    ],
+                                  ),
+                                  trailing: IconButton(
+                                    icon: Icon(Icons.close, color: colorScheme.error),
+                                    onPressed: () => _removeLocalUser(displayName),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Create Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _isCreateButtonEnabled() ? _createGroup : null,
+                        icon: _isLoading
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              )
+                            : const Icon(Icons.add),
+                        label: Text(_isLoading ? 'Creating...' : 'Create Group'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
-                      title: Text(user.fullName),
-                      subtitle: user.username != null
-                          ? Text('@${user.username}')
-                          : null,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        onPressed: () => _addUser(user),
-                      ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
               ),
-            const SizedBox(height: 16),
-
-            if (_selectedUsers.isNotEmpty) ...[
-              const Text(
-                'Selected Members',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _selectedUsers.map((user) {
-                  final initials = (user.firstName?.isNotEmpty == true ? user.firstName![0] : '?');
-                  return Chip(
-                    avatar: CircleAvatar(
-                      child: _buildUserAvatar(user.avatarUrl, initials),
-                    ),
-                    label: Text(user.fullName),
-                    onDeleted: () => _removeUser(user),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 16),
             ],
-
-            // Invite by Email Section
-            Card(
-              child: ExpansionTile(
-                title: const Text('Invite by Email'),
-                subtitle: const Text('Invite people to join (optional)'),
-                initiallyExpanded: _showInviteSection,
-                onExpansionChanged: (expanded) {
-                  setState(() => _showInviteSection = expanded);
-                },
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextFormField(
-                          controller: _inviteEmailController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: 'Email Address',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.email_outlined),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _inviteNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Full Name (Optional)',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.person_outline),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: _isInviting ? null : _sendInvite,
-                          icon: _isInviting
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.send),
-                          label: const Text('Add to Pending Invites'),
-                        ),
-                        if (_pendingInvites.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          const Divider(),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Pending Invites',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _pendingInvites.length,
-                            itemBuilder: (context, index) {
-                              final invite = _pendingInvites[index];
-                              return ListTile(
-                                leading: const Icon(Icons.email, size: 20),
-                                title: Text(invite['email']!),
-                                subtitle: invite['name']!.isNotEmpty
-                                    ? Text(invite['name']!)
-                                    : null,
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () =>
-                                      _removeInvite(invite['email']!),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Add Local Users Section
-            Card(
-              child: ExpansionTile(
-                title: const Text('Add Local Users'),
-                subtitle: const Text('Add members without accounts (optional)'),
-                initiallyExpanded: _showLocalUserSection,
-                onExpansionChanged: (expanded) {
-                  setState(() => _showLocalUserSection = expanded);
-                },
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _isAddingLocalUser ? null : _addLocalUser,
-                          icon: _isAddingLocalUser
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.person_add),
-                          label: const Text('Add Local User'),
-                        ),
-                        if (_pendingLocalUsers.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          const Divider(),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Pending Local Users',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _pendingLocalUsers.length,
-                            itemBuilder: (context, index) {
-                              final user = _pendingLocalUsers[index];
-                              final displayName = '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
-                              return ListTile(
-                                leading: const Icon(Icons.person, size: 20),
-                                title: Text(displayName),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (user['email']?.isNotEmpty == true)
-                                      Text('📧 ${user['email']}'),
-                                    if (user['phone']?.isNotEmpty == true)
-                                      Text('📞 ${user['phone']}'),
-                                  ],
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () =>
-                                      _removeLocalUser(displayName),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            const SizedBox(height: 16),
-
-            ElevatedButton(
-              onPressed: _isCreateButtonEnabled() ? _createGroup : null,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Create Group', style: TextStyle(fontSize: 16)),
-            ),
-          ],
+          ),
         ),
       ),
     );

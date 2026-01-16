@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/providers/games_provider.dart';
-import '../../presentation/providers/games_provider.dart' show UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
+import '../../presentation/providers/games_provider.dart' show UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider, gameWithParticipantsProvider;
 
 class BuyInDialog extends ConsumerStatefulWidget {
   final String gameId;
@@ -76,6 +76,7 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
       result.when(
         success: (_) {
           // refresh dependent providers
+          ref.invalidate(gameWithParticipantsProvider(widget.gameId));
           ref.invalidate(gameParticipantsProvider(widget.gameId));
           ref.invalidate(userTransactionsProvider(
             UserTransactionsKey(gameId: widget.gameId, userId: widget.userId),
@@ -123,7 +124,8 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
               const SizedBox(height: 12),
               Column(
                 children: widget.additionalBuyins.map((amount) {
-                  final key = '${widget.currency} $amount';
+                  final symbol = Currencies.symbols[widget.currency] ?? widget.currency;
+                  final key = '$symbol $amount';
                   return GestureDetector(
                     onTap: () {
                       setState(() => _selectedBuyin = amount.toString());
@@ -170,7 +172,7 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
                 }
               },
               decoration: InputDecoration(
-                labelText: 'Amount (${widget.currency})',
+                labelText: 'Amount (${Currencies.symbols[widget.currency] ?? widget.currency})',
                 hintText: 'Enter amount',
                 border: const OutlineInputBorder(),
                 enabled: !_isLoading,

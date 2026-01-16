@@ -2,6 +2,7 @@ import '../../../common/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../../core/constants/currencies.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
@@ -312,6 +313,7 @@ class _MyGamesTab extends ConsumerWidget {
             const SizedBox(height: 12),
             _RecentGameRankingTable(
               ranking: data.ranking,
+              currency: data.game.currency,
               currentUserId: currentUserId,
             ),
           ],
@@ -414,6 +416,16 @@ class _MyGamesTab extends ConsumerWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 1),
             ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              debugPrint('Error: $error');
+              return Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                child: Text('?', style: TextStyle(fontSize: 16)),
+              );
+            },
           ),
         ),
       );
@@ -507,7 +519,7 @@ class _GroupsTab extends ConsumerWidget {
                                 children: [
                                   _buildGroupAvatar(group.avatarUrl, group.name, context),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(group.name)),
+                                  Flexible(child: Text(group.name, overflow: TextOverflow.ellipsis)),
                                 ],
                               ),
                             ),
@@ -677,6 +689,7 @@ class _GroupsTab extends ConsumerWidget {
               gameName: gameName,
               gameDate: gameDate,
               players: players,
+              currency: data.currency,
               currentUserId: currentUserId,
             );
           }),
@@ -690,6 +703,7 @@ class _GroupsTab extends ConsumerWidget {
     required String gameName,
     required DateTime gameDate,
     required List<(RankingRow player, GameBreakdown game)> players,
+    required String currency,
     String? currentUserId,
   }) {
     final theme = Theme.of(context);
@@ -781,7 +795,7 @@ class _GroupsTab extends ConsumerWidget {
                       _cell('${idx + 1}', weight: weight),
                       _cell(player.name, weight: weight),
                       _cell(resultText, align: TextAlign.center, color: resultColor, weight: weight),
-                      _cell(_formatAmountNoCurrency(game.net), align: TextAlign.right, color: _netColor(game.net), weight: weight),
+                      _cell(_formatAmount(game.net, currency), align: TextAlign.right, color: _netColor(game.net), weight: weight),
                     ],
                   );
                 }),
@@ -1117,6 +1131,7 @@ class _PublicGamesTabState extends ConsumerState<_PublicGamesTab> {
             const SizedBox(height: 12),
             _RecentGameRankingTable(
               ranking: data.ranking,
+              currency: data.game.currency,
               currentUserId: widget.currentUserId,
             ),
           ],
@@ -1350,7 +1365,7 @@ class _PublicGroupsTabState extends ConsumerState<_PublicGroupsTab> {
                                   children: [
                                     _buildGroupAvatar(group.avatarUrl, group.name, context),
                                     const SizedBox(width: 8),
-                                    Expanded(child: Text(group.name)),
+                                    Flexible(child: Text(group.name, overflow: TextOverflow.ellipsis)),
                                   ],
                                 ),
                               ),
@@ -1556,6 +1571,7 @@ class _PublicGroupsTabState extends ConsumerState<_PublicGroupsTab> {
               gameName: gameName,
               gameDate: gameDate,
               players: players,
+              currency: data.currency,
             );
           }),
         ],
@@ -1568,6 +1584,7 @@ class _PublicGroupsTabState extends ConsumerState<_PublicGroupsTab> {
     required String gameName,
     required DateTime gameDate,
     required List<(RankingRow player, GameBreakdown game)> players,
+    required String currency,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -1658,7 +1675,7 @@ class _PublicGroupsTabState extends ConsumerState<_PublicGroupsTab> {
                       _cell('${idx + 1}', weight: weight),
                       _cell(player.name, weight: weight),
                       _cell(resultText, align: TextAlign.center, color: resultColor, weight: weight),
-                      _cell(_formatAmountNoCurrency(game.net), align: TextAlign.right, color: _netColor(game.net), weight: weight),
+                      _cell(_formatAmount(game.net, currency), align: TextAlign.right, color: _netColor(game.net), weight: weight),
                     ],
                   );
                 }),
@@ -1830,9 +1847,11 @@ class _TimeFilterChips extends StatelessWidget {
 class _RecentGameRankingTable extends StatelessWidget {
   final List<RankingRow> ranking;
   final String? currentUserId;
+  final String currency;
 
   const _RecentGameRankingTable({
     required this.ranking,
+    required this.currency,
     this.currentUserId,
   });
 
@@ -1875,7 +1894,7 @@ class _RecentGameRankingTable extends StatelessWidget {
               _cell('${idx + 1}', weight: weight),
               _cell(row.name, weight: weight),
               _cell(resultText, align: TextAlign.center, color: resultColor, weight: weight),
-              _cell(_formatAmountNoCurrency(row.net), align: TextAlign.right, color: _netColor(row.net), weight: weight),
+              _cell(_formatAmount(row.net, currency), align: TextAlign.right, color: _netColor(row.net), weight: weight),
             ],
           );
         }),
@@ -1957,7 +1976,7 @@ class _RankingTable extends StatelessWidget {
               _cell(row.name, weight: weight),
               _cell('${row.wins}', align: TextAlign.center, weight: weight),
               _cell('${row.losses}', align: TextAlign.center, weight: weight),
-              _cell(_formatAmountNoCurrency(row.net), align: TextAlign.right, color: _netColor(row.net), weight: weight),
+              _cell(_formatAmount(row.net, currency), align: TextAlign.right, color: _netColor(row.net), weight: weight),
             ],
           );
         }),
@@ -2054,10 +2073,11 @@ bool _isWithinRange(DateTime date, TimeFilter filter) {
   return !date.isBefore(cutoff);
 }
 
-String _formatAmountNoCurrency(double value) {
+String _formatAmount(double value, String currency) {
   final sign = value >= 0 ? '+' : '-';
+  final symbol = Currencies.symbols[currency] ?? currency;
   final abs = value.abs().toStringAsFixed(2);
-  return '$sign\$$abs';
+  return '$sign$symbol$abs';
 }
 
 Color _netColor(double value) => value >= 0 ? Colors.green : Colors.red;

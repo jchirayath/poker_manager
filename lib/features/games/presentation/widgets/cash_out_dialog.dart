@@ -109,7 +109,7 @@ class _CashOutDialogState extends ConsumerState<CashOutDialog> {
         controller: _amountController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(
-          labelText: 'Amount (${widget.currency})',
+          labelText: 'Amount (${Currencies.symbols[widget.currency] ?? widget.currency})',
           hintText: 'Enter cash-out amount',
           border: const OutlineInputBorder(),
         ),
