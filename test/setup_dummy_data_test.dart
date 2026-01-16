@@ -705,14 +705,14 @@ void main() {
         locationIds.add(loc['id'] as String);
       }
 
-      print('🎮 Creating 3 games per group (9 total)...');
+      print('🎮 Creating 4 games per group (12 total) + 1 GBP game...');
       final gamesCreated = <String>[];
       final allParticipants = <Map<String, dynamic>>[];
 
       final gameConfigs = [
-        {'groupId': group1Id, 'members': group1Members, 'prefix': 'Sharks'},
-        {'groupId': group2Id, 'members': group2Members, 'prefix': 'Runners'},
-        {'groupId': group3Id, 'members': group3Members, 'prefix': 'Desert'},
+        {'groupId': group1Id, 'members': group1Members, 'prefix': 'Sharks', 'currency': 'USD'},
+        {'groupId': group2Id, 'members': group2Members, 'prefix': 'Runners', 'currency': 'USD'},
+        {'groupId': group3Id, 'members': group3Members, 'prefix': 'Desert', 'currency': 'USD'},
       ];
 
       // Only completed, cancelled, and scheduled games are created (in_progress skipped)
@@ -720,6 +720,7 @@ void main() {
         final gid = cfg['groupId'] as String;
         final members = (cfg['members'] as List<String>);
         final prefix = cfg['prefix'] as String;
+        final currency = cfg['currency'] as String;
         final neutralAddr = neutralLocations.firstWhere((l) => l['group_id'] == gid);
         for (var i = 0; i < 5; i++) {
           // --- ACTIVE (in-progress) game population removed as requested ---
@@ -760,7 +761,7 @@ void main() {
             'location': '${neutralAddr['street']}, ${neutralAddr['city']}, ${neutralAddr['state']} ${neutralAddr['postal']}, United States',
             'location_host_user_id': null,
             'max_players': 8,
-            'currency': 'USD',
+            'currency': currency,
             'buyin_amount': 100.0,
             'additional_buyin_values': [50.0],
             'status': gameStatus,
@@ -872,12 +873,92 @@ void main() {
         }
       }
 
+      // Create an additional GBP game in Group 1 (Downtown Sharks)
+      print('🇬🇧 Creating additional GBP game...');
+      final gbpGameId = uuid.v4();
+      final gbpGameDate = now.subtract(const Duration(days: 5));
+      final gbpNeutralAddr = neutralLocations.firstWhere((l) => l['group_id'] == group1Id);
+
+      await client.from('games').insert({
+        'id': gbpGameId,
+        'group_id': group1Id,
+        'name': 'Sharks GBP Night',
+        'game_date': gbpGameDate.toIso8601String(),
+        'location': '${gbpNeutralAddr['street']}, ${gbpNeutralAddr['city']}, ${gbpNeutralAddr['state']} ${gbpNeutralAddr['postal']}, United States',
+        'location_host_user_id': null,
+        'max_players': 8,
+        'currency': 'GBP',
+        'buyin_amount': 50.0,
+        'additional_buyin_values': [25.0],
+        'status': 'completed',
+        'created_at': nowIso,
+        'updated_at': nowIso,
+      });
+      gamesCreated.add(gbpGameId);
+
+      // Add participants with transactions for the GBP game
+      final gbpParticipants = [
+        {'userId': group1Members[0], 'buyins': [50.0, 25.0], 'cashout': 100.0},
+        {'userId': group1Members[1], 'buyins': [50.0], 'cashout': 40.0},
+        {'userId': group1Members[2], 'buyins': [50.0, 25.0], 'cashout': 60.0},
+      ];
+
+      final gbpParticipantRows = <Map<String, dynamic>>[];
+      final gbpTransactionRows = <Map<String, dynamic>>[];
+
+      for (final participant in gbpParticipants) {
+        final buyins = participant['buyins'] as List<double>;
+        final totalBuyin = buyins.fold<double>(0.0, (sum, amount) => sum + amount);
+        final cashout = participant['cashout'] as double;
+
+        final participantId = uuid.v4();
+        gbpParticipantRows.add({
+          'id': participantId,
+          'game_id': gbpGameId,
+          'user_id': participant['userId'],
+          'rsvp_status': 'going',
+          'total_buyin': totalBuyin,
+          'total_cashout': cashout,
+          'created_at': nowIso,
+        });
+
+        for (var j = 0; j < buyins.length; j++) {
+          gbpTransactionRows.add({
+            'game_id': gbpGameId,
+            'user_id': participant['userId'],
+            'type': 'buyin',
+            'amount': buyins[j],
+            'timestamp': gbpGameDate.add(Duration(minutes: j * 30)).toIso8601String(),
+            'notes': j == 0 ? 'Initial buy-in' : 'Additional buy-in',
+          });
+        }
+        gbpTransactionRows.add({
+          'game_id': gbpGameId,
+          'user_id': participant['userId'],
+          'type': 'cashout',
+          'amount': cashout,
+          'timestamp': gbpGameDate.add(const Duration(hours: 4)).toIso8601String(),
+          'notes': 'Final cash out',
+        });
+      }
+
+      await client.from('game_participants').insert(gbpParticipantRows);
+      await client.from('transactions').insert(gbpTransactionRows);
+
+      allParticipants.addAll(gbpParticipants.map((p) => {
+        'userId': p['userId'],
+        'buyin': (p['buyins'] as List<double>).fold<double>(0.0, (sum, amount) => sum + amount),
+        'cashout': p['cashout'],
+      }));
+
+      print('✅ GBP game created with ${gbpParticipants.length} participants\n');
+
       print('\n📊 Validation checks...');
       expect(groupIds.length, 3, reason: 'Three groups should be present');
       expect(locationIds.length, 14, reason: '11 personal locations (including admin) + 3 neutral group locations');
       expect(memberRows.length, 16, reason: 'Group1:6, Group2:6, Group3:4 memberships total');
-      expect(allParticipants.length, 18, reason: 'Six games with transactions * 3 participants each (3 per group: 2 completed games)');
-      expect(gamesCreated.length, 12, reason: 'Four games per group (3 groups) = 12 total games (in_progress skipped)');
+      expect(allParticipants.length, 21, reason: 'Six USD games with transactions * 3 participants each + 1 GBP game * 3 participants');
+      expect(gamesCreated.length, 13, reason: 'Four games per group (3 groups) = 12 USD games + 1 GBP game = 13 total');
 
       // Verify all users have avatar URLs
       final profilesWithAvatars = await client.from('profiles').select('id, avatar_url').gt('avatar_url', '');
@@ -942,12 +1023,11 @@ void main() {
         expectCount(personalLocationsCount, 11, 'locations table should contain 11 personal addresses');
         expectCount(neutralLocationsCount, expectedNeutrals, 'locations table should contain neutral group addresses');
         expectCount(locationsTable.length, expectedLocations, 'locations table should contain total addresses');
-        expectCount(gamesTable.length, 12, 'games table should contain 12 games (4 per group: 2 completed, 1 cancelled, 1 scheduled; in_progress skipped)');
-        expectCount(participantsTable.length, 36, 'game_participants table should contain 36 participants (12 games * 3 participants; in_progress skipped)');
-        // Transactions: 3 games per group have transactions (2 completed + 1 in_progress)
-        // Completed games: varied buy-ins + 1 cash-out each; In-progress: buy-ins only, no cash-outs yet
-        // This is approximate since games have different numbers of buy-ins
-        expect(transactionsTable.length, greaterThan(40), reason: 'transactions table should contain buy-ins and cash-outs for active/completed games');
+        expectCount(gamesTable.length, 13, 'games table should contain 13 games (12 USD + 1 GBP)');
+        expectCount(participantsTable.length, 39, 'game_participants table should contain 39 participants (12 USD games * 3 + 1 GBP game * 3)');
+        // Transactions: 7 completed games have transactions (6 USD + 1 GBP)
+        // Each completed game has varied buy-ins + cash-outs
+        expect(transactionsTable.length, greaterThan(45), reason: 'transactions table should contain buy-ins and cash-outs for completed games');
 
       final group1AdminIdx = userIds.indexOf(group1Members.first);
       final group2AdminIdx = userIds.indexOf(group2Members.first);

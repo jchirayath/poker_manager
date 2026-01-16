@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/providers/games_provider.dart';
-import '../../presentation/providers/games_provider.dart' show UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
+import '../../presentation/providers/games_provider.dart' show UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider, gameWithParticipantsProvider;
 
 class BuyInDialog extends ConsumerStatefulWidget {
   final String gameId;
@@ -76,6 +76,7 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
       result.when(
         success: (_) {
           // refresh dependent providers
+          ref.invalidate(gameWithParticipantsProvider(widget.gameId));
           ref.invalidate(gameParticipantsProvider(widget.gameId));
           ref.invalidate(userTransactionsProvider(
             UserTransactionsKey(gameId: widget.gameId, userId: widget.userId),

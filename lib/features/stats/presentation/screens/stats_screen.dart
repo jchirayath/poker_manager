@@ -519,7 +519,7 @@ class _GroupsTab extends ConsumerWidget {
                                 children: [
                                   _buildGroupAvatar(group.avatarUrl, group.name, context),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(group.name)),
+                                  Flexible(child: Text(group.name, overflow: TextOverflow.ellipsis)),
                                 ],
                               ),
                             ),
@@ -1365,7 +1365,7 @@ class _PublicGroupsTabState extends ConsumerState<_PublicGroupsTab> {
                                   children: [
                                     _buildGroupAvatar(group.avatarUrl, group.name, context),
                                     const SizedBox(width: 8),
-                                    Expanded(child: Text(group.name)),
+                                    Flexible(child: Text(group.name, overflow: TextOverflow.ellipsis)),
                                   ],
                                 ),
                               ),

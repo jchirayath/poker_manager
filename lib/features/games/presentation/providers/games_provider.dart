@@ -294,28 +294,21 @@ final gameDetailProvider = FutureProvider.family<GameModel, String>(
 final gameWithParticipantsProvider =
     FutureProvider.family<GameWithParticipants, String>(
   (ref, gameId) async {
-    try {
-      final repository = ref.watch(gamesRepositoryProvider);
-      final result = await repository.getGameWithParticipants(gameId);
-      return result.when(
-        success: (gameWithParticipants) => gameWithParticipants,
-        failure: (errorMessage, errorData) {
+    final repository = ref.watch(gamesRepositoryProvider);
+    final result = await repository.getGameWithParticipants(gameId);
+    return result.when(
+      success: (gameWithParticipants) => gameWithParticipants,
+      failure: (errorMessage, errorData) {
+        // Don't log "Game not found" as error - it's expected after deletion
+        if (!errorMessage.contains('Game not found')) {
           ErrorLoggerService.logWarning(
             'Failed to load game with participants (gameId: $gameId): $errorMessage',
             context: 'gameWithParticipantsProvider',
           );
-          throw Exception('Failed to load game with participants: $errorMessage');
-        },
-      );
-    } catch (e, st) {
-      ErrorLoggerService.logError(
-        e,
-        st,
-        context: 'gameWithParticipantsProvider',
-        additionalData: {'gameId': gameId},
-      );
-      rethrow;
-    }
+        }
+        throw Exception('Failed to load game with participants: $errorMessage');
+      },
+    );
   },
 );
 

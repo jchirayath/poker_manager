@@ -33,6 +33,12 @@ class ErrorLoggerService {
     required String context,
     Map<String, dynamic>? additionalData,
   }) {
+    // Skip expected errors that don't need logging
+    final errorStr = error.toString();
+    if (errorStr.contains('Game not found')) {
+      return; // Expected after game deletion - not a real error
+    }
+
     // Note: errorInfo structure is prepared for future error tracking service integration
     // Currently all error information is logged via developer.log and debugPrint
 

@@ -415,7 +415,7 @@ class _GroupFilter extends StatelessWidget {
                   children: [
                     _buildGroupAvatar(group.avatarUrl, group.name, context),
                     const SizedBox(width: 8),
-                    Expanded(
+                    Flexible(
                       child: Text(group.name, overflow: TextOverflow.ellipsis),
                     ),
                   ],

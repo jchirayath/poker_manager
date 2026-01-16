@@ -267,15 +267,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           children: [
             Icon(icon, size: 12, color: colorScheme.primary),
             const SizedBox(width: 3),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
