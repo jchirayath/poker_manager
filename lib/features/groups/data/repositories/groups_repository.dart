@@ -243,11 +243,29 @@ class GroupsRepository {
     required String userId,
   }) async {
     try {
-      await _client
+      // First, verify the member exists
+      final checkResponse = await _client
+          .from('group_members')
+          .select('id')
+          .eq('group_id', groupId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (checkResponse == null) {
+        return const Success(null);
+      }
+
+      // Perform the delete with select to get affected rows
+      final response = await _client
           .from('group_members')
           .delete()
           .eq('group_id', groupId)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .select();
+
+      if (response == null || (response as List).isEmpty) {
+        return const Failure('Delete blocked by database policy');
+      }
 
       return const Success(null);
     } catch (e) {
