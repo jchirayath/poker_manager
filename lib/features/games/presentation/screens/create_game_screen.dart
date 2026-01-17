@@ -237,115 +237,243 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Add New Location'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: streetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Street Address',
-                    border: OutlineInputBorder(),
+        final colorScheme = Theme.of(context).colorScheme;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.surface,
+                        colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: cityController,
-                  decoration: const InputDecoration(
-                    labelText: 'City',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: stateController,
-                  decoration: const InputDecoration(
-                    labelText: 'State/Province',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: postalController,
-                  decoration: const InputDecoration(
-                    labelText: 'Postal Code',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: labelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Label (e.g., "John\'s House")',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                if (streetController.text.isEmpty) {
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter street address')),
-                  );
-                  return;
-                }
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.add_location_alt,
+                                color: colorScheme.onPrimaryContainer,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Add Location',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  Text(
+                                    'New game location',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
 
-                try {
-                  final context0 = context;
-                  
-                  // Create the location
-                  await ref.read(createLocationNotifierProvider.notifier).createLocation(
-                        groupId: widget.groupId,
-                        streetAddress: streetController.text,
-                        city: cityController.text.isEmpty ? null : cityController.text,
-                        stateProvince: stateController.text.isEmpty ? null : stateController.text,
-                        postalCode: postalController.text.isEmpty ? null : postalController.text,
-                        country: country,
-                        label: labelController.text.isEmpty ? null : labelController.text,
-                      );
+                        // Label Field
+                        TextFormField(
+                          controller: labelController,
+                          decoration: InputDecoration(
+                            labelText: 'Label (Optional)',
+                            hintText: 'John\'s House',
+                            prefixIcon: Icon(Icons.label_outline, color: colorScheme.primary, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                  // Wait a moment for the database to complete
-                  await Future.delayed(const Duration(milliseconds: 500));
+                        // Street Address
+                        TextFormField(
+                          controller: streetController,
+                          decoration: InputDecoration(
+                            labelText: 'Street Address *',
+                            hintText: '123 Main St',
+                            prefixIcon: Icon(Icons.home_outlined, color: colorScheme.primary, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                  if (mounted) {
-                    // Refresh the locations list to get the newly created location
-                    // ignore: unused_result
-                    ref.refresh(groupLocationsProvider(widget.groupId));
-                    
-                    // Close the dialog
-                    // ignore: use_build_context_synchronously
-                    Navigator.pop(context0);
-                    
-                    // Show success message
-                    if (mounted) {
-                      // ignore: use_build_context_synchronously
-                      ScaffoldMessenger.of(context0).showSnackBar(
-                        const SnackBar(content: Text('Location added successfully')),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    // ignore: use_build_context_synchronously
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error adding location: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
+                        // City
+                        TextFormField(
+                          controller: cityController,
+                          decoration: InputDecoration(
+                            labelText: 'City',
+                            hintText: 'San Francisco',
+                            prefixIcon: Icon(Icons.location_city, color: colorScheme.primary, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // State and Postal Code Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: stateController,
+                                decoration: InputDecoration(
+                                  labelText: 'State',
+                                  hintText: 'CA',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: postalController,
+                                decoration: InputDecoration(
+                                  labelText: 'Zip',
+                                  hintText: '94102',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Action Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.icon(
+                              onPressed: () async {
+                                if (streetController.text.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Please enter street address'),
+                                      backgroundColor: colorScheme.error,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                try {
+                                  final context0 = context;
+
+                                  await ref.read(createLocationNotifierProvider.notifier).createLocation(
+                                        groupId: widget.groupId,
+                                        streetAddress: streetController.text,
+                                        city: cityController.text.isEmpty ? null : cityController.text,
+                                        stateProvince: stateController.text.isEmpty ? null : stateController.text,
+                                        postalCode: postalController.text.isEmpty ? null : postalController.text,
+                                        country: country,
+                                        label: labelController.text.isEmpty ? null : labelController.text,
+                                      );
+
+                                  await Future.delayed(const Duration(milliseconds: 500));
+
+                                  if (mounted) {
+                                    ref.refresh(groupLocationsProvider(widget.groupId));
+                                    Navigator.pop(context0);
+
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context0).showSnackBar(
+                                        const SnackBar(
+                                          content: Row(
+                                            children: [
+                                              Icon(Icons.check_circle, color: Colors.white),
+                                              SizedBox(width: 12),
+                                              Text('Location added'),
+                                            ],
+                                          ),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: colorScheme.error,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.add_location, size: 18),
+                              label: const Text('Add'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -397,15 +525,21 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     }
   }
 
-  /// Filter locations to show only those from selected members' profiles
-  /// If no members selected, show all group locations
+  /// Get locations from selected members' profiles
+  /// Combines locations table entries with addresses from member profiles
+  /// Ensures unique addresses - if multiple members share an address, shows all names
   Future<List<LocationModel>> _getFilteredLocations(
     List<LocationModel> allLocations,
     List<dynamic> members,
   ) async {
-    // If no members selected, return all group locations
+    // Start with all group-level locations from the locations table
+    final locationsList = <LocationModel>[
+      ...allLocations.where((loc) => loc.profileId == null),
+    ];
+
+    // If no members selected, return just group-level locations
     if (_selectedPlayerIds.isEmpty) {
-      return allLocations;
+      return locationsList;
     }
 
     // Get the selected members' profiles
@@ -413,32 +547,63 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         .where((m) => _selectedPlayerIds.contains(m.userId))
         .toList();
 
-    // Extract unique profile IDs and build a set for quick lookup
+    // Extract unique profile IDs for filtering locations table
     final memberProfileIds = <String>{};
+
+    // Group members by their addresses to handle duplicates
+    final addressToMembers = <String, List<dynamic>>{};
 
     for (final member in selectedMembers) {
       if (member.profile != null) {
         memberProfileIds.add(member.profile!.id);
+
+        // Add location from member's profile if they have an address
+        if (member.profile!.hasAddress) {
+          final profileAddress = member.profile!.fullAddress;
+
+          if (profileAddress.isNotEmpty) {
+            // Group members by address
+            if (!addressToMembers.containsKey(profileAddress)) {
+              addressToMembers[profileAddress] = [];
+            }
+            addressToMembers[profileAddress]!.add(member);
+          }
+        }
       }
     }
 
-    // Filter locations: include group-level locations OR locations associated with selected members
-    final filteredLocations = allLocations
+    // Create unique location entries - no label so fullAddress is used
+    addressToMembers.forEach((address, membersAtAddress) {
+      // Use the first member's profile for the location details
+      final firstMember = membersAtAddress.first;
+
+      locationsList.add(
+        LocationModel(
+          id: 'profile_${firstMember.profile!.id}', // Virtual ID using first member
+          groupId: widget.groupId,
+          profileId: firstMember.profile!.id,
+          streetAddress: firstMember.profile!.streetAddress ?? '',
+          city: firstMember.profile!.city,
+          stateProvince: firstMember.profile!.stateProvince,
+          postalCode: firstMember.profile!.postalCode,
+          country: firstMember.profile!.country ?? 'USA',
+          label: null, // No label - will display fullAddress
+          isPrimary: false,
+        ),
+      );
+    });
+
+    // Also include any locations from the locations table that belong to selected members
+    final memberLocations = allLocations
         .where((location) {
-          // Include if location is associated with a selected member's profile
-          if (location.profileId != null &&
-              memberProfileIds.contains(location.profileId)) {
-            return true;
-          }
-          // Include all group-level locations (no profileId) to allow manual entry
-          if (location.profileId == null) {
-            return true;
-          }
-          return false;
+          return location.profileId != null &&
+              memberProfileIds.contains(location.profileId);
         })
         .toList();
 
-    return filteredLocations;
+    locationsList.addAll(memberLocations);
+
+    return locationsList;
   }
 
 
@@ -492,13 +657,35 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       // Get the location address if a location was selected
       String? locationString;
       if (_selectedLocationId != null) {
-        final locationsAsync = ref.read(groupLocationsProvider(widget.groupId));
-        final locations = locationsAsync.value ?? [];
-        final selectedLocation = locations.firstWhere(
-          (loc) => loc.id == _selectedLocationId,
-          orElse: () => locations.first,
-        );
-        locationString = selectedLocation.label ?? selectedLocation.fullAddress;
+        // Check if this is a virtual profile-based location
+        if (_selectedLocationId!.startsWith('profile_')) {
+          // Extract the profile ID and find the member's address
+          final profileId = _selectedLocationId!.replaceFirst('profile_', '');
+          final membersAsync = ref.read(groupMembersProvider(widget.groupId));
+          final members = membersAsync.value ?? [];
+          try {
+            final member = members.firstWhere(
+              (m) => m.profile?.id == profileId,
+            );
+            if (member.profile != null) {
+              locationString = member.profile!.fullAddress;
+            }
+          } catch (e) {
+            // Member not found, locationString stays null
+          }
+        } else {
+          // Real location from locations table
+          final locationsAsync = ref.read(groupLocationsProvider(widget.groupId));
+          final locations = locationsAsync.value ?? [];
+          try {
+            final selectedLocation = locations.firstWhere(
+              (loc) => loc.id == _selectedLocationId,
+            );
+            locationString = selectedLocation.label ?? selectedLocation.fullAddress;
+          } catch (e) {
+            // Location not found, locationString stays null
+          }
+        }
       }
 
       // Determine how many games to create
@@ -1415,7 +1602,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       future: _getFilteredLocations(allLocations, members),
                       builder: (context, snapshot) {
                         final locations = snapshot.data ?? allLocations;
-                        
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1449,17 +1636,27 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                                         )
                                       : null,
                                 ),
+                              isExpanded: true,
                               items: [
                                 const DropdownMenuItem(
                                   value: null,
                                   child: Text('No Location'),
                                 ),
                                 ...locations.map((location) {
+                                  // Show label if available, otherwise show full address
+                                  final hasLabel = location.label != null && location.label!.isNotEmpty;
+                                  final fullAddr = location.fullAddress;
+                                  final displayText = hasLabel ? location.label! : (fullAddr.isNotEmpty ? fullAddr : 'Unknown Location');
+
+                                  // Debug: Print location details
+                                  debugPrint('Location ID: ${location.id}, Label: ${location.label}, FullAddress: $fullAddr, Display: $displayText');
+
                                   return DropdownMenuItem(
                                     value: location.id,
                                     child: Text(
-                                      location.label ?? location.fullAddress,
+                                      displayText,
                                       overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                   );
                                 }),

@@ -134,9 +134,10 @@ void main() {
         await deleteAll('game_participants');
         await deleteAll('games');
         await deleteAll('player_statistics');
-        await deleteAll('group_members');
-        await deleteAll('locations');
+        // Delete groups before group_members to leverage CASCADE delete
+        // This avoids triggering the "last admin" validation constraint
         await deleteAll('groups');
+        await deleteAll('locations');
         await deleteAll('profiles');
         await deleteAll('financial_audit_log', skipIdCheck: true); // No id column constraint
 
