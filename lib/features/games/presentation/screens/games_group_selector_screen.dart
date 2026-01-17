@@ -5,7 +5,7 @@ import '../../../../core/utils/avatar_utils.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../profile/data/repositories/profile_repository.dart';
 import '../../../../shared/models/result.dart';
-import 'games_list_screen.dart';
+import 'create_game_screen.dart';
 
 class GamesGroupSelectorScreen extends ConsumerWidget {
   const GamesGroupSelectorScreen({super.key});
@@ -128,11 +128,11 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    // Navigate to games list for this group
+                    // Navigate directly to create game screen for this group
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) =>
-                            GamesListScreen(groupId: group.id),
+                            CreateGameScreen(groupId: group.id),
                       ),
                     );
                   },

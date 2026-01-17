@@ -35,6 +35,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
+  late final TextEditingController _usernameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
   late final TextEditingController _streetController;
@@ -47,6 +48,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
   bool _isLoading = false;
   bool _fetchingProfile = false;
   bool _appliedProfile = false;
+  bool _showAddressSection = false;
   String _selectedCountry = 'United States';
   ProfileModel? _profile;
 
@@ -55,6 +57,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     super.initState();
     _firstNameController = TextEditingController();
     _lastNameController = TextEditingController();
+    _usernameController = TextEditingController();
     _emailController = TextEditingController();
     _phoneController = TextEditingController();
     _streetController = TextEditingController();
@@ -70,6 +73,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _streetController.dispose();
@@ -98,12 +102,21 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     final profile = _profile!;
     _firstNameController.text = profile.firstName ?? '';
     _lastNameController.text = profile.lastName ?? '';
+    _usernameController.text = profile.username ?? '';
     _emailController.text = profile.email;
     _phoneController.text = profile.phoneNumber ?? '';
     _streetController.text = profile.streetAddress ?? '';
     _cityController.text = profile.city ?? '';
     _stateController.text = profile.stateProvince ?? '';
     _postalController.text = profile.postalCode ?? '';
+
+    // Check if address fields have data to expand the section
+    if (_streetController.text.isNotEmpty ||
+        _cityController.text.isNotEmpty ||
+        _stateController.text.isNotEmpty ||
+        _postalController.text.isNotEmpty) {
+      _showAddressSection = true;
+    }
 
     String mappedCountry = profile.country ?? 'United States';
     if (mappedCountry == 'US' || mappedCountry == 'USA' || mappedCountry == 'U.S.' || mappedCountry == 'U.S.A.') {
@@ -121,21 +134,55 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
   }
 
   Future<void> _pickImage() async {
+    final colorScheme = Theme.of(context).colorScheme;
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Choose Image Source'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.add_photo_alternate, color: colorScheme.primary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Flexible(child: Text('Choose Image Source')),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.photo_library, color: colorScheme.secondary),
+              ),
               title: const Text('Gallery'),
+              subtitle: Text('Choose from photos', style: TextStyle(color: colorScheme.onSurfaceVariant)),
               onTap: () => Navigator.of(context).pop(ImageSource.gallery),
             ),
+            const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.camera_alt, color: colorScheme.secondary),
+              ),
               title: const Text('Camera'),
+              subtitle: Text('Take a new photo', style: TextStyle(color: colorScheme.onSurfaceVariant)),
               onTap: () => Navigator.of(context).pop(ImageSource.camera),
             ),
           ],
@@ -170,6 +217,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
       final controller = ref.read(localUserControllerProvider);
       final firstName = _firstNameController.text.trim();
       final lastName = _lastNameController.text.trim();
+      final username = _usernameController.text.trim();
       final email = _emailController.text.trim();
       final phone = _phoneController.text.trim();
       final street = _streetController.text.trim();
@@ -177,7 +225,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
       final state = _stateController.text.trim();
       final postal = _postalController.text.trim();
 
-      debugPrint('🔵 Saving local user: imageChanged=$_imageChanged, imageFile=$_imageFile');
+      debugPrint('Saving local user: imageChanged=$_imageChanged, imageFile=$_imageFile');
 
       if (widget.isEdit) {
         final ok = await controller.updateLocalUser(
@@ -185,6 +233,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
           userId: widget.userId!,
           firstName: firstName,
           lastName: lastName,
+          username: username.isEmpty ? null : username,
           email: email.isEmpty ? null : email,
           phoneNumber: phone.isEmpty ? null : phone,
           streetAddress: street.isEmpty ? null : street,
@@ -196,7 +245,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
         );
 
         if (!mounted) return;
-        debugPrint('🔵 Update result: $ok');
+        debugPrint('Update result: $ok');
         if (ok is Success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Local user updated')),
@@ -214,6 +263,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
           groupId: widget.groupId,
           firstName: firstName,
           lastName: lastName,
+          username: username.isEmpty ? null : username,
           email: email.isEmpty ? null : email,
           phoneNumber: phone.isEmpty ? null : phone,
           streetAddress: street.isEmpty ? null : street,
@@ -243,14 +293,14 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     }
   }
 
-  Widget _buildAvatar(ProfileModel? profile) {
+  Widget _buildAvatar(ProfileModel? profile, ColorScheme colorScheme) {
     final initials = _initialsFrom(profile);
     if (_imageFile != null) {
       return ClipOval(
         child: Image.file(
           _imageFile!,
-          width: 120,
-          height: 120,
+          width: 100,
+          height: 100,
           fit: BoxFit.cover,
         ),
       );
@@ -261,8 +311,8 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
       if (url.toLowerCase().contains('svg')) {
         return SvgPicture.network(
           fixDiceBearUrl(url)!,
-          width: 120,
-          height: 120,
+          width: 100,
+          height: 100,
           fit: BoxFit.cover,
           placeholderBuilder: (_) => const SizedBox(
             width: 24,
@@ -274,15 +324,15 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
       return ClipOval(
         child: Image.network(
           url,
-          width: 120,
-          height: 120,
+          width: 100,
+          height: 100,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _initialsWidget(initials),
+          errorBuilder: (context, error, stackTrace) => _initialsWidget(initials, colorScheme),
         ),
       );
     }
 
-    return _initialsWidget(initials);
+    return _initialsWidget(initials, colorScheme);
   }
 
   String _initialsFrom(ProfileModel? profile) {
@@ -294,13 +344,86 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     return initials;
   }
 
-  Widget _initialsWidget(String initials) {
-    return CircleAvatar(
-      radius: 60,
-      backgroundColor: Colors.grey.shade300,
-      child: Text(
-        initials,
-        style: const TextStyle(fontSize: 32),
+  Widget _initialsWidget(String initials, ColorScheme colorScheme) {
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials.toUpperCase(),
+          style: TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onPrimaryContainer,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+    String? subtitle,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, size: 20, color: colorScheme.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ...children,
+          ],
+        ),
       ),
     );
   }
@@ -308,175 +431,340 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
   @override
   Widget build(BuildContext context) {
     _loadExistingProfileIfNeeded();
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isEdit ? 'Edit Local User' : 'Add Local User'),
-        actions: [
-          IconButton(
-            icon: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.check),
-            onPressed: _isLoading ? null : _save,
-          ),
-        ],
+        centerTitle: true,
       ),
-      body: SafeArea(
+      body: Form(
+        key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Stack(
-                    children: [
-                      _buildAvatar(_profile),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: IconButton(
-                              icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                              onPressed: _isLoading ? null : _pickImage,
-                              padding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                      ),
+          child: Column(
+            children: [
+              // Header section with gradient background
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      colorScheme.primaryContainer.withValues(alpha: 0.3),
+                      colorScheme.surface,
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Basic Information',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _firstNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'First Name *',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty) ? 'First name is required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Name *',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty) ? 'Last name is required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value != null && value.isNotEmpty && !value.contains('@')) {
-                      return 'Enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Address',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _streetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Street Address',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _cityController,
-                        decoration: const InputDecoration(
-                          labelText: 'City',
-                          border: OutlineInputBorder(),
-                        ),
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: _isLoading ? null : _pickImage,
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colorScheme.primary,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.primary.withValues(alpha: 0.3),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: _buildAvatar(_profile, colorScheme),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.surface,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.camera_alt,
+                                size: 16,
+                                color: colorScheme.onPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _stateController,
-                        decoration: const InputDecoration(
-                          labelText: 'State/Province',
-                          border: OutlineInputBorder(),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _isLoading ? null : _pickImage,
+                          icon: const Icon(Icons.add_photo_alternate, size: 18),
+                          label: Text(_imageFile != null || _profile?.avatarUrl != null ? 'Change Photo' : 'Add Photo'),
                         ),
-                      ),
+                        if (_imageFile != null) ...[
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: _isLoading ? null : () {
+                              setState(() {
+                                _imageFile = null;
+                                _imageChanged = true;
+                              });
+                            },
+                            icon: Icon(Icons.delete_outline, size: 18, color: colorScheme.error),
+                            label: Text('Remove', style: TextStyle(color: colorScheme.error)),
+                          ),
+                        ],
+                      ],
                     ),
+                    const SizedBox(height: 16),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _postalController,
-                  decoration: const InputDecoration(
-                    labelText: 'Postal Code',
-                    border: OutlineInputBorder(),
-                  ),
+              ),
+
+              // Content section
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Basic Information Card
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.person_outline,
+                      title: 'Basic Information',
+                      children: [
+                        TextFormField(
+                          controller: _firstNameController,
+                          decoration: InputDecoration(
+                            labelText: 'First Name *',
+                            prefixIcon: Icon(Icons.badge_outlined, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty) ? 'First name is required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _lastNameController,
+                          decoration: InputDecoration(
+                            labelText: 'Last Name *',
+                            prefixIcon: Icon(Icons.badge_outlined, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty) ? 'Last name is required' : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Contact Information Card
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.contact_phone_outlined,
+                      title: 'Contact Information',
+                      subtitle: 'Optional',
+                      children: [
+                        TextFormField(
+                          controller: _emailController,
+                          decoration: InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.email_outlined, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value != null && value.isNotEmpty && !value.contains('@')) {
+                              return 'Enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _phoneController,
+                          decoration: InputDecoration(
+                            labelText: 'Phone',
+                            prefixIcon: Icon(Icons.phone_outlined, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Payment Username Card
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.payments_outlined,
+                      title: 'Payment Username',
+                      subtitle: 'Used for PayPal, Venmo transactions',
+                      children: [
+                        TextFormField(
+                          controller: _usernameController,
+                          decoration: InputDecoration(
+                            labelText: 'Username',
+                            hintText: '@username',
+                            prefixIcon: Icon(Icons.alternate_email, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Address Card (Expandable)
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                      child: ExpansionTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.location_on_outlined, size: 20, color: colorScheme.secondary),
+                        ),
+                        title: Text(
+                          'Address',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Optional',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                        ),
+                        initiallyExpanded: _showAddressSection,
+                        onExpansionChanged: (expanded) => setState(() => _showAddressSection = expanded),
+                        children: [
+                          TextFormField(
+                            controller: _streetController,
+                            decoration: InputDecoration(
+                              labelText: 'Street Address',
+                              prefixIcon: Icon(Icons.home_outlined, color: colorScheme.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            textCapitalization: TextCapitalization.words,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _cityController,
+                                  decoration: InputDecoration(
+                                    labelText: 'City',
+                                    prefixIcon: Icon(Icons.location_city_outlined, color: colorScheme.primary),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  textCapitalization: TextCapitalization.words,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _stateController,
+                                  decoration: InputDecoration(
+                                    labelText: 'State',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  textCapitalization: TextCapitalization.words,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _postalController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Postal Code',
+                                    prefixIcon: Icon(Icons.markunread_mailbox_outlined, color: colorScheme.primary),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  keyboardType: TextInputType.text,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _selectedCountry,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: 'Country',
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  items: AppConstants.countries
+                                      .map((c) => DropdownMenuItem<String>(
+                                            value: c,
+                                            child: Text(c, overflow: TextOverflow.ellipsis),
+                                          ))
+                                      .toList(),
+                                  onChanged: (value) => setState(() => _selectedCountry = value ?? _selectedCountry),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _isLoading ? null : _save,
+                        icon: _isLoading
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              )
+                            : const Icon(Icons.check),
+                        label: Text(_isLoading
+                            ? 'Saving...'
+                            : (widget.isEdit ? 'Save Changes' : 'Add Local User')),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedCountry,
-                  decoration: const InputDecoration(
-                    labelText: 'Country',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: AppConstants.countries
-                      .map((c) => DropdownMenuItem<String>(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (value) => setState(() => _selectedCountry = value ?? _selectedCountry),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _save,
-                  icon: const Icon(Icons.check),
-                  label: Text(widget.isEdit ? 'Save Changes' : 'Create Local User'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

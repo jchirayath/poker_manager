@@ -8,7 +8,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../../games/presentation/screens/games_entry_screen.dart';
+import '../../../games/presentation/screens/games_list_screen.dart';
 import '../../../games/presentation/screens/game_detail_screen.dart';
 import '../../../games/presentation/providers/games_provider.dart';
 import '../../../games/data/models/game_model.dart';
@@ -463,41 +463,27 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 32,
-                                maxWidth: 40,
-                                maxHeight: 40,
-                              ),
-                              child: _buildGroupAvatar(group.avatarUrl, group.name, 32),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
+                      Row(
+                        children: [
+                          _buildGroupAvatar(group.avatarUrl, group.name, 32),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (group.description?.isNotEmpty == true)
-                                  Container(
-                                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 100),
-                                    child: Text(
-                                      group.description!,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      softWrap: true,
+                                  Text(
+                                    group.description!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
                                     ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       Container(
@@ -698,7 +684,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 onAction: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => GamesEntryScreen(groupId: widget.groupId),
+                      builder: (context) => GamesListScreen(groupId: widget.groupId),
                     ),
                   );
                 },
@@ -766,7 +752,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) => GamesEntryScreen(groupId: widget.groupId),
+                                    builder: (context) => GamesListScreen(groupId: widget.groupId),
                                   ),
                                 );
                               },
@@ -844,20 +830,21 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   Expanded(
                     child: FilledButton.icon(
                       icon: const Icon(Icons.casino, size: 18),
-                      label: const Text('Games', overflow: TextOverflow.ellipsis),
+                      label: const Text('Games'),
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (context) => GamesEntryScreen(groupId: widget.groupId),
+                            builder: (context) => GamesListScreen(groupId: widget.groupId),
                           ),
                         );
                       },
                     ),
                   ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton.tonalIcon(
                       icon: const Icon(Icons.people, size: 18),
-                      label: const Text('Members', overflow: TextOverflow.ellipsis),
+                      label: const Text('Members'),
                       onPressed: () {
                         context.push(RouteConstants.manageMembers.replaceFirst(':id', widget.groupId));
                       },
@@ -945,15 +932,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       return CircleAvatar(
         radius: radius,
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            letter,
-            style: TextStyle(
-              fontSize: radius * 0.8,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onPrimaryContainer,
-            ),
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
         ),
       );

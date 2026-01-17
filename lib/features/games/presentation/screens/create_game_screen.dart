@@ -575,9 +575,11 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     final groupAsync = ref.watch(groupProvider(widget.groupId));
     final locationsAsync = ref.watch(groupLocationsProvider(widget.groupId));
     final membersAsync = ref.watch(groupMembersProvider(widget.groupId));
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
+        elevation: 0,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -596,18 +598,18 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   }
                 },
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    color: colorScheme.primaryContainer,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.arrow_upward, size: 20),
+                  child: Icon(Icons.arrow_upward, size: 18, color: colorScheme.onPrimaryContainer),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            const Text('Create Game'),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
+            Text('Create Game', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 12),
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -622,12 +624,12 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   }
                 },
                 child: Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    color: colorScheme.primaryContainer,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.arrow_downward, size: 20),
+                  child: Icon(Icons.arrow_downward, size: 18, color: colorScheme.onPrimaryContainer),
                 ),
               ),
             ),
@@ -649,117 +651,217 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 if (group == null) {
                   return const SizedBox.shrink();
                 }
-                return Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              if (group.avatarUrl?.isNotEmpty == true)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: CircleAvatar(
-                                    radius: 16,
-                                    backgroundImage: NetworkImage(group.avatarUrl!),
-                                    onBackgroundImageError: (_, __) {},
-                                  ),
-                                )
-                              else
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Icon(
-                                    Icons.group,
-                                    size: 24,
-                                    color: Theme.of(context).colorScheme.primary,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primaryContainer.withOpacity(0.3),
+                        colorScheme.secondaryContainer.withOpacity(0.3),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: colorScheme.outline.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (group.avatarUrl?.isNotEmpty == true)
+                              Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: colorScheme.primary,
+                                    width: 2,
                                   ),
                                 ),
-                              Expanded(
-                                child: Text(
-                                  group.name,
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                child: CircleAvatar(
+                                  radius: 24,
+                                  backgroundImage: NetworkImage(group.avatarUrl!),
+                                  onBackgroundImageError: (_, __) {},
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.group,
+                                  size: 28,
+                                  color: colorScheme.onPrimaryContainer,
                                 ),
                               ),
-                            ],
-                          ),
-                          if (group.description != null && group.description!.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              group.description!,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey[600],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    group.name,
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (group.description != null && group.description!.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      group.description!,
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ],
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
             ),
-            
+
             // Game Name
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Game Name',
-                hintText: 'e.g., Friday Night Game',
-                border: OutlineInputBorder(),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'Game Name',
+                  hintText: 'e.g., Friday Night Game',
+                  prefixIcon: Icon(Icons.casino, color: colorScheme.primary),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: colorScheme.surface,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Date and Time
             Row(
               children: [
                 Expanded(
-                  child: InkWell(
-                    onTap: () => _selectDate(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Date',
-                        border: OutlineInputBorder(),
-                      ),
-                      child: Text(
-                        _selectedDate != null
-                            ? _dateFormatter.format(_selectedDate!)
-                            : 'Select date',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.primary.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => _selectDate(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Date',
+                          prefixIcon: Icon(Icons.calendar_today, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
+                        ),
+                        child: Text(
+                          _selectedDate != null
+                              ? _dateFormatter.format(_selectedDate!)
+                              : 'Select date',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: InkWell(
-                    onTap: () => _selectTime(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Time',
-                        border: OutlineInputBorder(),
-                      ),
-                      child: Text(
-                        _selectedTime != null
-                            ? _selectedTime!.format(context)
-                            : 'Select time',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.primary.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => _selectTime(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Time',
+                          prefixIcon: Icon(Icons.access_time, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
+                        ),
+                        child: Text(
+                          _selectedTime != null
+                              ? _selectedTime!.format(context)
+                              : 'Select time',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Recurring Games Section
-            Card(
-              elevation: 2,
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.tertiaryContainer.withOpacity(0.3),
+                    colorScheme.primaryContainer.withOpacity(0.3),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -767,11 +869,25 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   children: [
                     Row(
                       children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.repeat,
+                            size: 20,
+                            color: colorScheme.onTertiaryContainer,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             'Recurring Games',
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -788,15 +904,20 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       Text(
                         'Create multiple games on a schedule',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: _recurringFrequency,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Frequency',
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.event_repeat, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
                         ),
                         items: const [
                           DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
@@ -839,10 +960,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       TextFormField(
                         controller: _occurrencesController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Number of Games',
                           hintText: '4',
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.format_list_numbered, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
                           helperText: 'How many games to create',
                         ),
                         onChanged: (value) {
@@ -855,15 +981,34 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Players Section (moved before location)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Select Players',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.people,
+                        size: 20,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Select Players',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
                 membersAsync.when(
                   loading: () => const SizedBox.shrink(),
@@ -910,36 +1055,93 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                     final initialsText = (member.profile?.firstName ?? 'U')[0].toUpperCase() +
                         (member.profile?.lastName ?? '')[0].toUpperCase();
 
-                    return CheckboxListTile(
-                      value: isSelected,
-                      onChanged: (checked) {
-                        setState(() {
-                          if (checked ?? false) {
-                            _selectedPlayerIds.add(member.userId);
-                          } else {
-                            _selectedPlayerIds.remove(member.userId);
-                          }
-                        });
-                      },
-                      secondary: CircleAvatar(
-                        child: _buildMemberAvatar(
-                          member.profile?.avatarUrl,
-                          initialsText,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? colorScheme.primaryContainer.withOpacity(0.3) : colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? colorScheme.primary : colorScheme.outline.withOpacity(0.3),
+                          width: isSelected ? 2 : 1,
                         ),
                       ),
-                      title: Text(displayName),
-                      subtitle: member.role != 'member'
-                          ? Text('${member.role} of group')
-                          : null,
-                      contentPadding: EdgeInsets.zero,
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (checked) {
+                          setState(() {
+                            if (checked ?? false) {
+                              _selectedPlayerIds.add(member.userId);
+                            } else {
+                              _selectedPlayerIds.remove(member.userId);
+                            }
+                          });
+                        },
+                        secondary: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? colorScheme.primary : colorScheme.outline,
+                              width: 2,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            backgroundColor: colorScheme.primaryContainer,
+                            child: _buildMemberAvatar(
+                              member.profile?.avatarUrl,
+                              initialsText,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          displayName,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        subtitle: member.role != 'member'
+                            ? Text(
+                                '${member.role} of group',
+                                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     );
                   }).toList(),
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Location Dropdown
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.location_on,
+                    size: 20,
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Location',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             locationsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Text('Error loading locations: $error'),
@@ -956,20 +1158,36 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            DropdownButtonFormField<String?>(
-                              // ignore: deprecated_member_use
-                              value: _selectedLocationId,
-                              decoration: InputDecoration(
-                                labelText: 'Location',
-                                hintText: 'Select a location',
-                                border: const OutlineInputBorder(),
-                                suffixIcon: locations.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: _showAddLocationDialog,
-                                      )
-                                    : null,
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withOpacity(0.1),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
+                              child: DropdownButtonFormField<String?>(
+                                // ignore: deprecated_member_use
+                                value: _selectedLocationId,
+                                decoration: InputDecoration(
+                                  labelText: 'Location',
+                                  hintText: 'Select a location',
+                                  prefixIcon: Icon(Icons.place, color: colorScheme.primary),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
+                                  suffixIcon: locations.isNotEmpty
+                                      ? IconButton(
+                                          icon: Icon(Icons.add_circle, color: colorScheme.primary),
+                                          onPressed: _showAddLocationDialog,
+                                        )
+                                      : null,
+                                ),
                               items: [
                                 const DropdownMenuItem(
                                   value: null,
@@ -985,18 +1203,25 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                                   );
                                 }),
                               ],
-                              onChanged: (value) {
-                                setState(() => _selectedLocationId = value);
-                              },
+                                onChanged: (value) {
+                                  setState(() => _selectedLocationId = value);
+                                },
+                              ),
                             ),
                             if (locations.isEmpty)
                               Padding(
-                                padding: const EdgeInsets.only(top: 8),
+                                padding: const EdgeInsets.only(top: 12),
                                 child: SizedBox(
                                   width: double.infinity,
-                                  child: ElevatedButton.icon(
+                                  child: FilledButton.icon(
                                     onPressed: _showAddLocationDialog,
-                                    icon: const Icon(Icons.add),
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.all(16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.add_location),
                                     label: const Text('Add Location'),
                                   ),
                                 ),
@@ -1009,9 +1234,9 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Currency, Buy-in, and Additional Buy-ins on one line
+            // Buy-in Settings
             groupAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Text('Error loading group: $error'),
@@ -1035,67 +1260,134 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   }
                 });
 
+                IconData getCurrencyIcon(String currency) {
+                  switch (currency) {
+                    case 'EUR':
+                      return Icons.euro;
+                    case 'GBP':
+                      return Icons.currency_pound;
+                    case 'JPY':
+                      return Icons.currency_yen;
+                    case 'INR':
+                      return Icons.currency_rupee;
+                    case 'USD':
+                    default:
+                      return Icons.attach_money;
+                  }
+                }
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Currency and Buy-in on one line
                     Row(
                       children: [
-                        // Currency
-                        Expanded(
-                          flex: 1,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _selectedCurrency,
-                            decoration: const InputDecoration(
-                              labelText: 'Currency',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
-                                .map((currency) => DropdownMenuItem(
-                                      value: currency,
-                                      child: Text('${Currencies.symbols[currency] ?? currency} ($currency)'),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _selectedCurrency = value);
-                              }
-                            },
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            getCurrencyIcon(group.defaultCurrency),
+                            size: 20,
+                            color: colorScheme.onTertiaryContainer,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Buy-in Settings',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${Currencies.symbols[group.defaultCurrency] ?? group.defaultCurrency}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Buy-in and Additional Buy-in on one line
+                    Row(
+                      children: [
                         // Buy-in Amount
                         Expanded(
                           flex: 1,
-                          child: TextFormField(
-                            controller: _buyinController,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(
-                              labelText: 'Buy-in',
-                              hintText: '100',
-                              border: OutlineInputBorder(),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.primary.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: TextFormField(
+                              controller: _buyinController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(decimal: true),
+                              decoration: InputDecoration(
+                                labelText: 'Buy-in Amount',
+                                hintText: '100',
+                                prefixIcon: Icon(Icons.paid, color: colorScheme.primary),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: colorScheme.surface,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Additional Buy-in Input - Now Editable
+                        // Additional Buy-in Input
                         Expanded(
                           flex: 1,
-                          child: TextFormField(
-                            controller: _additionalBuyinController,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(decimal: true),
-                            decoration: InputDecoration(
-                              labelText: 'Add Buy-in',
-                              hintText: '50',
-                              border: const OutlineInputBorder(),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.add),
-                                onPressed: _addAdditionalBuyin,
-                              ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.primary.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            onFieldSubmitted: (_) => _addAdditionalBuyin(),
+                            child: TextFormField(
+                              controller: _additionalBuyinController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(decimal: true),
+                              decoration: InputDecoration(
+                                labelText: 'Add Buy-in',
+                                hintText: '50',
+                                prefixIcon: Icon(Icons.add_card, color: colorScheme.primary),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: colorScheme.surface,
+                                suffixIcon: IconButton(
+                                  icon: Icon(Icons.add_circle, color: colorScheme.primary),
+                                  onPressed: _addAdditionalBuyin,
+                                ),
+                              ),
+                              onFieldSubmitted: (_) => _addAdditionalBuyin(),
+                            ),
                           ),
                         ),
                       ],
@@ -1104,19 +1396,58 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Create and Start Game Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: createGameState.isLoading ? null : _createGame,
-                child: createGameState.isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Create Game'),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.primary,
+                    colorScheme.primary.withOpacity(0.8),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: createGameState.isLoading ? null : _createGame,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: createGameState.isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.add_circle_outline, size: 24),
+                  label: Text(
+                    createGameState.isLoading ? 'Creating...' : 'Create Game',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

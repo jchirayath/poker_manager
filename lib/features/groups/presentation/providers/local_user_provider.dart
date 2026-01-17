@@ -21,6 +21,7 @@ class LocalUserController {
     required String groupId,
     required String firstName,
     required String lastName,
+    String? username,
     String? email,
     String? phoneNumber,
     String? streetAddress,
@@ -36,6 +37,7 @@ class LocalUserController {
       userId: userId,
       firstName: firstName,
       lastName: lastName,
+      username: username,
       email: email,
       phoneNumber: phoneNumber,
       streetAddress: streetAddress,
@@ -77,6 +79,7 @@ class LocalUserController {
     required String userId,
     String? firstName,
     String? lastName,
+    String? username,
     String? email,
     String? phoneNumber,
     String? streetAddress,
@@ -88,17 +91,17 @@ class LocalUserController {
   }) async {
     // Upload avatar first if provided
     if (avatarFile != null) {
-      debugPrint('🔵 Uploading avatar for local user $userId');
+      debugPrint('Uploading avatar for local user $userId');
       final avatarResult = await _profiles.uploadAvatar(userId, avatarFile);
       if (avatarResult is Success<String>) {
-        debugPrint('✅ Avatar uploaded: ${avatarResult.data}');
+        debugPrint('Avatar uploaded: ${avatarResult.data}');
       } else if (avatarResult is Failure<String>) {
-        debugPrint('🔴 Avatar upload failed: ${avatarResult.message}');
+        debugPrint('Avatar upload failed: ${avatarResult.message}');
       }
     }
 
     // Update profile with all other fields
-    debugPrint('🔵 Updating profile for local user $userId');
+    debugPrint('Updating profile for local user $userId');
     final updateResult = await _profiles.updateProfile(
       userId: userId,
       firstName: firstName,
@@ -109,7 +112,7 @@ class LocalUserController {
       stateProvince: stateProvince,
       postalCode: postalCode,
       country: country,
-      username: null,
+      username: username,
     );
 
     if (updateResult is Failure<ProfileModel>) {

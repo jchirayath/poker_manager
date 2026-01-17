@@ -169,6 +169,7 @@ class ProfileRepository {
     required String userId,
     required String firstName,
     required String lastName,
+    String? username,
     String? email,
     String? phoneNumber,
     String? streetAddress,
@@ -191,6 +192,7 @@ class ProfileRepository {
         'email': effectiveEmail,
       };
 
+      if (username != null && username.isNotEmpty) payload['username'] = username;
       if (phoneNumber != null && phoneNumber.isNotEmpty) payload['phone_number'] = phoneNumber;
       if (streetAddress != null && streetAddress.isNotEmpty) {
         payload['street_address'] = streetAddress;

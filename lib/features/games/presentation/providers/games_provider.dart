@@ -231,6 +231,53 @@ final groupGamesProvider = FutureProvider.family<List<GameModel>, String>(
   },
 );
 
+/// Provider that returns games for a specific group in GameWithGroup format.
+/// This allows the GamesEntryScreen to display group-specific games using the same UI.
+final groupGamesWithGroupInfoProvider = FutureProvider.family<List<GameWithGroup>, String>(
+  (ref, groupId) async {
+    final gamesRepo = ref.watch(gamesRepositoryProvider);
+    final groupsRepo = ref.watch(groupsRepositoryProvider);
+
+    // Get the group details
+    final groupResult = await groupsRepo.getGroup(groupId);
+    final group = groupResult is Success<GroupModel> ? groupResult.data : null;
+
+    if (group == null) {
+      ErrorLoggerService.logWarning(
+        'Group not found: $groupId',
+        context: 'groupGamesWithGroupInfoProvider',
+      );
+      return [];
+    }
+
+    // Get games for the group
+    final gamesResult = await gamesRepo.getGroupGames(groupId);
+
+    return gamesResult.maybeWhen(
+      success: (games) {
+        final gamesWithGroup = games.map((game) => GameWithGroup(
+          game: game,
+          groupId: group.id,
+          groupName: group.name,
+          groupAvatarUrl: group.avatarUrl,
+        )).toList();
+
+        // Sort by date (newest first)
+        gamesWithGroup.sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
+
+        return gamesWithGroup;
+      },
+      orElse: () {
+        ErrorLoggerService.logWarning(
+          'Failed to load games for group: $groupId',
+          context: 'groupGamesWithGroupInfoProvider',
+        );
+        return <GameWithGroup>[];
+      },
+    );
+  },
+);
+
 /// Provides default/available games for a group (scheduled games that can be started)
 final defaultGroupGamesProvider =
     FutureProvider.family<List<GameModel>, String>(
