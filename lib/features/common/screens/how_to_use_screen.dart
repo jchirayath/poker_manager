@@ -122,6 +122,11 @@ class HowToUseScreen extends StatelessWidget {
                         description:
                             'Games progress through stages: Scheduled → In Progress → Completed. Cancelled games are kept for reference but don\'t affect stats.',
                       ),
+                      _HelpItem(
+                        title: 'Seating Charts',
+                        description:
+                            'Arrange players at the table using seating charts. This helps organize the game and ensures everyone has a designated spot.',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),

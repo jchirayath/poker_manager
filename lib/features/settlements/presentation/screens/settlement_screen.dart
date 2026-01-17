@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/services/error_logger_service.dart';
@@ -283,20 +282,9 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                   return const Center(child: Text('User not authenticated'));
                 }
 
-                print('\n💰💰💰 SETTLEMENT SCREEN DEBUG 💰💰💰');
-                print('Current User ID: $currentUserId');
-                print('Total settlements loaded: ${settlements.length}');
-                
                 final userSettlements = settlements.where((s) =>
                   s.payerId == currentUserId || s.payeeId == currentUserId
                 ).toList();
-                
-                print('Settlements involving current user: ${userSettlements.length}');
-                for (final s in userSettlements) {
-                  final isPayer = s.payerId == currentUserId;
-                  print('  - ${isPayer ? "PAY" : "RECEIVE"} \$${s.amount} ${isPayer ? "to" : "from"} ${isPayer ? s.payeeName : s.payerName}');
-                }
-                print('💰💰💰 END DEBUG 💰💰💰\n');
 
                 if (userSettlements.isEmpty) {
                   return const Center(
@@ -426,7 +414,7 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
                                   ),
                                 ],
                               );
-                            }).toList(),
+                            }),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -456,18 +444,4 @@ class _SettlementScreenState extends ConsumerState<SettlementScreen> {
     );
   }
 
-  Future<void> _markComplete(String settlementId) async {
-    final repository = ref.read(settlementsRepositoryProvider);
-    final result = await repository.markSettlementComplete(settlementId);
-
-    if (!mounted) return;
-
-    if (result is Success) {
-      // No need to invalidate - realtime provider will automatically update!
-      // ref.invalidate(gameSettlementsProvider(widget.gameId));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment marked as complete')),
-      );
-    }
-  }
 }

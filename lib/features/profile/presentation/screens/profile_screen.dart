@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/widgets/change_password_dialog.dart';
 import '../../../common/widgets/app_drawer.dart';
 import '../providers/profile_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
@@ -40,13 +41,11 @@ class ProfileScreen extends ConsumerWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             errorBuilder: (context, error, stackTrace) {
-              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
-              debugPrint('Error: $error');
               return Container(
                 width: 100,
                 height: 100,
                 alignment: Alignment.center,
-                child: Text('?', style: TextStyle(fontSize: 40)),
+                child: const Text('?', style: TextStyle(fontSize: 40)),
               );
             },
           ),
@@ -306,6 +305,29 @@ class ProfileScreen extends ConsumerWidget {
                       ],
 
                       const SizedBox(height: 24),
+
+                      // Change Password Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => const ChangePasswordDialog(),
+                            );
+                          },
+                          icon: Icon(Icons.lock_reset, color: colorScheme.primary),
+                          label: Text(
+                            'Change Password',
+                            style: TextStyle(color: colorScheme.primary),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
 
                       // Sign Out Button
                       SizedBox(

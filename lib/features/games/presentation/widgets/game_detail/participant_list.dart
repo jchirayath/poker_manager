@@ -8,7 +8,6 @@ import '../../../data/models/game_model.dart';
 import '../../../data/models/game_participant_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../providers/games_provider.dart';
-import '../../providers/games_provider.dart' show gameWithParticipantsProvider;
 import '../../../../groups/presentation/providers/groups_provider.dart';
 
 class ParticipantList extends ConsumerWidget {
@@ -46,7 +45,7 @@ class ParticipantList extends ConsumerWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: participants.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final participant = participants[index];
               return _ParticipantCard(
@@ -138,7 +137,7 @@ class _ParticipantCard extends ConsumerWidget {
                                         width: 1,
                                       ),
                                     ),
-                                    child: Row(
+                                    child: const Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
@@ -146,7 +145,7 @@ class _ParticipantCard extends ConsumerWidget {
                                           size: 14,
                                           color: Colors.white,
                                         ),
-                                        const SizedBox(width: 4),
+                                        SizedBox(width: 4),
                                         Text(
                                           'ADMIN',
                                           style: TextStyle(
@@ -164,7 +163,7 @@ class _ParticipantCard extends ConsumerWidget {
                               return const SizedBox.shrink();
                             },
                             loading: () => const SizedBox.shrink(),
-                            error: (_, __) => const SizedBox.shrink(),
+                            error: (error, stackTrace) => const SizedBox.shrink(),
                           ),
                         ],
                       ),
@@ -185,7 +184,7 @@ class _ParticipantCard extends ConsumerWidget {
             // Transactions
             transactionsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Text('Error loading transactions'),
+              error: (error, stackTrace) => const Text('Error loading transactions'),
               data: (transactions) {
                 final buyins = transactions.where((t) => t.type == 'buyin').toList();
                 final cashouts = transactions.where((t) => t.type == 'cashout').toList();
@@ -280,7 +279,7 @@ class _ParticipantCard extends ConsumerWidget {
         width: 40,
         height: 40,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Text(
+        errorBuilder: (context, error, stackTrace) => Text(
           initials,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
@@ -376,12 +375,12 @@ class _TransactionTable extends ConsumerWidget {
                     topRight: Radius.circular(7),
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const SizedBox(width: 32, child: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
-                    const Expanded(child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold))),
-                    const Text('Amount', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 32),
+                    SizedBox(width: 32, child: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold))),
+                    Text('Amount', style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(width: 32),
                   ],
                 ),
               ),

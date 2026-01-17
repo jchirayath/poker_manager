@@ -1,5 +1,4 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import '../../../../core/utils/avatar_utils.dart';
 import '../../../profile/data/models/profile_model.dart';
 
 part 'game_participant_model.freezed.dart';

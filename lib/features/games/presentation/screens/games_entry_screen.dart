@@ -629,7 +629,7 @@ class _LocationDisplay extends ConsumerWidget {
           ),
         ],
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
       data: (locations) {
         try {
           final foundLocation = locations.firstWhere(

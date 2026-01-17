@@ -179,7 +179,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error picking image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick image: $e')),
@@ -308,10 +307,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 .storage
                 .from('group-avatars')
                 .getPublicUrl(fileName);
-
-            debugPrint('✅ Avatar uploaded: $avatarUrl');
           } catch (storageError) {
-            debugPrint('⚠️ Storage upload failed: $storageError');
             // Fall back to random DiceBear avatar
             avatarUrl = generateGroupAvatarUrl(_randomAvatarSeed);
             if (mounted) {
@@ -361,7 +357,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 'invited_name': invite['name'],
               });
             } catch (e) {
-              debugPrint('⚠️ Failed to send invite to ${invite['email']}: $e');
+              // Silently continue if invite fails
             }
           }
           // Removed group debug info
@@ -381,7 +377,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 phoneNumber: localUser['phone'],
               );
             } catch (e) {
-              debugPrint('⚠️ Failed to create local user ${localUser['firstName']}: $e');
+              // Silently continue if local user creation fails
             }
           }
           // Removed group debug info
@@ -404,7 +400,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           SnackBar(content: Text('Failed to create group: ${createResult.message}')),
         );
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         setState(() => _isLoading = false);
@@ -440,7 +436,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           _isSearching = false;
         });
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         setState(() => _isSearching = false);
@@ -809,7 +805,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Error loading contacts: $e');
       if (mounted) {
         setState(() => _isLoadingContacts = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1149,7 +1144,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: _privacy,
+                          initialValue: _privacy,
                           decoration: InputDecoration(
                             labelText: 'Privacy',
                             prefixIcon: Icon(
@@ -1177,7 +1172,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       title: 'Game Settings',
                       children: [
                         DropdownButtonFormField<String>(
-                          value: _currency,
+                          initialValue: _currency,
                           decoration: InputDecoration(
                             labelText: 'Currency',
                             prefixIcon: Icon(Icons.attach_money, color: colorScheme.primary),

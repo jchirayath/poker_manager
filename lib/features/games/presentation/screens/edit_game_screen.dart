@@ -32,49 +32,17 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   String? _selectedLocationId;
   String? _groupId;
   bool _isInitialized = false;
+  bool _allowMemberTransactions = false;
+  final Set<String> _selectedPlayerIds = {};
 
   // Cache date formatter to avoid recreation
   static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
-
-  Widget _buildMemberAvatar(String? url, String initials) {
-    if ((url ?? '').isEmpty) {
-      return Text(initials);
-    }
-
-    if (url!.toLowerCase().contains('svg')) {
-      return SvgPicture.network(
-          fixDiceBearUrl(url)!,
-          width: 40,
-          height: 40,
-          placeholderBuilder: (_) => const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          errorBuilder: (context, error, stackTrace) {
-            debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
-            debugPrint('Error: $error');
-            return Text('?');
-          },
-        );
-    }
-
-    return Image.network(
-      url,
-      width: 40,
-      height: 40,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        return Text(initials);
-      },
-    );
-  }
 
   String? _gameLocationString;
 
   void _initializeFromGame(GameModel game) {
     if (_isInitialized) return;
-    
+
     _nameController.text = game.name;
     _buyinController.text = game.buyinAmount.toString();
     _selectedDate = game.gameDate;
@@ -85,6 +53,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     _gameLocationString = game.location; // Store for later matching
     _selectedLocationId = null; // Will be set when locations load
     _groupId = game.groupId;
+    _allowMemberTransactions = game.allowMemberTransactions;
     _isInitialized = true;
   }
 
@@ -124,6 +93,98 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     if (picked != null) {
       setState(() => _selectedTime = picked);
     }
+  }
+
+  Widget _buildGroupAvatar(String? url, String fallback, double radius) {
+    final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
+
+    if ((url ?? '').isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+      );
+    }
+
+    // Check if URL contains 'svg' - handles DiceBear URLs
+    if (url!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: ClipOval(
+          child: SvgPicture.network(
+            fixDiceBearUrl(url)!,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholderBuilder: (_) => SizedBox(
+              width: radius,
+              height: radius,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              return Text(
+                letter,
+                style: TextStyle(
+                  fontSize: radius * 0.8,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: NetworkImage(url),
+      onBackgroundImageError: (exception, stackTrace) {
+        debugPrint('Image load error: $exception');
+      },
+      child: const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildMemberAvatar(String? url, String initials) {
+    if ((url ?? '').isEmpty) {
+      return Text(initials);
+    }
+
+    if (url!.toLowerCase().contains('svg')) {
+      return SvgPicture.network(
+        fixDiceBearUrl(url)!,
+        width: 40,
+        height: 40,
+        placeholderBuilder: (_) => const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        errorBuilder: (context, error, stackTrace) {
+          debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+          return const Text('?');
+        },
+      );
+    }
+
+    return Image.network(
+      url,
+      width: 40,
+      height: 40,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Text(initials);
+      },
+    );
   }
 
   void _showAddLocationDialog() {
@@ -180,7 +241,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: country,
+                      initialValue: country,
                       decoration: const InputDecoration(
                         labelText: 'Country',
                         border: OutlineInputBorder(),
@@ -299,71 +360,6 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     });
   }
 
-  Future<void> _updateGame() async {
-    if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter game name')),
-      );
-      return;
-    }
-
-    if (_buyinController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter buy-in amount')),
-      );
-      return;
-    }
-
-    if (_selectedDate == null || _selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select date and time')),
-      );
-      return;
-    }
-
-    final buyin = double.tryParse(_buyinController.text);
-
-    if (buyin == null || buyin <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid buy-in amount')),
-      );
-      return;
-    }
-
-    final dateTime = DateTime(
-      _selectedDate!.year,
-      _selectedDate!.month,
-      _selectedDate!.day,
-      _selectedTime!.hour,
-      _selectedTime!.minute,
-    );
-
-    try {
-      await ref.read(updateGameProvider.notifier).updateGame(
-            gameId: widget.gameId,
-            name: _nameController.text,
-            gameDate: dateTime,
-            location: _selectedLocationId,
-            currency: _selectedCurrency,
-            buyinAmount: buyin,
-            additionalBuyinValues: _additionalBuyin != null ? [_additionalBuyin!] : [],
-          );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Game updated successfully!')),
-        );
-        Navigator.pop(context, true); // Return true to indicate successful update
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating game: $e')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final gameAsync = ref.watch(gameDetailProvider(widget.gameId));
@@ -379,11 +375,6 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(child: Text('Error: $error')),
         data: (game) {
-          if (game == null) {
-            return const Center(child: Text('Game not found'));
-          }
-
-          // Initialize form fields from game data
           _initializeFromGame(game);
 
           final groupAsync = ref.watch(groupProvider(game.groupId));
@@ -427,34 +418,26 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           children: [
                             Row(
                               children: [
-                                if (group.avatarUrl?.isNotEmpty == true)
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: colorScheme.primary,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: CircleAvatar(
-                                      radius: 24,
-                                      backgroundImage: NetworkImage(group.avatarUrl!),
-                                      onBackgroundImageError: (_, __) {},
-                                    ),
-                                  )
-                                else
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primaryContainer,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.group,
-                                      size: 28,
-                                      color: colorScheme.onPrimaryContainer,
+                                Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: colorScheme.primary,
+                                      width: 2,
                                     ),
                                   ),
+                                  child: (group.avatarUrl?.isNotEmpty == true)
+                                      ? _buildGroupAvatar(group.avatarUrl, group.name, 24)
+                                      : CircleAvatar(
+                                          radius: 24,
+                                          backgroundColor: colorScheme.primaryContainer,
+                                          child: Icon(
+                                            Icons.group,
+                                            size: 28,
+                                            color: colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
@@ -656,7 +639,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                             ],
                           ),
                           child: DropdownButtonFormField<String?>(
-                            value: _selectedLocationId,
+                            initialValue: _selectedLocationId,
                             decoration: InputDecoration(
                               labelText: 'Location',
                               hintText: 'Select a location',
@@ -747,7 +730,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '${Currencies.symbols[_selectedCurrency] ?? _selectedCurrency}',
+                        Currencies.symbols[_selectedCurrency] ?? _selectedCurrency,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -826,6 +809,67 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // Allow Member Transactions Option
+                Card(
+                  elevation: 0,
+                  color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: colorScheme.outline.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.swap_horiz,
+                            size: 20,
+                            color: colorScheme.onTertiaryContainer,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Allow Member Transactions',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Let all members add buy-ins and cash-outs',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _allowMemberTransactions,
+                          onChanged: (value) {
+                            setState(() => _allowMemberTransactions = value);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
                 // Update Game Button
                 Container(
                   decoration: BoxDecoration(
@@ -894,10 +938,8 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
           (loc) => loc.id == _selectedLocationId,
           orElse: () => null as LocationModel,
         );
-        if (location != null) {
-          locationString = location.fullAddress;
-        }
-      }
+        locationString = location.fullAddress;
+            }
     });
     
     // Call the original update game with the location string
@@ -948,6 +990,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
             currency: _selectedCurrency,
             buyinAmount: buyin,
             additionalBuyinValues: _additionalBuyin != null ? [_additionalBuyin!] : [],
+            allowMemberTransactions: _allowMemberTransactions,
           );
 
       if (mounted) {

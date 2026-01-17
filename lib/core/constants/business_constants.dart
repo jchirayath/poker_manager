@@ -1,11 +1,11 @@
-/// Business Constants - Single source of truth for all app constants
-/// 
-/// This file centralizes all business rules, magic strings, and validation
-/// constants used throughout the application. This ensures consistency and
-/// makes maintenance easier.
-/// 
-/// Date: January 5, 2026
-/// Purpose: Address Security Risk 2.4 - Hardcoded Magic Strings
+// Business Constants - Single source of truth for all app constants
+//
+// This file centralizes all business rules, magic strings, and validation
+// constants used throughout the application. This ensures consistency and
+// makes maintenance easier.
+//
+// Date: January 5, 2026
+// Purpose: Address Security Risk 2.4 - Hardcoded Magic Strings
 
 // =============================================================================
 // FINANCIAL CONSTANTS

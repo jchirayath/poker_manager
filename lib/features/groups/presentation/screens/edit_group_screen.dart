@@ -147,7 +147,6 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error picking image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick image: $e')),
@@ -205,7 +204,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
             width: 100,
             height: 100,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildFallbackAvatar(letter, colorScheme),
+            errorBuilder: (context, error, stackTrace) => _buildFallbackAvatar(letter, colorScheme),
           ),
         );
       }
@@ -325,7 +324,6 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         );
       }
     } catch (e) {
-      debugPrint('🔴 Error deleting group: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -336,9 +334,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
   }
 
   Future<void> _updateGroup() async {
-    debugPrint('🔵 Updating group');
     if (!_formKey.currentState!.validate()) {
-      debugPrint('🔴 Form validation failed');
       return;
     }
 
@@ -362,10 +358,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
               .storage
               .from('group-avatars')
               .getPublicUrl(fileName);
-          
-          debugPrint('✅ Avatar uploaded: $newAvatarUrl');
         } catch (storageError) {
-          debugPrint('⚠️ Storage upload failed: $storageError');
           // Continue without updating avatar if storage fails
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -391,7 +384,6 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
       }
 
       final controller = ref.read(groupControllerProvider);
-      debugPrint('🔵 Calling updateGroup for ${widget.groupId}');
       final ok = await controller.updateGroup(
         groupId: widget.groupId,
         name: _nameController.text.trim(),
@@ -407,20 +399,16 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
       setState(() => _isLoading = false);
 
       if (ok) {
-        debugPrint('✅ Group updated successfully');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Group updated successfully')),
         );
         context.pop();
       } else {
-        debugPrint('🔴 Group update failed');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to update group')),
         );
       }
-    } catch (e, stack) {
-      debugPrint('🔴 Error updating group: $e');
-      debugPrintStack(stackTrace: stack);
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -629,7 +617,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: _privacy,
+                          initialValue: _privacy,
                           decoration: InputDecoration(
                             labelText: 'Privacy',
                             prefixIcon: Icon(
@@ -657,7 +645,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                       title: 'Game Settings',
                       children: [
                         DropdownButtonFormField<String>(
-                          value: _currency,
+                          initialValue: _currency,
                           decoration: InputDecoration(
                             labelText: 'Currency',
                             prefixIcon: Icon(Icons.attach_money, color: colorScheme.primary),

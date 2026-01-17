@@ -381,8 +381,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           const SnackBar(content: Text('Failed to update profile')),
         );
       }
-    } catch (e, stack) {
-      debugPrintStack(stackTrace: stack);
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -761,7 +760,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
-                                    value: _selectedCountry,
+                                    initialValue: _selectedCountry,
                                     decoration: InputDecoration(
                                       labelText: 'Country',
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

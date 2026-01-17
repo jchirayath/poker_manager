@@ -5,7 +5,6 @@ import '../../../settlements/presentation/screens/settlement_screen.dart';
 import '../../data/models/game_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../providers/games_provider.dart';
-import '../providers/games_pagination_provider.dart';
 import '../widgets/game_detail/game_header_card.dart';
 import '../widgets/game_detail/game_totals_card.dart';
 import '../widgets/game_detail/player_quick_access.dart';
@@ -68,9 +67,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
             });
           }
         },
-        failure: (_, __) {},
+        failure: (message, errorData) {},
       );
-    } catch (_) {}
+    } catch (e) {}
   }
 
   Future<void> _recordSettlement(
@@ -118,7 +117,6 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     ref.invalidate(activeGamesProvider);
     ref.invalidate(pastGamesProvider);
     ref.invalidate(groupGamesProvider(groupId));
-    ref.invalidate(paginatedGamesProvider);
     // Invalidate settlement providers to clear cached settlement data
     ref.invalidate(gameSettlementsProvider(gameId));
     ref.invalidate(gameSettlementsRealtimeProvider(gameId));
@@ -397,7 +395,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     // Group info
                     groupAsync.when(
                       loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
                       data: (group) {
                         if (group == null) return const SizedBox.shrink();
                         return GameHeaderCard(
@@ -418,7 +416,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                           child: Center(child: CircularProgressIndicator()),
                         ),
                       ),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
                       data: (transactions) => GameTotalsCard(
                         game: game,
                         transactions: transactions,
@@ -439,7 +437,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     if (game.status == 'completed') ...[
                       transactionsAsync.when(
                         loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
+                        error: (error, stackTrace) => const SizedBox.shrink(),
                         data: (transactions) => SettlementSummary(
                           game: game,
                           participants: participants,
@@ -453,7 +451,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
                       transactionsAsync.when(
                         loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
+                        error: (error, stackTrace) => const SizedBox.shrink(),
                         data: (transactions) => PlayerRankings(
                           game: game,
                           participants: participants,
@@ -475,7 +473,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     // Action buttons
                     transactionsAsync.when(
                       loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
                       data: (transactions) => GameActionButtons(
                         game: game,
                         transactions: transactions,

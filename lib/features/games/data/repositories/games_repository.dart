@@ -199,6 +199,7 @@ class GamesRepository {
     required double buyinAmount,
     required List<double> additionalBuyinValues,
     List<String>? participantUserIds,
+    bool allowMemberTransactions = false,
   }) async {
     try {
       final response = await _client
@@ -214,6 +215,7 @@ class GamesRepository {
             'buyin_amount': buyinAmount,
             'additional_buyin_values': additionalBuyinValues,
             'status': 'scheduled',
+            'allow_member_transactions': allowMemberTransactions,
           })
           .select()
           .single();
@@ -315,7 +317,7 @@ class GamesRepository {
 
       // Validate IDs
       if (gameId.isEmpty || userId.isEmpty) {
-        return Failure('Game ID and User ID are required');
+        return const Failure('Game ID and User ID are required');
       }
 
       // Verify game exists and is in valid state for transactions
@@ -389,7 +391,7 @@ class GamesRepository {
 
       // Validate final totals don't exceed reasonable bounds
       if (currentBuyin > 100000 || currentCashout > 100000) {
-        return Failure('Participant total exceeds reasonable bounds');
+        return const Failure('Participant total exceeds reasonable bounds');
       }
 
       // Update participant totals - RLS policy now allows group members to update
@@ -673,21 +675,28 @@ class GamesRepository {
     required String currency,
     required double buyinAmount,
     required List<double> additionalBuyinValues,
+    bool? allowMemberTransactions,
   }) async {
     try {
       debugPrint('🔄 Updating game: $gameId');
-      
+
+      final updateData = {
+        'name': name,
+        'game_date': gameDate.toIso8601String(),
+        'location': location,
+        'currency': currency,
+        'buyin_amount': buyinAmount,
+        'additional_buyin_values': additionalBuyinValues,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (allowMemberTransactions != null) {
+        updateData['allow_member_transactions'] = allowMemberTransactions;
+      }
+
       final response = await _client
           .from('games')
-          .update({
-            'name': name,
-            'game_date': gameDate.toIso8601String(),
-            'location': location,
-            'currency': currency,
-            'buyin_amount': buyinAmount,
-            'additional_buyin_values': additionalBuyinValues,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
+          .update(updateData)
           .eq('id', gameId)
           .select()
           .single();
@@ -718,7 +727,7 @@ class GamesRepository {
 
       debugPrint('✅ Delete response: $response');
 
-      if (response == null || (response is List && response.isEmpty)) {
+      if ((response.isEmpty)) {
         debugPrint('⚠️ No rows were deleted - game might not exist');
       }
 
@@ -996,7 +1005,7 @@ class GamesRepository {
 
       debugPrint('✅ Loaded ${response.length} settlements');
       return Success(List<Map<String, dynamic>>.from(response));
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('⚠️  Could not load settlements: $e');
       // Don't treat this as a critical error - just return empty list
       return const Success([]);

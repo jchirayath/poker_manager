@@ -450,11 +450,7 @@ void main() {
           print('  ✓ Seeded admin user $adminFirst $adminLast ($adminEmail)');
         }
 
-        if (adminUserId == null) {
-          throw Exception('Admin user id missing');
-        }
-
-        userIds.add(adminUserId!);
+        userIds.add(adminUserId);
         userNames.add('$adminFirst $adminLast');
 
         // Wait for trigger to complete
@@ -588,7 +584,7 @@ void main() {
       final group1Members = [userIds[0], userIds[1], userIds[2], userIds[3], userIds[4]]; // Avery + 4
       final group2Members = [userIds[0], userIds[5], userIds[6], userIds[7], userIds[8]]; // Avery + 4
       final group3Members = [userIds[5], userIds[2], userIds[9]]; // Finley + 2
-      final adminId = adminUserId!;
+      final adminId = adminUserId;
 
       final memberRows = <Map<String, dynamic>>[
         // Group 1 (Avery creator)

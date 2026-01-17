@@ -423,7 +423,7 @@ class _MyGamesTab extends ConsumerWidget {
                 width: 24,
                 height: 24,
                 alignment: Alignment.center,
-                child: Text('?', style: TextStyle(fontSize: 16)),
+                child: const Text('?', style: TextStyle(fontSize: 16)),
               );
             },
           ),

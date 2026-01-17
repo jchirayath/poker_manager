@@ -138,7 +138,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           );
         }
       }
-    } catch (e, stack) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -175,7 +175,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           );
         }
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -235,9 +235,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   ),
                   _detailRow(
                     'Joined',
-                    member.joinedAt != null
-                        ? _formatDate(member.joinedAt)
-                        : 'Unknown',
+                    _formatDate(member.joinedAt),
                   ),
                 ] else ...[
                   const Text('No profile information available'),
@@ -407,9 +405,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             errorBuilder: (context, error, stackTrace) {
-              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
-              debugPrint('Error: $error');
-              return Text('?');
+              return const Text('?');
             },
         ),
       );
@@ -496,7 +492,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             ConstrainedBox(
-                              constraints: BoxConstraints(
+                              constraints: const BoxConstraints(
                                 minWidth: 32,
                                 minHeight: 32,
                                 maxWidth: 40,
@@ -576,7 +572,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                     label: 'Members',
                                     colorScheme: colorScheme,
                                   ),
-                                  error: (_, __) => _buildStatColumn(
+                                  error: (error, stackTrace) => _buildStatColumn(
                                     icon: Icons.people,
                                     value: '-',
                                     label: 'Members',
@@ -633,7 +629,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                                     label: 'Games',
                                     colorScheme: colorScheme,
                                   ),
-                                  error: (_, __) => _buildStatColumn(
+                                  error: (error, stackTrace) => _buildStatColumn(
                                     icon: Icons.casino,
                                     value: '-',
                                     label: 'Games',
@@ -667,24 +663,29 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
+                    Expanded(
                     child: _buildTabChip(
                       icon: Icons.casino,
                       label: 'Games',
                       count: ref.watch(groupGamesProvider(widget.groupId)).whenOrNull(data: (g) => g.length),
-                      isSelected: false,
-                      colorScheme: colorScheme,
+                      isSelected: true,
+                      colorScheme: colorScheme.copyWith(
+                      primary: Colors.deepOrange.shade400,
+                      primaryContainer: Colors.orange.shade100,
+                      onPrimary: Colors.deepOrange.shade900,
+                      onPrimaryContainer: Colors.deepOrange.shade800,
+                      ),
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => GamesEntryScreen(groupId: widget.groupId),
-                          ),
-                        );
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                        builder: (context) => GamesEntryScreen(groupId: widget.groupId),
+                        ),
+                      );
                       },
                     ),
+                    ),
+                  ],
                   ),
-                ],
-              ),
               const SizedBox(height: 16),
 
               // Members Section Header

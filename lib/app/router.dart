@@ -5,6 +5,7 @@ import '../core/constants/route_constants.dart';
 import '../core/services/supabase_service.dart';
 import '../features/auth/presentation/screens/sign_in_screen.dart';
 import '../features/auth/presentation/screens/sign_up_screen.dart';
+import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../features/groups/presentation/screens/groups_list_screen.dart';
@@ -27,7 +28,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuthenticated = SupabaseService.isAuthenticated;
       
       // Allow auth routes
-      if (location == RouteConstants.signIn || location == RouteConstants.signUp) {
+      if (location == RouteConstants.signIn ||
+          location == RouteConstants.signUp ||
+          location == RouteConstants.forgotPassword) {
         // If authenticated, redirect to home
         if (isAuthenticated) {
           return RouteConstants.home;
@@ -51,6 +54,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteConstants.signUp,
         builder: (context, state) => const SignUpScreen(),
+      ),
+      GoRoute(
+        path: RouteConstants.forgotPassword,
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
       GoRoute(
         path: RouteConstants.home,

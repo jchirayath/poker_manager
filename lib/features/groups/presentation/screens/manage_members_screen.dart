@@ -3,7 +3,6 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../providers/groups_provider.dart';
 import '../providers/local_user_provider.dart';
@@ -196,7 +195,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
       width: size,
       height: size,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => Container(
+      errorBuilder: (context, error, stackTrace) => Container(
         width: size,
         height: size,
         color: colorScheme.primaryContainer,
@@ -269,7 +268,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
           );
         }
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -300,7 +299,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
           );
         }
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -320,7 +319,6 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         role: role,
       );
       if (ok) {
-        debugPrint('✅ Role updated to $role');
         await _refreshMembers();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -328,16 +326,13 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
           );
         }
       } else {
-        debugPrint('🔴 Failed to update role');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to update role')),
           );
         }
       }
-    } catch (e, stack) {
-      debugPrint('🔴 Error updating role: $e');
-      debugPrintStack(stackTrace: stack);
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -398,7 +393,6 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Error loading contacts: $e');
       if (mounted) {
         setState(() => _isLoadingContacts = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -778,12 +772,6 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
     }
   }
 
-  void _removeInvite(String email) {
-    setState(() {
-      _pendingInvites.removeWhere((inv) => inv['email'] == email);
-    });
-  }
-
   Future<void> _savePendingLocalUsers() async {
     if (_pendingLocalUsers.isEmpty) return;
 
@@ -800,7 +788,7 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
           phoneNumber: localUser['phone'],
         );
       } catch (e) {
-        debugPrint('Failed to create local user ${localUser['firstName']}: $e');
+        // Silently continue if local user creation fails
       }
     }
 

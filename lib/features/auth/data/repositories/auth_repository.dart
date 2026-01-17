@@ -173,6 +173,17 @@ class AuthRepository {
     }
   }
 
+  Future<Result<void>> updatePassword(String newPassword) async {
+    try {
+      await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      return const Success(null);
+    } catch (e) {
+      return Failure('Password update failed: ${e.toString()}');
+    }
+  }
+
   Future<UserModel> _getProfile(String userId) async {
     final response = await _client
         .from('profiles')

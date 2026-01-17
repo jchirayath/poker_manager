@@ -1,4 +1,4 @@
-import '../../../locations/data/models/location_model.dart';
+import '../../locations/data/models/location_model.dart';
 
 /// Resolves the location display text from a stored location value
 /// 

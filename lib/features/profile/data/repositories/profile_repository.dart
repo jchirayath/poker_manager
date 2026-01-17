@@ -49,14 +49,14 @@ class ProfileRepository {
           if (created == null) {
             return Failure('Failed to auto-create profile for user: $userId');
           }
-          final createdMap = created as Map<String, dynamic>;
+          final createdMap = created;
           _fixProfileAvatarUrl(createdMap);
           return Success(ProfileModel.fromJson(createdMap));
         } on PostgrestException catch (e) {
           return Failure('Profile missing and insert blocked: ${e.message}');
         }
       }
-      final responseMap = response as Map<String, dynamic>;
+      final responseMap = response;
       _fixProfileAvatarUrl(responseMap);
       return Success(ProfileModel.fromJson(responseMap));
     } catch (e) {
@@ -131,7 +131,7 @@ class ProfileRepository {
         if (response == null) {
           return Failure('Profile not found for user: $userId');
         }
-        final responseMap = response as Map<String, dynamic>;
+        final responseMap = response;
         _fixProfileAvatarUrl(responseMap);
         return Success(ProfileModel.fromJson(responseMap));
       }
@@ -155,7 +155,7 @@ class ProfileRepository {
         return Failure('Profile update affected 0 rows for user: $userId');
       }
       debugPrint('✅ Profile update successful');
-      final responseMap = response as Map<String, dynamic>;
+      final responseMap = response;
       _fixProfileAvatarUrl(responseMap);
       return Success(ProfileModel.fromJson(responseMap));
     } catch (e, stack) {
@@ -213,7 +213,7 @@ class ProfileRepository {
         return const Failure('Failed to create local profile');
       }
 
-      final responseMap = response as Map<String, dynamic>;
+      final responseMap = response;
       _fixProfileAvatarUrl(responseMap);
       return Success(ProfileModel.fromJson(responseMap));
     } catch (e) {

@@ -712,7 +712,7 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: DropdownButtonFormField<String>(
-                                  value: _selectedCountry,
+                                  initialValue: _selectedCountry,
                                   isExpanded: true,
                                   decoration: InputDecoration(
                                     labelText: 'Country',

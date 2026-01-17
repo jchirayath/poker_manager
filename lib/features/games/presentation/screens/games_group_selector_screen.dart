@@ -42,19 +42,6 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
     );
   }
 
-  Future<String> _getCreatorName(String createdBy) async {
-    try {
-      final repository = ProfileRepository();
-      final result = await repository.getProfile(createdBy);
-      if (result is Success<dynamic>) {
-        return (result as Success).data.fullName;
-      }
-    } catch (e) {
-      // Fallback to ID if profile fetch fails
-    }
-    return createdBy;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupsAsync = ref.watch(groupsListProvider);

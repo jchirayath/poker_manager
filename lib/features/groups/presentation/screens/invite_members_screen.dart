@@ -228,7 +228,7 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                     )
                   : const SizedBox.shrink(),
               loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (error, stackTrace) => const SizedBox.shrink(),
             ),
 
             // Invite Form

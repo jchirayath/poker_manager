@@ -43,6 +43,9 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
   // Seating chart option
   bool _generateSeatingChart = false;
 
+  // Allow member transactions option
+  bool _allowMemberTransactions = false;
+
   // Cache date formatter to avoid recreation
   static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
 
@@ -65,7 +68,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
           errorBuilder: (context, error, stackTrace) {
             debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
             debugPrint('Error: $error');
-            return Text('?');
+            return const Text('?');
           },
         );
     }
@@ -78,6 +81,65 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       errorBuilder: (context, error, stackTrace) {
         return Text(initials);
       },
+    );
+  }
+
+  Widget _buildGroupAvatar(String? url, String fallback, double radius) {
+    final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
+
+    if ((url ?? '').isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+      );
+    }
+
+    // Check if URL contains 'svg' - handles DiceBear URLs
+    if (url!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: ClipOval(
+          child: SvgPicture.network(
+            fixDiceBearUrl(url)!,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholderBuilder: (_) => SizedBox(
+              width: radius,
+              height: radius,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              return Text(
+                letter,
+                style: TextStyle(
+                  fontSize: radius * 0.8,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: NetworkImage(url),
+      onBackgroundImageError: (exception, stackTrace) {
+        debugPrint('Image load error: $exception');
+      },
+      child: const SizedBox.shrink(),
     );
   }
 
@@ -122,6 +184,46 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     if (picked != null) {
       setState(() => _selectedTime = picked);
     }
+  }
+
+  void _generateWittyName() {
+    final wittyNames = [
+      'All-In Alley',
+      'Royal Flush Rush',
+      'Chip Chase Championship',
+      'Bluff Boulevard',
+      'Poker Face Palace',
+      'Full House Fiesta',
+      'The Flop Shop',
+      'River Rats Rendezvous',
+      'Ace High Hangout',
+      'Showdown Showtime',
+      'The Turn Table',
+      'Pocket Rockets Party',
+      'Straight Street Shuffle',
+      'Betting Bonanza',
+      'High Stakes Hideout',
+      'The Big Blind Bash',
+      'Dealer\'s Choice Duel',
+      'Card Shark Soiree',
+      'Nuts & Bolts Night',
+      'The Check-Raise Challenge',
+      'Pot Odds Playground',
+      'Felt Fury Friday',
+      'Texas Hold\'em Throwdown',
+      'Ante Up Arena',
+      'The Cooler Club',
+      'Bad Beat Boulevard',
+      'Rainbow Flop Fest',
+      'Set Mining Society',
+      'The Grind House',
+      'Fish Fry Friday',
+    ];
+
+    final random = DateTime.now().millisecondsSinceEpoch % wittyNames.length;
+    setState(() {
+      _nameController.text = wittyNames[random];
+    });
   }
 
   void _showAddLocationDialog() {
@@ -257,10 +359,6 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         _additionalBuyinController.clear();
       });
     }
-  }
-
-  void _removeAdditionalBuyin(int index) {
-    setState(() => _additionalBuyins.removeAt(index));
   }
 
   /// Calculate the next game date based on the recurring frequency
@@ -433,11 +531,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               buyinAmount: buyin,
               additionalBuyinValues: _additionalBuyins,
               participantUserIds: _selectedPlayerIds.toList(),
+              allowMemberTransactions: _allowMemberTransactions,
             );
             if (i < gamesToCreate - 1) {
               await Future.delayed(const Duration(milliseconds: 200));
             }
           }
+          // Invalidate games providers after all recurring games are created
+          ref.invalidate(groupGamesProvider(widget.groupId));
+          ref.invalidate(activeGamesProvider);
         });
         return;
       }
@@ -458,7 +560,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         // Generate game name with sequence number if recurring
         String gameName = _nameController.text;
         if (_isRecurring && gamesToCreate > 1) {
-          gameName = '$gameName ${i + 1}/${gamesToCreate}';
+          gameName = '$gameName ${i + 1}/$gamesToCreate';
         }
 
         // Create the game
@@ -472,6 +574,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               buyinAmount: buyin,
               additionalBuyinValues: _additionalBuyins,
               participantUserIds: _selectedPlayerIds.toList(),
+              allowMemberTransactions: _allowMemberTransactions,
             );
 
         // Generate seating chart if option is enabled
@@ -510,10 +613,14 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       }
 
       if (mounted) {
-        final successMessage = _isRecurring 
+        // Invalidate games providers to refresh the games list
+        ref.invalidate(groupGamesProvider(widget.groupId));
+        ref.invalidate(activeGamesProvider);
+
+        final successMessage = _isRecurring
             ? '$gamesToCreate games created successfully!'
             : 'Game created successfully!';
-        
+
         // Show a dialog to confirm starting the game (only for single games)
         if (!_isRecurring) {
           showDialog(
@@ -614,61 +721,62 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.arrow_upward, size: 18, color: colorScheme.onPrimaryContainer),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text('Create Game', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 12),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      _scrollController.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.arrow_downward, size: 18, color: colorScheme.onPrimaryContainer),
-                ),
-              ),
-            ),
-          ],
-        ),
+        title: Text('Create Game', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        // title: Row(
+        //   mainAxisAlignment: MainAxisAlignment.center,
+        //   mainAxisSize: MainAxisSize.min,
+        //   children: [
+        //     Material(
+        //       color: Colors.transparent,
+        //       child: InkWell(
+        //         borderRadius: BorderRadius.circular(20),
+        //         onTap: () {
+        //           if (_scrollController.hasClients) {
+        //             _scrollController.animateTo(
+        //               0,
+        //               duration: const Duration(milliseconds: 500),
+        //               curve: Curves.easeInOut,
+        //             );
+        //           }
+        //         },
+        //         child: Container(
+        //           padding: const EdgeInsets.all(8),
+        //           decoration: BoxDecoration(
+        //             color: colorScheme.primaryContainer,
+        //             shape: BoxShape.circle,
+        //           ),
+        //           child: Icon(Icons.arrow_upward, size: 18, color: colorScheme.onPrimaryContainer),
+        //         ),
+        //       ),
+        //     ),
+        //     const SizedBox(width: 12),
+        //     Text('Create Game', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        //     const SizedBox(width: 12),
+        //     Material(
+        //       color: Colors.transparent,
+        //       child: InkWell(
+        //         borderRadius: BorderRadius.circular(20),
+        //         onTap: () {
+        //           if (_scrollController.hasClients) {
+        //             _scrollController.animateTo(
+        //               _scrollController.position.maxScrollExtent,
+        //               duration: const Duration(milliseconds: 500),
+        //               curve: Curves.easeInOut,
+        //             );
+        //           }
+        //         },
+        //         child: Container(
+        //           padding: const EdgeInsets.all(8),
+        //           decoration: BoxDecoration(
+        //             color: colorScheme.primaryContainer,
+        //             shape: BoxShape.circle,
+        //           ),
+        //           child: Icon(Icons.arrow_downward, size: 18, color: colorScheme.onPrimaryContainer),
+        //         ),
+        //       ),
+        //     ),
+        //   ],
+        // ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -709,34 +817,26 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       children: [
                         Row(
                           children: [
-                            if (group.avatarUrl?.isNotEmpty == true)
-                              Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: colorScheme.primary,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: CircleAvatar(
-                                  radius: 24,
-                                  backgroundImage: NetworkImage(group.avatarUrl!),
-                                  onBackgroundImageError: (_, __) {},
-                                ),
-                              )
-                            else
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primaryContainer,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.group,
-                                  size: 28,
-                                  color: colorScheme.onPrimaryContainer,
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.primary,
+                                  width: 2,
                                 ),
                               ),
+                              child: (group.avatarUrl?.isNotEmpty == true)
+                                  ? _buildGroupAvatar(group.avatarUrl, group.name, 24)
+                                  : CircleAvatar(
+                                      radius: 24,
+                                      backgroundColor: colorScheme.primaryContainer,
+                                      child: Icon(
+                                        Icons.group,
+                                        size: 28,
+                                        color: colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -791,6 +891,11 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   labelText: 'Game Name',
                   hintText: 'e.g., Friday Night Game',
                   prefixIcon: Icon(Icons.casino, color: colorScheme.primary),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.auto_awesome, color: colorScheme.primary),
+                    tooltip: 'Generate witty name',
+                    onPressed: _generateWittyName,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -943,7 +1048,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
-                        value: _recurringFrequency,
+                        initialValue: _recurringFrequency,
                         decoration: InputDecoration(
                           labelText: 'Frequency',
                           prefixIcon: Icon(Icons.event_repeat, color: colorScheme.primary),
@@ -1076,6 +1181,67 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Allow Member Transactions Option
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.swap_horiz,
+                        size: 20,
+                        color: colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Allow Member Transactions',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Let all members add buy-ins and cash-outs',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _allowMemberTransactions,
+                      onChanged: (value) {
+                        setState(() => _allowMemberTransactions = value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
 
             // Players Section (moved before location)
@@ -1107,10 +1273,10 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 ),
                 membersAsync.when(
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
                   data: (members) {
                     if (members.isEmpty) return const SizedBox.shrink();
-                    
+
                     final allSelected = members.every((m) => _selectedPlayerIds.contains(m.userId));
                     
                     return TextButton.icon(
@@ -1403,7 +1569,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            '${Currencies.symbols[group.defaultCurrency] ?? group.defaultCurrency}',
+                            Currencies.symbols[group.defaultCurrency] ?? group.defaultCurrency,
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,

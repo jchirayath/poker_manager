@@ -85,7 +85,7 @@ final activeGamesProvider = FutureProvider<List<GameWithGroup>>((ref) async {
             context: 'activeGamesProvider',
           );
         },
-        failure: (message, _) {
+        failure: (message, errorData) {
           // Log and continue; do not block other groups
           ErrorLoggerService.logWarning(
             'Failed to load games for group ${group.id}: $message',
@@ -480,11 +480,12 @@ class CreateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     required double buyinAmount,
     required List<double> additionalBuyinValues,
     List<String>? participantUserIds,
+    bool allowMemberTransactions = false,
   }) async {
     state = const AsyncValue.loading();
     try {
       final repository = ref.watch(gamesRepositoryProvider);
-      
+
       ErrorLoggerService.logDebug(
         'Creating game: $name',
         context: 'CreateGameNotifier',
@@ -501,6 +502,7 @@ class CreateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
         buyinAmount: buyinAmount,
         additionalBuyinValues: additionalBuyinValues,
         participantUserIds: participantUserIds,
+        allowMemberTransactions: allowMemberTransactions,
       );
 
       state = result.when(
@@ -668,11 +670,12 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     required String currency,
     required double buyinAmount,
     required List<double> additionalBuyinValues,
+    bool? allowMemberTransactions,
   }) async {
     state = const AsyncValue.loading();
     try {
       final repository = ref.watch(gamesRepositoryProvider);
-      
+
       ErrorLoggerService.logDebug(
         'Updating game: $gameId',
         context: 'UpdateGameNotifier',
@@ -686,6 +689,7 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
         currency: currency,
         buyinAmount: buyinAmount,
         additionalBuyinValues: additionalBuyinValues,
+        allowMemberTransactions: allowMemberTransactions,
       );
 
       state = result.when(
@@ -774,7 +778,7 @@ class GamesNotifier extends Notifier<void> {
             context: 'GamesNotifier.updateGameSettings',
           );
         },
-        failure: (_, __) {},
+        failure: (message, errorData) {},
       );
 
       return result;

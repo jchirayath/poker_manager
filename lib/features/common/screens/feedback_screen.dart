@@ -126,9 +126,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           children: [
             const Text('Please send your feedback to:'),
             const SizedBox(height: 8),
-            SelectableText(
+            const SelectableText(
               AppConstants.developerEmail,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.blue,
               ),

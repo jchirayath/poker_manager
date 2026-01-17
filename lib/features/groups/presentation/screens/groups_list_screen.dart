@@ -56,9 +56,7 @@ class _GroupsListScreenState extends ConsumerState<GroupsListScreen>
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               errorBuilder: (context, error, stackTrace) {
-                debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
-                debugPrint('Error: $error');
-                return Text('?');
+                return const Text('?');
               },
             ),
       );
@@ -138,7 +136,7 @@ class _GroupsListScreenState extends ConsumerState<GroupsListScreen>
         );
       },
       loading: () => const SizedBox(width: 40),
-      error: (_, __) => IconButton(
+      error: (error, stackTrace) => IconButton(
         icon: const Icon(Icons.account_circle),
         onPressed: () => context.push(RouteConstants.profile),
       ),

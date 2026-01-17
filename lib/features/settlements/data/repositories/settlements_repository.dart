@@ -4,8 +4,6 @@ import '../../../../core/services/error_logger_service.dart';
 import '../../../../core/constants/business_constants.dart';
 import '../../../../shared/models/result.dart';
 import '../models/settlement_model.dart';
-import '../../../games/data/models/game_participant_model.dart';
-import '../../../games/data/repositories/games_repository.dart';
 
 class SettlementsRepository {
   final SupabaseClient _client = SupabaseService.instance;
@@ -228,7 +226,7 @@ class SettlementsRepository {
         );
 
         // Step 3: Parse results into SettlementModels
-        final settlements = (result as List)
+        final settlements = (result)
             .map((json) => SettlementModel.fromJson(json))
             .toList();
 

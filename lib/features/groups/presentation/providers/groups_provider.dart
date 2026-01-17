@@ -106,7 +106,7 @@ class GroupController {
       _ref.invalidate(groupsListProvider);
       return (true, null);
     }
-    final errorMessage = result is Failure ? (result as Failure).message : 'Unknown error';
+    final errorMessage = result is Failure ? (result).message : 'Unknown error';
     return (false, errorMessage);
   }
 
