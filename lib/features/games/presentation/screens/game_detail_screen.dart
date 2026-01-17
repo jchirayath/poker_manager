@@ -13,6 +13,7 @@ import '../widgets/game_detail/settlement_summary.dart';
 import '../widgets/game_detail/player_rankings.dart';
 import '../widgets/game_detail/participant_list.dart';
 import '../widgets/game_detail/game_action_buttons.dart';
+import '../widgets/seating_chart_dialog.dart';
 import 'edit_game_screen.dart';
 
 class GameDetailScreen extends ConsumerStatefulWidget {
@@ -346,6 +347,22 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
             title: const Text('Game Details'),
             centerTitle: true,
             actions: [
+              // Seating Chart Button
+              IconButton(
+                icon: Icon(
+                  game.hasSeatingChart ? Icons.event_seat : Icons.event_seat_outlined,
+                ),
+                tooltip: 'Seating Chart',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => SeatingChartDialog(
+                      game: game,
+                      participants: participants,
+                    ),
+                  );
+                },
+              ),
               if (game.status == 'scheduled' || game.status == 'in_progress')
                 IconButton(
                   icon: const Icon(Icons.edit),

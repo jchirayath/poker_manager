@@ -346,6 +346,30 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
     }
   }
 
+  Future<void> _toggleMemberRole(String userId, bool isAdmin, bool isCreator) async {
+    final newRole = isAdmin ? 'admin' : 'member';
+
+    // Check if trying to demote an admin
+    if (!isAdmin && !isCreator) {
+      // Verify there will be at least one admin remaining
+      final members = _membersCache.where((m) => m.role == 'admin').toList();
+      if (members.length <= 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cannot demote the last admin. At least one admin must remain.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    await _updateRole(userId, newRole);
+  }
+
   // Contact loading methods
   Future<void> _loadContacts() async {
     if (_deviceContacts.isNotEmpty) return;
@@ -1347,29 +1371,42 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
                                           : (m.role == 'admin' ? colorScheme.primary : colorScheme.onSurfaceVariant),
                                     ),
                                   ),
-                                  trailing: _isAdmin && !m.isCreator
+                                  trailing: _isAdmin
                                       ? Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            if (isLocal)
-                                              IconButton(
-                                                icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
-                                                tooltip: 'Edit local user',
-                                                onPressed: () async {
-                                                  final result = await context.push(
-                                                    '/groups/${widget.groupId}/local-user/${m.userId}',
-                                                    extra: p,
-                                                  );
-                                                  if (result == true) {
-                                                    await _refreshMembers();
-                                                  }
-                                                },
+                                            if (m.isCreator)
+                                              // Creator can toggle their own admin status
+                                              Switch(
+                                                value: m.role == 'admin',
+                                                onChanged: (value) => _toggleMemberRole(m.userId, value, m.isCreator),
+                                              )
+                                            else ...[
+                                              // Non-creator members can have role toggled and be removed
+                                              Switch(
+                                                value: m.role == 'admin',
+                                                onChanged: (value) => _toggleMemberRole(m.userId, value, m.isCreator),
                                               ),
-                                            IconButton(
-                                              icon: Icon(Icons.delete_outline, color: colorScheme.error),
-                                              onPressed: () => _removeUser(m.userId),
-                                              tooltip: 'Remove Member',
-                                            ),
+                                              if (isLocal)
+                                                IconButton(
+                                                  icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+                                                  tooltip: 'Edit local user',
+                                                  onPressed: () async {
+                                                    final result = await context.push(
+                                                      '/groups/${widget.groupId}/local-user/${m.userId}',
+                                                      extra: p,
+                                                    );
+                                                    if (result == true) {
+                                                      await _refreshMembers();
+                                                    }
+                                                  },
+                                                ),
+                                              IconButton(
+                                                icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                                                onPressed: () => _removeUser(m.userId),
+                                                tooltip: 'Remove Member',
+                                              ),
+                                            ],
                                           ],
                                         )
                                       : null,

@@ -461,6 +461,10 @@ final updateGameProvider =
   return UpdateGameNotifier();
 });
 
+final gamesProvider = NotifierProvider<GamesNotifier, void>(() {
+  return GamesNotifier();
+});
+
 class CreateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
   @override
   build() => const AsyncValue.data(null);
@@ -719,5 +723,90 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
 
   void reset() {
     state = const AsyncValue.data(null);
+  }
+}
+
+class GamesNotifier extends Notifier<void> {
+  @override
+  void build() {}
+
+  Future<Result<GameModel>> getGame(String gameId) async {
+    try {
+      final repository = ref.read(gamesRepositoryProvider);
+      return await repository.getGame(gameId);
+    } catch (e, st) {
+      ErrorLoggerService.logError(
+        e,
+        st,
+        context: 'GamesNotifier.getGame',
+        additionalData: {'gameId': gameId},
+      );
+      return Failure('Failed to load game: ${e.toString()}');
+    }
+  }
+
+  Future<Result<GameModel>> updateGameSettings({
+    required String gameId,
+    required bool allowMemberTransactions,
+  }) async {
+    try {
+      ErrorLoggerService.logDebug(
+        'Updating game settings: $gameId, allowMemberTransactions: $allowMemberTransactions',
+        context: 'GamesNotifier.updateGameSettings',
+      );
+
+      final repository = ref.read(gamesRepositoryProvider);
+      final result = await repository.updateGameSettings(
+        gameId: gameId,
+        allowMemberTransactions: allowMemberTransactions,
+      );
+
+      result.when(
+        success: (game) {
+          // Invalidate related providers to refresh the UI
+          ref.invalidate(gameDetailProvider(gameId));
+          ref.invalidate(gameWithParticipantsProvider(gameId));
+          ref.invalidate(groupGamesProvider(game.groupId));
+          ref.invalidate(groupGamesWithGroupInfoProvider(game.groupId));
+
+          ErrorLoggerService.logInfo(
+            'Game settings updated successfully',
+            context: 'GamesNotifier.updateGameSettings',
+          );
+        },
+        failure: (_, __) {},
+      );
+
+      return result;
+    } catch (e, st) {
+      ErrorLoggerService.logError(
+        e,
+        st,
+        context: 'GamesNotifier.updateGameSettings',
+        additionalData: {'gameId': gameId},
+      );
+      return Failure('Failed to update game settings: ${e.toString()}');
+    }
+  }
+
+  Future<Result<bool>> canUserCreateTransaction({
+    required String gameId,
+    required String userId,
+  }) async {
+    try {
+      final repository = ref.read(gamesRepositoryProvider);
+      return await repository.canUserCreateTransaction(
+        gameId: gameId,
+        userId: userId,
+      );
+    } catch (e, st) {
+      ErrorLoggerService.logError(
+        e,
+        st,
+        context: 'GamesNotifier.canUserCreateTransaction',
+        additionalData: {'gameId': gameId, 'userId': userId},
+      );
+      return Failure('Failed to check permission: ${e.toString()}');
+    }
   }
 }

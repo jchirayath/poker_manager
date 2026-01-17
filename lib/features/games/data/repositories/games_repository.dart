@@ -48,6 +48,8 @@ class GamesRepository {
       'status': (raw['status'] ?? 'scheduled').toString(),
       'recurrencePattern': raw['recurrence_pattern'] as Map<String, dynamic>?,
       'parentGameId': raw['parent_game_id']?.toString(),
+      'allowMemberTransactions': raw['allow_member_transactions'] ?? false,
+      'seatingChart': raw['seating_chart'] as Map<String, dynamic>?,
       'createdAt': createdAtRaw?.toString(),
       'updatedAt': updatedAtRaw?.toString(),
     });
@@ -705,7 +707,7 @@ class GamesRepository {
   Future<Result<void>> deleteGame(String gameId) async {
     try {
       debugPrint('🗑️ Attempting to delete game: $gameId');
-      
+
       // Delete all related records (transactions, participants, settlements)
       // Supabase handles cascading deletes via foreign key constraints
       final response = await _client
@@ -715,7 +717,7 @@ class GamesRepository {
           .select();
 
       debugPrint('✅ Delete response: $response');
-      
+
       if (response == null || (response is List && response.isEmpty)) {
         debugPrint('⚠️ No rows were deleted - game might not exist');
       }
@@ -725,6 +727,35 @@ class GamesRepository {
       debugPrint('❌ Error deleting game: $e');
       debugPrint('Stack trace: $stackTrace');
       return Failure('Failed to delete game: ${e.toString()}');
+    }
+  }
+
+  Future<Result<GameModel>> updateSeatingChart({
+    required String gameId,
+    required Map<String, dynamic> seatingChart,
+  }) async {
+    try {
+      debugPrint('🪑 Updating seating chart for game: $gameId');
+
+      final response = await _client
+          .from('games')
+          .update({
+            'seating_chart': seatingChart,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', gameId)
+          .select()
+          .single();
+
+      debugPrint('✅ Seating chart updated successfully');
+      return Success(
+        _mapGameRowToModel(Map<String, dynamic>.from(response as Map)),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating seating chart: $e');
+      debugPrint('Stack trace: $stackTrace');
+      ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.updateSeatingChart');
+      return Failure('Failed to update seating chart: ${e.toString()}');
     }
   }
 
@@ -750,6 +781,7 @@ class GamesRepository {
         status,
         recurrence_pattern,
         parent_game_id,
+        allow_member_transactions,
         created_at,
         updated_at,
         game_participants (
@@ -828,6 +860,7 @@ class GamesRepository {
         status,
         recurrence_pattern,
         parent_game_id,
+        allow_member_transactions,
         created_at,
         updated_at,
         game_participants (
@@ -1003,6 +1036,106 @@ class GamesRepository {
         },
       );
       return Failure('Failed to delete settlement: ${e.toString()}');
+    }
+  }
+
+  /// Update game settings (allow_member_transactions)
+  Future<Result<GameModel>> updateGameSettings({
+    required String gameId,
+    required bool allowMemberTransactions,
+  }) async {
+    try {
+      debugPrint('⚙️ Updating game settings: $gameId');
+
+      final response = await _client
+          .from('games')
+          .update({
+            'allow_member_transactions': allowMemberTransactions,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', gameId)
+          .select()
+          .single();
+
+      debugPrint('✅ Game settings updated successfully');
+      return Success(
+        _mapGameRowToModel(Map<String, dynamic>.from(response as Map)),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating game settings: $e');
+      debugPrint('Stack trace: $stackTrace');
+      ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.updateGameSettings');
+      return Failure('Failed to update game settings: ${e.toString()}');
+    }
+  }
+
+  /// Check if user can create transactions for this game
+  Future<Result<bool>> canUserCreateTransaction({
+    required String gameId,
+    required String userId,
+  }) async {
+    try {
+      debugPrint('🔐 Checking transaction permission for user: $userId on game: $gameId');
+
+      // Get the game details
+      final gameResponse = await _client
+          .from('games')
+          .select('group_id, allow_member_transactions')
+          .eq('id', gameId)
+          .maybeSingle();
+
+      if (gameResponse == null) {
+        return const Failure('Game not found');
+      }
+
+      final groupId = gameResponse['group_id'] as String;
+      final allowMemberTransactions = gameResponse['allow_member_transactions'] as bool? ?? false;
+
+      // Check if user is admin or creator
+      final memberResponse = await _client
+          .from('group_members')
+          .select('role')
+          .eq('group_id', groupId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (memberResponse == null) {
+        // Check if user is the group creator
+        final groupResponse = await _client
+            .from('groups')
+            .select('created_by')
+            .eq('id', groupId)
+            .single();
+
+        if (groupResponse['created_by'] == userId) {
+          debugPrint('✅ User is group creator - permission granted');
+          return const Success(true);
+        }
+
+        debugPrint('❌ User is not a member of this group');
+        return const Success(false);
+      }
+
+      final userRole = memberResponse['role'] as String;
+
+      // Admins always have permission
+      if (userRole == 'admin') {
+        debugPrint('✅ User is admin - permission granted');
+        return const Success(true);
+      }
+
+      // Regular members only have permission if game allows it
+      if (allowMemberTransactions) {
+        debugPrint('✅ User is member and game allows member transactions - permission granted');
+        return const Success(true);
+      }
+
+      debugPrint('❌ User is member but game does not allow member transactions');
+      return const Success(false);
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error checking transaction permission: $e');
+      ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.canUserCreateTransaction');
+      return Failure('Failed to check permission: ${e.toString()}');
     }
   }
 }

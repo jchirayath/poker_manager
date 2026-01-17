@@ -9,6 +9,8 @@ import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../locations/presentation/providers/locations_provider.dart';
 import '../../../locations/data/models/location_model.dart';
+import '../../domain/services/seating_chart_service.dart';
+import '../../data/models/game_participant_model.dart';
 
 class CreateGameScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -37,6 +39,9 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
   bool _isRecurring = false;
   String _recurringFrequency = 'weekly'; // weekly, biweekly, monthly, bimonthly, yearly
   int _occurrences = 4;
+
+  // Seating chart option
+  bool _generateSeatingChart = false;
 
   // Cache date formatter to avoid recreation
   static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
@@ -468,7 +473,36 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               additionalBuyinValues: _additionalBuyins,
               participantUserIds: _selectedPlayerIds.toList(),
             );
-        
+
+        // Generate seating chart if option is enabled
+        if (_generateSeatingChart) {
+          final createdGameState = ref.read(createGameProvider);
+          createdGameState.whenData((game) async {
+            if (game != null) {
+              // Create mock participants list for seating chart generation
+              final participants = _selectedPlayerIds.map((userId) {
+                return GameParticipantModel(
+                  id: '',
+                  gameId: game.id,
+                  userId: userId,
+                  rsvpStatus: 'going',
+                  totalBuyin: 0,
+                  totalCashout: 0,
+                  netResult: 0,
+                );
+              }).toList();
+
+              final seatingChart = SeatingChartService.generateSeatingChart(participants);
+              if (seatingChart.isNotEmpty) {
+                await ref.read(gamesRepositoryProvider).updateSeatingChart(
+                  gameId: game.id,
+                  seatingChart: seatingChart,
+                );
+              }
+            }
+          });
+        }
+
         // Small delay between creations to avoid overwhelming the database
         if (i < gamesToCreate - 1) {
           await Future.delayed(const Duration(milliseconds: 200));
@@ -977,6 +1011,67 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                         },
                       ),
                     ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Seating Chart Option
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.event_seat,
+                        size: 20,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Generate Seating Chart',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Randomly assign seats to players',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _generateSeatingChart,
+                      onChanged: (value) {
+                        setState(() => _generateSeatingChart = value);
+                      },
+                    ),
                   ],
                 ),
               ),

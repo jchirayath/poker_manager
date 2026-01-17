@@ -9,6 +9,7 @@ import '../../../data/models/game_participant_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../providers/games_provider.dart';
 import '../../providers/games_provider.dart' show gameWithParticipantsProvider;
+import '../../../../groups/presentation/providers/groups_provider.dart';
 
 class ParticipantList extends ConsumerWidget {
   final GameModel game;
@@ -87,6 +88,9 @@ class _ParticipantCard extends ConsumerWidget {
       ),
     );
 
+    // Fetch group members to check if participant is admin
+    final groupMembersAsync = ref.watch(groupMembersProvider(game.groupId));
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -106,11 +110,63 @@ class _ParticipantCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            name,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          // Show admin badge if participant is admin
+                          groupMembersAsync.when(
+                            data: (members) {
+                              final member = members.firstWhere(
+                                (m) => m.userId == participant.userId,
+                                orElse: () => members.first,
+                              );
+                              if (member.userId == participant.userId && member.role == 'admin') {
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[700],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.red[900]!,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.verified_user,
+                                          size: 14,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'ADMIN',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, __) => const SizedBox.shrink(),
+                          ),
+                        ],
                       ),
                       if (profile?.email != null)
                         Text(
@@ -427,11 +483,11 @@ class _ActionButtons extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
+          child: FilledButton.icon(
             onPressed: () => _showBuyinDialog(context, ref, currency),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
-              side: BorderSide(color: theme.colorScheme.primary),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.add),
             label: const Text('Buy-in'),
@@ -442,8 +498,8 @@ class _ActionButtons extends ConsumerWidget {
           child: FilledButton.icon(
             onPressed: () => _showCashoutDialog(context, ref, currency),
             style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.tertiary,
-              foregroundColor: theme.colorScheme.onTertiary,
+              backgroundColor: Colors.orange[600],
+              foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.attach_money),
             label: const Text('Cash-out'),

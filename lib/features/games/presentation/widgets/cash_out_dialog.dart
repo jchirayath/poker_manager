@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../presentation/providers/games_provider.dart';
 import '../../presentation/providers/games_provider.dart'
-  show UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
+  show gamesProvider, gamesRepositoryProvider, UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
+import '../../../../shared/models/result.dart';
+import '../../../auth/presentation/providers/auth_provider.dart' show authStateProvider;
+import '../../../../core/constants/currencies.dart';
 
 class CashOutDialog extends ConsumerStatefulWidget {
   final String gameId;
@@ -57,6 +59,46 @@ class _CashOutDialogState extends ConsumerState<CashOutDialog> {
     setState(() => _isLoading = true);
 
     try {
+      // Check permission first
+      final currentUser = ref.read(authStateProvider).value;
+      if (currentUser == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must be logged in to add transactions')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final permissionResult = await ref.read(gamesProvider.notifier).canUserCreateTransaction(
+        gameId: widget.gameId,
+        userId: currentUser.id,
+      );
+
+      if (permissionResult is Failure<bool>) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking permission: ${permissionResult.message}')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final canCreate = (permissionResult as Success<bool>).data;
+      if (!canCreate) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only admins can create transactions for this game'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
       final repository = ref.read(gamesRepositoryProvider);
       final result = await repository.addTransaction(
         gameId: widget.gameId,

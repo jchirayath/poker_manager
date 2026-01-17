@@ -21,6 +21,8 @@ abstract class GameModel with _$GameModel {
     required String status,
     Map<String, dynamic>? recurrencePattern,
     String? parentGameId,
+    @Default(false) bool allowMemberTransactions,
+    Map<String, dynamic>? seatingChart,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) = _GameModel;
@@ -133,8 +135,11 @@ abstract class GameModel with _$GameModel {
 
   /// Get formatted game date for display
   String get formattedGameDate {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${months[gameDate.month - 1]} ${gameDate.day}, ${gameDate.year}';
   }
+
+  /// Check if game has a seating chart
+  bool get hasSeatingChart => seatingChart != null && seatingChart!.isNotEmpty;
 }
