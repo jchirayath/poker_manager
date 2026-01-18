@@ -600,6 +600,31 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       return;
     }
 
+    // Show confirmation dialog BEFORE creating the game
+    final shouldCreate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create Game?'),
+        content: Text(
+          'Create "${_nameController.text}" with ${_selectedPlayerIds.length} player${_selectedPlayerIds.length > 1 ? 's' : ''}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldCreate != true) {
+      return; // User cancelled
+    }
+
     final dateTime = DateTime(
       _selectedDate!.year,
       _selectedDate!.month,
@@ -747,38 +772,45 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
 
         // Show a dialog to confirm starting the game (only for single games)
         if (!_isRecurring) {
-          showDialog(
+          final shouldStart = await showDialog<bool>(
             context: context,
+            barrierDismissible: false,
             builder: (context) => AlertDialog(
               title: const Text('Game Created'),
-              content: const Text('Start the game now? All selected players are assumed to have paid their buy-in.'),
+              content: const Text('Start the game now? All selected players will be marked as having paid their buy-in.'),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Close Create Game screen
-                  },
-                  child: const Text('Create Game'),
+                  onPressed: () => Navigator.pop(context, null), // null = just close and go back
+                  child: const Text('Done'),
                 ),
                 ElevatedButton(
-                  onPressed: () async {
-                    Navigator.pop(context); // Close dialog
-                    await _startGame(
-                      groupId: widget.groupId,
-                      gameName: _nameController.text,
-                      playerIds: _selectedPlayerIds.toList(),
-                      buyinAmount: buyin,
-                      currency: _selectedCurrency,
-                    );
-                  },
-                  child: const Text('Create and Start Game'),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Start Game'),
                 ),
               ],
             ),
           );
+
+          if (mounted) {
+            if (shouldStart == true) {
+              // User chose to start the game
+              await _startGame(
+                groupId: widget.groupId,
+                gameName: _nameController.text,
+                playerIds: _selectedPlayerIds.toList(),
+                buyinAmount: buyin,
+                currency: _selectedCurrency,
+              );
+              // Navigate to Active games tab (index 0)
+              Navigator.pop(context, {'navigateToTab': 0});
+            } else {
+              // User chose "Done" - navigate to Scheduled games tab (index 1)
+              Navigator.pop(context, {'navigateToTab': 1});
+            }
+          }
         } else {
-          // For recurring games, just go back (no snackbar)
-          Navigator.pop(context);
+          // For recurring games, navigate to Scheduled games tab
+          Navigator.pop(context, {'navigateToTab': 1});
         }
       }
     } catch (e) {

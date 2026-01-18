@@ -10,8 +10,9 @@
 //   CLEAR_DUMMY_DATA=true INSERT_DATA=false flutter test test/setup_dummy_data_test.dart
 //
 //   # Insert dummy data only (without clearing first):
-//        NSERT_DATA=true flutter test test/setup_dummy_data_test.dart
-     / . /   # Clear all data AND insert dummy data (default):
+//   INSERT_DATA=true flutter test test/setup_dummy_data_test.dart
+//
+//   # Clear all data AND insert dummy data (default):
 //   flutter test test/setup_dummy_data_test.dart
 //
 //   # Or explicitly:
@@ -365,11 +366,6 @@ void main() {
                 'first_name': firstName,
                 'last_name': lastName,
                 'avatar_url': avatarUrl,
-                'street_address': street,
-                'city': city,
-                'state_province': state,
-                'postal_code': postal,
-                'country': country,
                 'created_at': nowIso,
                 'updated_at': nowIso,
               });
@@ -382,11 +378,6 @@ void main() {
             try {
               await client.from('profiles').update({
                 'avatar_url': avatarUrl,
-                'street_address': street,
-                'city': city,
-                'state_province': state,
-                'postal_code': postal,
-                'country': country,
                 'updated_at': nowIso,
               }).eq('id', userId);
             } catch (e) {
@@ -474,11 +465,6 @@ void main() {
               'first_name': adminFirst,
               'last_name': adminLast,
               'avatar_url': adminAvatarUrl,
-              'street_address': '1 Admin Way',
-              'city': 'Austin',
-              'state_province': 'TX',
-              'postal_code': '78701',
-              'country': 'United States',
               'created_at': nowIso,
               'updated_at': nowIso,
             });
@@ -491,11 +477,6 @@ void main() {
           try {
             await client.from('profiles').update({
               'avatar_url': adminAvatarUrl,
-              'street_address': '1 Admin Way',
-              'city': 'Austin',
-              'state_province': 'TX',
-              'postal_code': '78701',
-              'country': 'United States',
               'updated_at': nowIso,
             }).eq('id', adminUserId);
           } catch (e) {

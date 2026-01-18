@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/game_model.dart';
 import '../../data/models/game_participant_model.dart';
@@ -546,13 +547,16 @@ class StartGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     state = const AsyncValue.loading();
     try {
       final repository = ref.watch(gamesRepositoryProvider);
-      
+
+      debugPrint('🎯 StartGameNotifier: Starting game $gameId');
       ErrorLoggerService.logDebug(
         'Starting game: $gameId',
         context: 'StartGameNotifier',
       );
 
+      debugPrint('🎯 StartGameNotifier: Calling updateGameStatus with status=${GameConstants.statusInProgress}');
       final result = await repository.updateGameStatus(gameId, GameConstants.statusInProgress);
+      debugPrint('🎯 StartGameNotifier: updateGameStatus completed');
       
       state = result.when(
         success: (game) {
@@ -671,6 +675,7 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     required double buyinAmount,
     required List<double> additionalBuyinValues,
     bool? allowMemberTransactions,
+    List<String>? participantUserIds,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -690,6 +695,7 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
         buyinAmount: buyinAmount,
         additionalBuyinValues: additionalBuyinValues,
         allowMemberTransactions: allowMemberTransactions,
+        participantUserIds: participantUserIds,
       );
 
       state = result.when(

@@ -137,7 +137,6 @@ void main() {
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
-        country: 'United States',
       );
 
       await tester.pumpWidget(
@@ -171,7 +170,6 @@ void main() {
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
-        country: 'United States',
       );
 
       await tester.pumpWidget(
@@ -199,7 +197,6 @@ void main() {
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
-        country: 'United States',
       );
 
       await tester.pumpWidget(
@@ -1064,7 +1061,6 @@ void main() {
       expect(profile.lastName, 'Smith');
       expect(profile.email, 'jane@test.com');
       expect(profile.id, isNotEmpty);
-      expect(profile.country, 'United States');
     });
 
     test('creates group with all fields', () {

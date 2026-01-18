@@ -11,6 +11,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../shared/models/result.dart';
 import '../../../profile/data/models/profile_model.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
+import '../../../locations/data/repositories/locations_repository.dart';
+import '../../../locations/data/models/location_model.dart';
 import '../providers/local_user_provider.dart';
 
 class LocalUserFormScreen extends ConsumerStatefulWidget {
@@ -38,18 +40,18 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
   late final TextEditingController _usernameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
-  late final TextEditingController _streetController;
+  late final TextEditingController _streetAddressController;
   late final TextEditingController _cityController;
-  late final TextEditingController _stateController;
-  late final TextEditingController _postalController;
+  late final TextEditingController _stateProvinceController;
+  late final TextEditingController _postalCodeController;
+  String _selectedCountry = 'United States';
+  String? _existingLocationId;
 
   File? _imageFile;
   bool _imageChanged = false;
   bool _isLoading = false;
   bool _fetchingProfile = false;
   bool _appliedProfile = false;
-  bool _showAddressSection = false;
-  String _selectedCountry = 'United States';
   ProfileModel? _profile;
 
   @override
@@ -60,10 +62,10 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     _usernameController = TextEditingController();
     _emailController = TextEditingController();
     _phoneController = TextEditingController();
-    _streetController = TextEditingController();
+    _streetAddressController = TextEditingController();
     _cityController = TextEditingController();
-    _stateController = TextEditingController();
-    _postalController = TextEditingController();
+    _stateProvinceController = TextEditingController();
+    _postalCodeController = TextEditingController();
 
     _profile = widget.initialProfile;
     _applyProfileToControllers();
@@ -76,10 +78,10 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _streetController.dispose();
+    _streetAddressController.dispose();
     _cityController.dispose();
-    _stateController.dispose();
-    _postalController.dispose();
+    _stateProvinceController.dispose();
+    _postalCodeController.dispose();
     super.dispose();
   }
 
@@ -105,32 +107,34 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
     _usernameController.text = profile.username ?? '';
     _emailController.text = profile.email;
     _phoneController.text = profile.phoneNumber ?? '';
-    _streetController.text = profile.streetAddress ?? '';
-    _cityController.text = profile.city ?? '';
-    _stateController.text = profile.stateProvince ?? '';
-    _postalController.text = profile.postalCode ?? '';
 
-    // Check if address fields have data to expand the section
-    if (_streetController.text.isNotEmpty ||
-        _cityController.text.isNotEmpty ||
-        _stateController.text.isNotEmpty ||
-        _postalController.text.isNotEmpty) {
-      _showAddressSection = true;
+    // Load address if available
+    if (profile.primaryLocationId != null) {
+      _loadPrimaryLocation(profile.primaryLocationId!);
     }
-
-    String mappedCountry = profile.country ?? 'United States';
-    if (mappedCountry == 'US' || mappedCountry == 'USA' || mappedCountry == 'U.S.' || mappedCountry == 'U.S.A.') {
-      mappedCountry = 'United States';
-    } else if (mappedCountry == 'UK' || mappedCountry == 'GB') {
-      mappedCountry = 'United Kingdom';
-    } else if (mappedCountry == 'CA') {
-      mappedCountry = 'Canada';
-    }
-    _selectedCountry = AppConstants.countries.contains(mappedCountry)
-        ? mappedCountry
-        : 'United States';
 
     _appliedProfile = true;
+  }
+
+  Future<void> _loadPrimaryLocation(String locationId) async {
+    try {
+      final locationsRepo = LocationsRepository();
+      final result = await locationsRepo.getLocation(locationId);
+
+      if (result is Success<LocationModel> && mounted) {
+        final location = result.data;
+        setState(() {
+          _streetAddressController.text = location.streetAddress;
+          _cityController.text = location.city ?? '';
+          _stateProvinceController.text = location.stateProvince ?? '';
+          _postalCodeController.text = location.postalCode ?? '';
+          _selectedCountry = location.country;
+          _existingLocationId = location.id;
+        });
+      }
+    } catch (e) {
+      // Silently fail - address is optional
+    }
   }
 
   Future<void> _pickImage() async {
@@ -220,10 +224,10 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
       final username = _usernameController.text.trim();
       final email = _emailController.text.trim();
       final phone = _phoneController.text.trim();
-      final street = _streetController.text.trim();
+      final streetAddress = _streetAddressController.text.trim();
       final city = _cityController.text.trim();
-      final state = _stateController.text.trim();
-      final postal = _postalController.text.trim();
+      final stateProvince = _stateProvinceController.text.trim();
+      final postalCode = _postalCodeController.text.trim();
 
       debugPrint('Saving local user: imageChanged=$_imageChanged, imageFile=$_imageFile');
 
@@ -236,12 +240,13 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
           username: username.isEmpty ? null : username,
           email: email.isEmpty ? null : email,
           phoneNumber: phone.isEmpty ? null : phone,
-          streetAddress: street.isEmpty ? null : street,
-          city: city.isEmpty ? null : city,
-          stateProvince: state.isEmpty ? null : state,
-          postalCode: postal.isEmpty ? null : postal,
-          country: _selectedCountry,
           avatarFile: _imageChanged ? _imageFile : null,
+          locationId: _existingLocationId,
+          streetAddress: streetAddress.isEmpty ? null : streetAddress,
+          city: city.isEmpty ? null : city,
+          stateProvince: stateProvince.isEmpty ? null : stateProvince,
+          postalCode: postalCode.isEmpty ? null : postalCode,
+          country: _selectedCountry,
         );
 
         if (!mounted) return;
@@ -266,12 +271,12 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
           username: username.isEmpty ? null : username,
           email: email.isEmpty ? null : email,
           phoneNumber: phone.isEmpty ? null : phone,
-          streetAddress: street.isEmpty ? null : street,
-          city: city.isEmpty ? null : city,
-          stateProvince: state.isEmpty ? null : state,
-          postalCode: postal.isEmpty ? null : postal,
-          country: _selectedCountry,
           avatarFile: _imageFile,
+          streetAddress: streetAddress.isEmpty ? null : streetAddress,
+          city: city.isEmpty ? null : city,
+          stateProvince: stateProvince.isEmpty ? null : stateProvince,
+          postalCode: postalCode.isEmpty ? null : postalCode,
+          country: _selectedCountry,
         );
 
         if (!mounted) return;
@@ -629,108 +634,86 @@ class _LocalUserFormScreenState extends ConsumerState<LocalUserFormScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Address Card (Expandable)
-                    Card(
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: colorScheme.outlineVariant),
-                      ),
-                      child: ExpansionTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                        leading: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(10),
+                    // Address Card (Optional)
+                    _buildSectionCard(
+                      context: context,
+                      icon: Icons.location_on_outlined,
+                      title: 'Address (Optional)',
+                      subtitle: 'Physical address for in-person games',
+                      children: [
+                        TextFormField(
+                          controller: _streetAddressController,
+                          decoration: InputDecoration(
+                            labelText: 'Street Address',
+                            hintText: '123 Main St',
+                            prefixIcon: Icon(Icons.home_outlined, color: colorScheme.primary),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Icon(Icons.location_on_outlined, size: 20, color: colorScheme.secondary),
                         ),
-                        title: Text(
-                          'Address',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          'Optional',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
-                        ),
-                        initiallyExpanded: _showAddressSection,
-                        onExpansionChanged: (expanded) => setState(() => _showAddressSection = expanded),
-                        children: [
-                          TextFormField(
-                            controller: _streetController,
-                            decoration: InputDecoration(
-                              labelText: 'Street Address',
-                              prefixIcon: Icon(Icons.home_outlined, color: colorScheme.primary),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _cityController,
+                                decoration: InputDecoration(
+                                  labelText: 'City',
+                                  hintText: 'San Francisco',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
                             ),
-                            textCapitalization: TextCapitalization.words,
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _cityController,
-                                  decoration: InputDecoration(
-                                    labelText: 'City',
-                                    prefixIcon: Icon(Icons.location_city_outlined, color: colorScheme.primary),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  textCapitalization: TextCapitalization.words,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _stateProvinceController,
+                                decoration: InputDecoration(
+                                  labelText: 'State',
+                                  hintText: 'CA',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _stateController,
-                                  decoration: InputDecoration(
-                                    labelText: 'State',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  textCapitalization: TextCapitalization.words,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _postalCodeController,
+                                decoration: InputDecoration(
+                                  labelText: 'Postal Code',
+                                  hintText: '94102',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
+                                keyboardType: TextInputType.number,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _postalController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Postal Code',
-                                    prefixIcon: Icon(Icons.markunread_mailbox_outlined, color: colorScheme.primary),
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  keyboardType: TextInputType.text,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedCountry,
+                                decoration: InputDecoration(
+                                  labelText: 'Country',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
+                                items: AppConstants.countries.map((country) {
+                                  return DropdownMenuItem(
+                                    value: country,
+                                    child: Text(country, overflow: TextOverflow.ellipsis),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _selectedCountry = value);
+                                  }
+                                },
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  initialValue: _selectedCountry,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    labelText: 'Country',
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  items: AppConstants.countries
-                                      .map((c) => DropdownMenuItem<String>(
-                                            value: c,
-                                            child: Text(c, overflow: TextOverflow.ellipsis),
-                                          ))
-                                      .toList(),
-                                  onChanged: (value) => setState(() => _selectedCountry = value ?? _selectedCountry),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 24),
 

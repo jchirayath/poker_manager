@@ -95,7 +95,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen>
             onQueryChanged: (value) => setState(() => _gameQuery = value),
             currentUserId: currentUserId,
             onRefresh: () async {
-              ref.invalidate(recentGameStatsProvider);
+              ref.invalidate(recentGamesStatsProvider);
             },
           ),
           // Groups Tab
@@ -710,6 +710,10 @@ class _GroupsTab extends ConsumerWidget {
     final colorScheme = theme.colorScheme;
     final highlightColor = colorScheme.primaryContainer.withValues(alpha: 0.3);
 
+    // Calculate total wins and losses
+    final totalWins = players.where((p) => p.$2.net > 0).fold<double>(0, (sum, p) => sum + p.$2.net);
+    final totalLosses = players.where((p) => p.$2.net < 0).fold<double>(0, (sum, p) => sum + p.$2.net.abs());
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -762,6 +766,90 @@ class _GroupsTab extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 12),
+
+            // Summary row
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: (totalWins - totalLosses).abs() > 0.01
+                    ? Border.all(color: Colors.orange, width: 2)
+                    : null,
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            'Total Wins',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatAmount(totalWins, currency),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          Text(
+                            'Total Losses',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatAmount(totalLosses, currency),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if ((totalWins - totalLosses).abs() > 0.01) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber, size: 14, color: Colors.orange[700]),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Imbalanced: Wins ≠ Losses',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.orange[700],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
             Table(
               columnWidths: const {
                 0: FixedColumnWidth(36),

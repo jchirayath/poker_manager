@@ -221,18 +221,24 @@ class GamesRepository {
           .single();
 
       final gameId = response['id'] as String;
-      
+      debugPrint('✅ Game created with ID: $gameId');
+
       // Add participants if provided
       if (participantUserIds != null && participantUserIds.isNotEmpty) {
+        debugPrint('👥 Adding ${participantUserIds.length} participants to game $gameId');
         final participants = participantUserIds.map((userId) {
+          debugPrint('  - Adding participant: $userId');
           return {
             'game_id': gameId,
             'user_id': userId,
             'rsvp_status': 'going',
           };
         }).toList();
-        
-        await _client.from('game_participants').insert(participants);
+
+        final participantResponse = await _client.from('game_participants').insert(participants).select();
+        debugPrint('✅ Successfully added ${(participantResponse as List).length} participants');
+      } else {
+        debugPrint('⚠️ WARNING: No participants provided for game $gameId');
       }
 
       return Success(
@@ -571,9 +577,9 @@ class GamesRepository {
     String status,
   ) async {
     try {
-      // If game is being started, ensure all group members are participants, then create buy-in transactions for all participants BEFORE setting status to in_progress
+      // If game is being started, create buy-in transactions for existing game participants BEFORE setting status to in_progress
       if (status == 'in_progress') {
-        debugPrint('🎮 Preparing to start game - ensuring all group members are participants and creating buy-in transactions');
+        debugPrint('🎮 Preparing to start game - creating buy-in transactions for game participants');
         try {
           // Fetch the game to get groupId and buyinAmount
           final gameResponse = await _client
@@ -583,48 +589,33 @@ class GamesRepository {
               .single();
           final game = _mapGameRowToModel(Map<String, dynamic>.from(gameResponse as Map));
 
-          // Fetch all group members for this game
-          final groupId = game.groupId;
-          final groupMembersResponse = await _client
-              .from('group_members')
-              .select('user_id')
-              .eq('group_id', groupId);
-          final groupMembers = groupMembersResponse as List? ?? [];
-          final groupMemberIds = groupMembers.map((m) => m['user_id'] as String).toSet();
-
           // Fetch all current participants for this game
           final participantsResponse = await _client
               .from('game_participants')
               .select('user_id')
               .eq('game_id', gameId);
           final participants = participantsResponse as List? ?? [];
-          final participantIds = participants.map((p) => p['user_id'] as String).toSet();
+          debugPrint('📋 Found ${participants.length} participants for game $gameId');
 
-          // Find group members not yet participants
-          final missingParticipantIds = groupMemberIds.difference(participantIds);
-          if (missingParticipantIds.isNotEmpty) {
-            debugPrint('➕ Adding missing participants: ${missingParticipantIds.join(", ")}');
-            final newParticipants = missingParticipantIds.map((userId) => {
-              'game_id': gameId,
-              'user_id': userId,
-              'rsvp_status': 'going',
-            }).toList();
-            await _client.from('game_participants').insert(newParticipants);
+          if (participants.isEmpty) {
+            debugPrint('⚠️ WARNING: No participants found for game $gameId. Cannot create buy-in transactions.');
+            // Still update the game status even if no participants
+            final response = await _client
+                .from('games')
+                .update({'status': status})
+                .eq('id', gameId)
+                .select()
+                .single();
+            final updatedGame = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
+            return Success(updatedGame);
           }
 
-          // Fetch updated participants list
-          final allParticipantsResponse = await _client
-              .from('game_participants')
-              .select('user_id')
-              .eq('game_id', gameId);
-          final allParticipants = allParticipantsResponse as List? ?? [];
-          debugPrint('📋 Creating buy-ins for ${allParticipants.length} participants');
-
-          // Batch insert buy-in and zero cash-out transactions for all participants
+          // Batch insert buy-in transactions for existing participants only
           final nowIso = DateTime.now().toIso8601String();
           final transactions = <Map<String, dynamic>>[];
-          for (final participantJson in allParticipants) {
+          for (final participantJson in participants) {
             final userId = participantJson['user_id'] as String;
+            debugPrint('  - Creating buy-in for user: $userId');
             transactions.add({
               'game_id': gameId,
               'user_id': userId,
@@ -633,10 +624,10 @@ class GamesRepository {
               'timestamp': nowIso,
             });
           }
-          if (transactions.isNotEmpty) {
-            final txnResponse = await _client.from('transactions').insert(transactions).select();
-            debugPrint('✅ Batch inserted ${transactions.length} buy-in transactions for all participants');
-          }
+
+          debugPrint('💰 Inserting ${transactions.length} buy-in transactions...');
+          final txnResponse = await _client.from('transactions').insert(transactions).select();
+          debugPrint('✅ Successfully inserted ${(txnResponse as List).length} buy-in transactions');
 
           // Now update the game status to in_progress
           final response = await _client
@@ -647,8 +638,10 @@ class GamesRepository {
               .single();
           final updatedGame = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
           return Success(updatedGame);
-        } catch (e) {
-          debugPrint('⚠️ Warning: Error creating buy-in transactions or updating status: $e');
+        } catch (e, stackTrace) {
+          debugPrint('❌ Error creating buy-in transactions or updating status: $e');
+          debugPrint('Stack trace: $stackTrace');
+          ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.updateGameStatus');
           return Failure('Failed to start game: ${e.toString()}');
         }
       } else {
@@ -676,6 +669,7 @@ class GamesRepository {
     required double buyinAmount,
     required List<double> additionalBuyinValues,
     bool? allowMemberTransactions,
+    List<String>? participantUserIds,
   }) async {
     try {
       debugPrint('🔄 Updating game: $gameId');
@@ -700,6 +694,51 @@ class GamesRepository {
           .eq('id', gameId)
           .select()
           .single();
+
+      // Update participants if provided
+      if (participantUserIds != null) {
+        // Get existing participants
+        final existingParticipants = await _client
+            .from('game_participants')
+            .select('user_id')
+            .eq('game_id', gameId);
+
+        final existingUserIds = (existingParticipants as List)
+            .map((p) => p['user_id'] as String)
+            .toSet();
+
+        final newUserIds = participantUserIds.toSet();
+
+        // Find users to add (in new list but not in existing)
+        final usersToAdd = newUserIds.difference(existingUserIds);
+
+        // Find users to remove (in existing but not in new list)
+        final usersToRemove = existingUserIds.difference(newUserIds);
+
+        // Add new participants
+        if (usersToAdd.isNotEmpty) {
+          final participantsToAdd = usersToAdd.map((userId) {
+            return {
+              'game_id': gameId,
+              'user_id': userId,
+              'rsvp_status': 'going',
+            };
+          }).toList();
+
+          await _client.from('game_participants').insert(participantsToAdd);
+        }
+
+        // Remove participants
+        if (usersToRemove.isNotEmpty) {
+          for (final userId in usersToRemove) {
+            await _client
+                .from('game_participants')
+                .delete()
+                .eq('game_id', gameId)
+                .eq('user_id', userId);
+          }
+        }
+      }
 
       debugPrint('✅ Game updated successfully');
       return Success(

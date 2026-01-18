@@ -4,6 +4,7 @@ import '../../presentation/providers/games_provider.dart' show gamesProvider, ga
 import '../../../../shared/models/result.dart';
 import '../../../auth/presentation/providers/auth_provider.dart' show authStateProvider;
 import '../../../../core/constants/currencies.dart';
+import '../../../stats/presentation/providers/stats_provider.dart';
 
 class BuyInDialog extends ConsumerStatefulWidget {
   final String gameId;
@@ -124,6 +125,10 @@ class _BuyInDialogState extends ConsumerState<BuyInDialog> {
             UserTransactionsKey(gameId: widget.gameId, userId: widget.userId),
           ));
           ref.invalidate(gameTransactionsProvider(widget.gameId));
+
+          // Invalidate stats providers to refresh stats screen
+          ref.invalidate(recentGamesStatsProvider);
+          ref.invalidate(recentGameStatsProvider);
 
           widget.onBuyInAdded();
           Navigator.pop(context);

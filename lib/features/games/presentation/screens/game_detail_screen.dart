@@ -14,6 +14,7 @@ import '../widgets/game_detail/participant_list.dart';
 import '../widgets/game_detail/game_action_buttons.dart';
 import '../widgets/seating_chart_dialog.dart';
 import 'edit_game_screen.dart';
+import '../../../stats/presentation/providers/stats_provider.dart';
 
 class GameDetailScreen extends ConsumerStatefulWidget {
   final String gameId;
@@ -133,6 +134,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
   }
 
   void _invalidateProviders(String gameId, String groupId) {
+    debugPrint('🔄 Invalidating providers for game $gameId');
     ref.invalidate(gameWithParticipantsProvider(gameId));
     ref.invalidate(gameTransactionsProvider(gameId));
     ref.invalidate(activeGamesProvider);
@@ -142,23 +144,82 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     ref.invalidate(gameSettlementsProvider(gameId));
     ref.invalidate(gameSettlementsRealtimeProvider(gameId));
     ref.invalidate(settlementValidationProvider(gameId));
+    // Invalidate stats providers to refresh stats screen
+    ref.invalidate(recentGamesStatsProvider);
+    ref.invalidate(recentGameStatsProvider);
+    ref.invalidate(groupStatsProvider(groupId));
+
+    // Force refresh transactions
+    setState(() {
+      _shouldRefreshTransactions = true;
+    });
+    debugPrint('✅ Providers invalidated, will refresh transactions');
   }
 
   Future<void> _startGame(GameModel game) async {
     if (_isStartingGame) return;
 
+    // Get participant count from the provider
+    final gameWithParticipants = await ref.read(gameWithParticipantsProvider(game.id).future);
+    final participantCount = gameWithParticipants.participants.length;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Start Game?'),
+        content: Text(
+          'Start the game now?\n\n'
+          'This will create buy-in transactions for all $participantCount player${participantCount != 1 ? 's' : ''} '
+          '(\$${game.buyinAmount.toStringAsFixed(2)} each).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start Game'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() => _isStartingGame = true);
 
     try {
+      debugPrint('🎮 Starting game ${game.id} with $participantCount participants');
+
       final result = await ref
           .read(startGameProvider.notifier)
           .startExistingGame(game.id);
 
       if (result != null && mounted) {
+        debugPrint('✅ Game started, invalidating providers...');
         _invalidateProviders(game.id, game.groupId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Game started!')),
-        );
+
+        // Wait a bit for the database to fully commit
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Force refresh the transactions
+        debugPrint('🔄 Force refreshing transactions...');
+        ref.refresh(gameTransactionsProvider(game.id));
+        ref.refresh(gameWithParticipantsProvider(game.id));
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Game started! $participantCount buy-in${participantCount != 1 ? 's' : ''} recorded.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navigate back to games list, showing Active tab
+          Navigator.pop(context, {'navigateToTab': 0});
+        }
       }
     } finally {
       if (mounted) setState(() => _isStartingGame = false);
@@ -382,6 +443,22 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                   );
                 },
               ),
+              // Start Game Button (for scheduled games)
+              if (game.status == 'scheduled')
+                IconButton(
+                  icon: _isStartingGame
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.play_circle),
+                  tooltip: 'Start Game',
+                  color: Colors.green[700],
+                  onPressed: _isStartingGame ? null : () => _startGame(game),
+                ),
               // Stop Game Button (for in-progress games)
               if (game.status == 'in_progress')
                 transactionsAsync.when(

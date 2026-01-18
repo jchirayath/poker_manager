@@ -55,6 +55,25 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     _groupId = game.groupId;
     _allowMemberTransactions = game.allowMemberTransactions;
     _isInitialized = true;
+
+    // Load existing participants
+    _loadExistingParticipants();
+  }
+
+  Future<void> _loadExistingParticipants() async {
+    if (_groupId == null) return;
+
+    final participantsAsync = ref.read(gameWithParticipantsProvider(widget.gameId));
+    participantsAsync.whenData((gameWithParticipants) {
+      if (mounted) {
+        setState(() {
+          _selectedPlayerIds.clear();
+          _selectedPlayerIds.addAll(
+            gameWithParticipants.participants.map((p) => p.userId),
+          );
+        });
+      }
+    });
   }
 
   @override
@@ -870,6 +889,137 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // Player Selection Section (only for scheduled games)
+                if (game.status == 'scheduled') ...[
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.people,
+                          size: 20,
+                          color: colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Players',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      ref.watch(groupMembersProvider(_groupId ?? '')).when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (error, stackTrace) => const SizedBox.shrink(),
+                        data: (members) {
+                          if (members.isEmpty) return const SizedBox.shrink();
+
+                          final allSelected = members.every((m) => _selectedPlayerIds.contains(m.userId));
+
+                          return TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                if (allSelected) {
+                                  _selectedPlayerIds.clear();
+                                } else {
+                                  _selectedPlayerIds.addAll(members.map((m) => m.userId));
+                                }
+                              });
+                            },
+                            icon: Icon(allSelected ? Icons.check_box : Icons.check_box_outline_blank),
+                            label: Text(allSelected ? 'Deselect All' : 'Select All'),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ref.watch(groupMembersProvider(_groupId ?? '')).when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (error, stack) => Text('Error loading members: $error'),
+                    data: (members) {
+                      if (members.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Text('No members in this group'),
+                        );
+                      }
+
+                      return Column(
+                        children: members.map((member) {
+                          final isSelected = _selectedPlayerIds.contains(member.userId);
+                          final displayName = member.profile?.fullName ?? member.userId;
+                          final initialsText = (member.profile?.firstName ?? 'U')[0].toUpperCase() +
+                              (member.profile?.lastName ?? '')[0].toUpperCase();
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected ? colorScheme.primaryContainer.withOpacity(0.3) : colorScheme.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? colorScheme.primary : colorScheme.outline.withOpacity(0.3),
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: CheckboxListTile(
+                              value: isSelected,
+                              onChanged: (checked) {
+                                setState(() {
+                                  if (checked ?? false) {
+                                    _selectedPlayerIds.add(member.userId);
+                                  } else {
+                                    _selectedPlayerIds.remove(member.userId);
+                                  }
+                                });
+                              },
+                              secondary: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isSelected ? colorScheme.primary : colorScheme.outline,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: CircleAvatar(
+                                  backgroundColor: colorScheme.primaryContainer,
+                                  child: _buildMemberAvatar(
+                                    member.profile?.avatarUrl,
+                                    initialsText,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                displayName,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                              subtitle: member.role != 'member'
+                                  ? Text(
+                                      '${member.role} of group',
+                                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                                    )
+                                  : null,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
                 // Update Game Button
                 Container(
                   decoration: BoxDecoration(
@@ -929,9 +1079,13 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
   }
   
   Future<void> _updateGameWithLocationString(AsyncValue<List<LocationModel>> locationsAsync) async {
+    // Get the current game to check status
+    final gameAsync = ref.read(gameDetailProvider(widget.gameId));
+    final game = gameAsync.value;
+
     // Convert location ID back to full address for storage
     String? locationString;
-    
+
     locationsAsync.whenData((locations) {
       if (_selectedLocationId != null) {
         try {
@@ -944,7 +1098,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
         }
       }
     });
-    
+
     // Call the original update game with the location string
     if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -994,6 +1148,10 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
             buyinAmount: buyin,
             additionalBuyinValues: _additionalBuyin != null ? [_additionalBuyin!] : [],
             allowMemberTransactions: _allowMemberTransactions,
+            // Only update participants for scheduled games
+            participantUserIds: (game?.status == 'scheduled' && _selectedPlayerIds.isNotEmpty)
+                ? _selectedPlayerIds.toList()
+                : null,
           );
 
       if (mounted) {

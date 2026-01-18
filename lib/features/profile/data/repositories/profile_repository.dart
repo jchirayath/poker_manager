@@ -70,15 +70,9 @@ class ProfileRepository {
     String? firstName,
     String? lastName,
     String? phoneNumber,
-    String? streetAddress,
-    String? city,
-    String? stateProvince,
-    String? postalCode,
-    String? country,
   }) async {
     try {
       final updates = <String, dynamic>{};
-      bool hasAddressUpdate = false;
 
       if (username != null && username.isNotEmpty) {
         updates['username'] = username;
@@ -93,48 +87,6 @@ class ProfileRepository {
         updates['phone_number'] = phoneNumber;
       } else if (phoneNumber != null && phoneNumber.isEmpty) {
         updates['phone_number'] = null;
-      }
-
-      // Track address updates
-      if (streetAddress != null) {
-        hasAddressUpdate = true;
-        if (streetAddress.isNotEmpty) {
-          updates['street_address'] = streetAddress;
-        } else {
-          updates['street_address'] = null;
-        }
-      }
-
-      if (city != null) {
-        hasAddressUpdate = true;
-        if (city.isNotEmpty) {
-          updates['city'] = city;
-        } else {
-          updates['city'] = null;
-        }
-      }
-
-      if (stateProvince != null) {
-        hasAddressUpdate = true;
-        if (stateProvince.isNotEmpty) {
-          updates['state_province'] = stateProvince;
-        } else {
-          updates['state_province'] = null;
-        }
-      }
-
-      if (postalCode != null) {
-        hasAddressUpdate = true;
-        if (postalCode.isNotEmpty) {
-          updates['postal_code'] = postalCode;
-        } else {
-          updates['postal_code'] = null;
-        }
-      }
-
-      if (country != null) {
-        hasAddressUpdate = true;
-        updates['country'] = country;
       }
 
       // Skip update if no fields to update
@@ -161,19 +113,6 @@ class ProfileRepository {
           .update(updates)
           .eq('id', userId);
 
-      // DUAL WRITE: If address was updated, also update/create location
-      if (hasAddressUpdate && streetAddress != null && streetAddress.isNotEmpty) {
-        await _syncAddressToLocation(
-          userId: userId,
-          streetAddress: streetAddress,
-          city: city,
-          stateProvince: stateProvince,
-          postalCode: postalCode,
-          country: country ?? 'USA',
-          firstName: firstName,
-        );
-      }
-
       // Fetch the updated profile separately
       final response = await _client
           .from('profiles')
@@ -196,76 +135,6 @@ class ProfileRepository {
     }
   }
 
-  /// Sync address from profile to locations table (dual-write pattern)
-  /// This ensures addresses appear in location dropdowns
-  Future<void> _syncAddressToLocation({
-    required String userId,
-    required String streetAddress,
-    String? city,
-    String? stateProvince,
-    String? postalCode,
-    required String country,
-    String? firstName,
-  }) async {
-    try {
-      // Check if user has a primary location
-      final existingLocation = await _client
-          .from('locations')
-          .select()
-          .eq('profile_id', userId)
-          .eq('is_primary', true)
-          .maybeSingle();
-
-      if (existingLocation != null) {
-        // Update existing primary location
-        debugPrint('📍 Updating existing primary location for user: $userId');
-        await _client
-            .from('locations')
-            .update({
-              'street_address': streetAddress,
-              'city': city,
-              'state_province': stateProvince,
-              'postal_code': postalCode,
-              'country': country,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', existingLocation['id']);
-      } else {
-        // Create new primary location
-        debugPrint('📍 Creating new primary location for user: $userId');
-        final label = firstName != null && firstName.isNotEmpty
-            ? '$firstName\'s Address'
-            : 'Primary Address';
-
-        final newLocation = await _client
-            .from('locations')
-            .insert({
-              'profile_id': userId,
-              'street_address': streetAddress,
-              'city': city,
-              'state_province': stateProvince,
-              'postal_code': postalCode,
-              'country': country,
-              'label': label,
-              'is_primary': true,
-              'created_by': userId,
-            })
-            .select()
-            .maybeSingle();
-
-        // Update profile to reference this location
-        if (newLocation != null) {
-          await _client
-              .from('profiles')
-              .update({'primary_location_id': newLocation['id']})
-              .eq('id', userId);
-        }
-      }
-    } catch (e) {
-      // Don't fail the profile update if location sync fails
-      debugPrint('⚠️ Failed to sync address to location: $e');
-    }
-  }
 
   Future<Result<ProfileModel>> createLocalProfile({
     required String userId,
@@ -274,11 +143,6 @@ class ProfileRepository {
     String? username,
     String? email,
     String? phoneNumber,
-    String? streetAddress,
-    String? city,
-    String? stateProvince,
-    String? postalCode,
-    String? country,
   }) async {
     try {
       final effectiveEmail = (email != null && email.trim().isNotEmpty)
@@ -290,20 +154,11 @@ class ProfileRepository {
         'first_name': firstName,
         'last_name': lastName,
         'is_local_user': true,
-        'country': country?.isNotEmpty == true ? country : 'United States',
         'email': effectiveEmail,
       };
 
       if (username != null && username.isNotEmpty) payload['username'] = username;
       if (phoneNumber != null && phoneNumber.isNotEmpty) payload['phone_number'] = phoneNumber;
-      if (streetAddress != null && streetAddress.isNotEmpty) {
-        payload['street_address'] = streetAddress;
-      }
-      if (city != null && city.isNotEmpty) payload['city'] = city;
-      if (stateProvince != null && stateProvince.isNotEmpty) {
-        payload['state_province'] = stateProvince;
-      }
-      if (postalCode != null && postalCode.isNotEmpty) payload['postal_code'] = postalCode;
 
       final response = await _client
           .from('profiles')
@@ -313,19 +168,6 @@ class ProfileRepository {
 
       if (response == null) {
         return const Failure('Failed to create local profile');
-      }
-
-      // DUAL WRITE: Also create location if address provided
-      if (streetAddress != null && streetAddress.isNotEmpty) {
-        await _syncAddressToLocation(
-          userId: userId,
-          streetAddress: streetAddress,
-          city: city,
-          stateProvince: stateProvince,
-          postalCode: postalCode,
-          country: country?.isNotEmpty == true ? country! : 'United States',
-          firstName: firstName,
-        );
       }
 
       final responseMap = response;
@@ -341,9 +183,11 @@ class ProfileRepository {
       final fileName = 'avatar_$userId.jpg';
       final path = '$userId/$fileName';
 
-        await _client.storage
+      debugPrint('🔵 Uploading avatar to storage: $path');
+      await _client.storage
           .from('avatars')
           .upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+      debugPrint('✅ Avatar uploaded to storage: $path');
 
       // Append a cache-busting query param so Flutter image cache fetches the new content
       final publicUrl = _client.storage
@@ -351,6 +195,7 @@ class ProfileRepository {
           .getPublicUrl(path);
       final avatarUrl = '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
 
+      debugPrint('🔵 Updating profile with avatar URL: $avatarUrl');
       final updateResponse = await _client
           .from('profiles')
           .update({'avatar_url': avatarUrl})
@@ -359,16 +204,49 @@ class ProfileRepository {
           .maybeSingle();
 
       if (updateResponse == null) {
+        debugPrint('🔴 Failed to update profile with avatar URL');
         return const Failure('Failed to update profile with avatar URL');
       }
 
+      debugPrint('✅ Avatar URL updated in profile: $avatarUrl');
       return Success(avatarUrl);
     } on StorageException catch (e) {
+      debugPrint('🔴 Storage error during avatar upload: ${e.message}');
       return Failure('Storage error: ${e.message}');
     } on PostgrestException catch (e) {
+      debugPrint('🔴 Database error during avatar upload: ${e.message}');
       return Failure('Database error: ${e.message}');
     } catch (e) {
+      debugPrint('🔴 Avatar upload failed: ${e.toString()}');
       return Failure('Upload failed: ${e.toString()}');
+    }
+  }
+
+  Future<Result<ProfileModel>> updatePrimaryLocation({
+    required String userId,
+    required String locationId,
+  }) async {
+    try {
+      debugPrint('🔵 Updating primary location for user: $userId to location: $locationId');
+      final response = await _client
+          .from('profiles')
+          .update({'primary_location_id': locationId})
+          .eq('id', userId)
+          .select()
+          .maybeSingle();
+
+      if (response == null) {
+        debugPrint('🔴 Failed to update primary location - no rows affected');
+        return const Failure('Failed to update primary location');
+      }
+
+      final responseMap = response;
+      _fixProfileAvatarUrl(responseMap);
+      debugPrint('✅ Primary location updated successfully');
+      return Success(ProfileModel.fromJson(responseMap));
+    } catch (e) {
+      debugPrint('🔴 Primary location update exception: $e');
+      return Failure('Failed to update primary location: ${e.toString()}');
     }
   }
 

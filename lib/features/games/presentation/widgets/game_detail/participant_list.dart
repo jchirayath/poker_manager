@@ -10,6 +10,7 @@ import '../../../data/models/transaction_model.dart';
 import '../../providers/games_provider.dart';
 import '../../../../groups/presentation/providers/groups_provider.dart';
 import '../cash_out_dialog.dart';
+import '../../../../stats/presentation/providers/stats_provider.dart';
 
 class ParticipantList extends ConsumerWidget {
   final GameModel game;
@@ -552,6 +553,11 @@ class _ActionButtons extends ConsumerWidget {
                       UserTransactionsKey(gameId: game.id, userId: participant.userId),
                     ));
                     ref.invalidate(gameTransactionsProvider(game.id));
+
+                    // Invalidate stats providers to refresh stats screen
+                    ref.invalidate(recentGamesStatsProvider);
+                    ref.invalidate(recentGameStatsProvider);
+
                     onRefresh();
                   },
                   failure: (message, _) {

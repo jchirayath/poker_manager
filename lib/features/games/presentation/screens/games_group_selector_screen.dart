@@ -114,14 +114,19 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
                     ],
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
+                  onTap: () async {
                     // Navigate directly to create game screen for this group
-                    Navigator.of(context).push(
+                    final result = await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) =>
                             CreateGameScreen(groupId: group.id),
                       ),
                     );
+
+                    // If game was created, pop back to games screen
+                    if (result is Map && result['navigateToTab'] != null && context.mounted) {
+                      Navigator.of(context).pop(result);
+                    }
                   },
                 ),
               );

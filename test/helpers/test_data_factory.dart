@@ -47,11 +47,6 @@ class TestDataFactory {
       lastName: lastName ?? 'User',
       avatarUrl: avatarUrl ?? 'https://api.dicebear.com/7.x/avataaars/svg?seed=$profileId',
       phoneNumber: phoneNumber ?? '+1-555-${(100 + profileId.hashCode % 900).abs()}-${(1000 + profileId.hashCode % 9000).abs()}',
-      streetAddress: streetAddress ?? '${(100 + profileId.hashCode % 900).abs()} Test Street',
-      city: city ?? 'Test City',
-      stateProvince: stateProvince ?? 'TX',
-      postalCode: postalCode ?? '${(10000 + profileId.hashCode % 90000).abs()}',
-      country: country ?? 'United States',
       isLocalUser: isLocalUser,
       createdAt: createdAt ?? now.subtract(const Duration(days: 30)),
       updatedAt: updatedAt ?? now,
@@ -64,21 +59,15 @@ class TestDataFactory {
     required String email,
     required String firstName,
     required String lastName,
-    String? country,
   }) {
     return createProfile(
       id: id,
       email: email,
       firstName: firstName,
       lastName: lastName,
-      country: country,
       isLocalUser: true,
       username: null,
       phoneNumber: null,
-      streetAddress: null,
-      city: null,
-      stateProvince: null,
-      postalCode: null,
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/providers/games_provider.dart'
   show gamesRepositoryProvider, UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
 import '../../../../core/constants/currencies.dart';
+import '../../../stats/presentation/providers/stats_provider.dart';
 
 class CashOutDialog extends ConsumerStatefulWidget {
   final String gameId;
@@ -263,6 +264,10 @@ class _CashOutDialogState extends ConsumerState<CashOutDialog> {
           ),
         );
         ref.invalidate(gameTransactionsProvider(widget.gameId));
+
+        // Invalidate stats providers to refresh stats screen
+        ref.invalidate(recentGamesStatsProvider);
+        ref.invalidate(recentGameStatsProvider);
 
         widget.onCashOut();
         Navigator.pop(context);

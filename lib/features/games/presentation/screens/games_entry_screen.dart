@@ -14,11 +14,14 @@ import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../common/widgets/app_drawer.dart';
 
 class GamesEntryScreen extends ConsumerStatefulWidget {
-  const GamesEntryScreen({super.key, this.groupId});
+  const GamesEntryScreen({super.key, this.groupId, this.initialTabIndex = 0});
 
   /// Optional group ID to filter games for a specific group.
   /// When provided, only games from this group are shown.
   final String? groupId;
+
+  /// Initial tab index to show (0=Active, 1=Scheduled, 2=Completed, 3=Cancelled)
+  final int initialTabIndex;
 
   @override
   ConsumerState<GamesEntryScreen> createState() => _GamesEntryScreenState();
@@ -31,7 +34,11 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 3),
+    );
   }
 
   @override
@@ -48,9 +55,14 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
         builder: (context) => GameDetailScreen(gameId: gameId),
       ),
     );
-    if (result == true) {
-      // Game was cancelled, refresh providers
-      _refreshGames();
+
+    // Refresh games
+    _refreshGames();
+
+    // Handle tab navigation if result is provided
+    if (result is Map && result['navigateToTab'] != null) {
+      final tabIndex = result['navigateToTab'] as int;
+      _tabController.animateTo(tabIndex);
     }
   }
 
@@ -69,7 +81,12 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
         builder: (context) => CreateGameScreen(groupId: widget.groupId!),
       ),
     ).then((result) {
-      if (result == true) _refreshGames();
+      _refreshGames();
+      // Handle tab navigation if result is provided
+      if (result is Map && result['navigateToTab'] != null) {
+        final tabIndex = result['navigateToTab'] as int;
+        _tabController.animateTo(tabIndex);
+      }
     });
   }
 
@@ -239,13 +256,20 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
                 iconColor: colorScheme.primary,
                 title: 'Select Existing Group',
                 subtitle: 'Create a game in one of your groups',
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  Navigator.of(context).push(
+                  final result = await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => const GamesGroupSelectorScreen(),
                     ),
                   );
+
+                  // Handle tab navigation if result is provided
+                  if (result is Map && result['navigateToTab'] != null) {
+                    _refreshGames();
+                    final tabIndex = result['navigateToTab'] as int;
+                    _tabController.animateTo(tabIndex);
+                  }
                 },
               ),
               // Create New Group option

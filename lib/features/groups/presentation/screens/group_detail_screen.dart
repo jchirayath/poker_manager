@@ -224,7 +224,6 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 if (profile != null) ...[
                   _detailRow('Email', profile.email ?? 'Not provided'),
                   _detailRow('Phone', profile.phoneNumber ?? 'Not provided'),
-                  _detailRow('Address', profile.fullAddress.isNotEmpty ? profile.fullAddress : 'Not provided'),
                   _detailRow('User ID', member.userId),
                   const Divider(),
                   _detailRow('Role', member.role.toUpperCase()),
