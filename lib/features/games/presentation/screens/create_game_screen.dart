@@ -252,7 +252,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                     gradient: LinearGradient(
                       colors: [
                         colorScheme.surface,
-                        colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                        colorScheme.surfaceContainerHighest.withAlpha((0.5 * 255).round()),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -418,8 +418,6 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                                 }
 
                                 try {
-                                  final context0 = context;
-
                                   await ref.read(createLocationNotifierProvider.notifier).createLocation(
                                         groupId: widget.groupId,
                                         streetAddress: streetController.text,
@@ -432,34 +430,32 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
 
                                   await Future.delayed(const Duration(milliseconds: 500));
 
-                                  if (mounted) {
-                                    ref.refresh(groupLocationsProvider(widget.groupId));
-                                    Navigator.pop(context0);
-
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context0).showSnackBar(
-                                        const SnackBar(
-                                          content: Row(
-                                            children: [
-                                              Icon(Icons.check_circle, color: Colors.white),
-                                              SizedBox(width: 12),
-                                              Text('Location added'),
-                                            ],
-                                          ),
-                                          backgroundColor: Colors.green,
-                                        ),
-                                      );
-                                    }
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: $e'),
-                                        backgroundColor: colorScheme.error,
+                                  if (!mounted) return;
+                                  final context0 = context;
+                                  // ignore: unused_result
+                                  ref.refresh(groupLocationsProvider(widget.groupId));
+                                  Navigator.pop(context0);
+                                  ScaffoldMessenger.of(context0).showSnackBar(
+                                    const SnackBar(
+                                      content: Row(
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.white),
+                                          SizedBox(width: 12),
+                                          Text('Location added'),
+                                        ],
                                       ),
-                                    );
-                                  }
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  final context0 = context;
+                                  ScaffoldMessenger.of(context0).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error: $e'),
+                                      backgroundColor: colorScheme.error,
+                                    ),
+                                  );
                                 }
                               },
                               icon: const Icon(Icons.add_location, size: 18),
@@ -766,9 +762,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         ref.invalidate(groupGamesProvider(widget.groupId));
         ref.invalidate(activeGamesProvider);
 
-        final successMessage = _isRecurring
-            ? '$gamesToCreate games created successfully!'
-            : 'Game created successfully!';
+        // Removed unused variable 'successMessage'
 
         // Show a dialog to confirm starting the game (only for single games)
         if (!_isRecurring) {
@@ -801,14 +795,17 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 buyinAmount: buyin,
                 currency: _selectedCurrency,
               );
+              if (!mounted) return;
               // Navigate to Active games tab (index 0)
               Navigator.pop(context, {'navigateToTab': 0});
             } else {
+              if (!mounted) return;
               // User chose "Done" - navigate to Scheduled games tab (index 1)
               Navigator.pop(context, {'navigateToTab': 1});
             }
           }
         } else {
+          if (!mounted) return;
           // For recurring games, navigate to Scheduled games tab
           Navigator.pop(context, {'navigateToTab': 1});
         }
@@ -957,15 +954,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        colorScheme.primaryContainer.withOpacity(0.3),
-                        colorScheme.secondaryContainer.withOpacity(0.3),
+                        colorScheme.primaryContainer.withAlpha((0.3 * 255).round()),
+                        colorScheme.secondaryContainer.withAlpha((0.3 * 255).round()),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: colorScheme.outline.withOpacity(0.2),
+                      color: colorScheme.outline.withAlpha((0.2 * 255).round()),
                       width: 1,
                     ),
                   ),
@@ -1038,7 +1035,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: colorScheme.primary.withOpacity(0.1),
+                    color: colorScheme.primary.withAlpha((0.1 * 255).round()),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -1074,7 +1071,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: colorScheme.primary.withOpacity(0.1),
+                          color: colorScheme.primary.withAlpha((0.1 * 255).round()),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1110,7 +1107,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: colorScheme.primary.withOpacity(0.1),
+                          color: colorScheme.primary.withAlpha((0.1 * 255).round()),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -1148,15 +1145,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    colorScheme.tertiaryContainer.withOpacity(0.3),
-                    colorScheme.primaryContainer.withOpacity(0.3),
+                    colorScheme.tertiaryContainer.withAlpha((0.3 * 255).round()),
+                    colorScheme.primaryContainer.withAlpha((0.3 * 255).round()),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: colorScheme.outline.withOpacity(0.2),
+                  color: colorScheme.outline.withAlpha((0.2 * 255).round()),
                   width: 1,
                 ),
               ),
@@ -1284,11 +1281,11 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
             // Seating Chart Option
             Card(
               elevation: 0,
-              color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              color: colorScheme.surfaceContainerHighest.withAlpha((0.3 * 255).round()),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: colorScheme.outline.withOpacity(0.2),
+                  color: colorScheme.outline.withAlpha((0.2 * 255).round()),
                   width: 1,
                 ),
               ),
@@ -1345,11 +1342,11 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
             // Allow Member Transactions Option
             Card(
               elevation: 0,
-              color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              color: colorScheme.surfaceContainerHighest.withAlpha((0.3 * 255).round()),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: colorScheme.outline.withOpacity(0.2),
+                  color: colorScheme.outline.withAlpha((0.2 * 255).round()),
                   width: 1,
                 ),
               ),
@@ -1478,10 +1475,10 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? colorScheme.primaryContainer.withOpacity(0.3) : colorScheme.surface,
+                        color: isSelected ? colorScheme.primaryContainer.withAlpha((0.3 * 255).round()) : colorScheme.surface,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected ? colorScheme.primary : colorScheme.outline.withOpacity(0.3),
+                          color: isSelected ? colorScheme.primary : colorScheme.outline.withAlpha((0.3 * 255).round()),
                           width: isSelected ? 2 : 1,
                         ),
                       ),
@@ -1583,7 +1580,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: colorScheme.primary.withOpacity(0.1),
+                                    color: colorScheme.primary.withAlpha((0.1 * 255).round()),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -1757,7 +1754,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: colorScheme.primary.withOpacity(0.1),
+                                  color: colorScheme.primary.withAlpha((0.1 * 255).round()),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -1789,7 +1786,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: colorScheme.primary.withOpacity(0.1),
+                                  color: colorScheme.primary.withAlpha((0.1 * 255).round()),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -1832,14 +1829,14 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 gradient: LinearGradient(
                   colors: [
                     colorScheme.primary,
-                    colorScheme.primary.withOpacity(0.8),
+                    colorScheme.primary.withAlpha((0.8 * 255).round()),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: colorScheme.primary.withOpacity(0.3),
+                    color: colorScheme.primary.withAlpha((0.3 * 255).round()),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),

@@ -155,7 +155,7 @@ void main() {
       req.headers.add('Authorization', 'Bearer $anonKey');
       req.write(jsonEncode({'email': testEmail!}));
       final resp = await req.close();
-      final payload = await resp.transform(utf8.decoder).join();
+        await resp.transform(utf8.decoder).join();
 
       // Should return 200 even for non-existent emails (to prevent enumeration)
       expect(resp.statusCode, equals(200), reason: 'Password reset request should succeed');
@@ -178,7 +178,7 @@ void main() {
       req.headers.add('Authorization', 'Bearer $testAccessToken');
       req.write(jsonEncode({'password': newPassword}));
       final resp = await req.close();
-      final payload = await resp.transform(utf8.decoder).join();
+        await resp.transform(utf8.decoder).join();
 
       expect(resp.statusCode, equals(200), reason: 'Password update should succeed');
       print('✓ Password updated successfully');
@@ -220,7 +220,7 @@ void main() {
         'password': 'TestPassword123!', // Original password
       }));
       final resp = await req.close();
-      final payload = await resp.transform(utf8.decoder).join();
+        await resp.transform(utf8.decoder).join();
 
       expect(resp.statusCode, equals(400), reason: 'Sign in with old password should fail');
       print('✓ Old password correctly rejected');

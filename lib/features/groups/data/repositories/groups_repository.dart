@@ -26,12 +26,11 @@ class GroupsRepository {
           .select('groups(*)')
           .eq('user_id', userId);
 
-      final groups = (response as List)
+      final groups = response
           .map((json) {
             final groupData = json['groups'] as Map<String, dynamic>;
             // Fix DiceBear URLs to exclude metadata tags
             if (groupData['avatar_url'] != null) {
-              final original = groupData['avatar_url'];
               groupData['avatar_url'] = fixDiceBearUrl(groupData['avatar_url']);
               // Removed group avatar URL fixed debug
             }
@@ -57,11 +56,14 @@ class GroupsRepository {
         return const Failure('Group not found');
       }
 
+      // Ensure response is a Map<String, dynamic>
+      final groupData = response;
+
       // Fix DiceBear URLs to exclude metadata tags
-      if (response['avatar_url'] != null) {
-        response['avatar_url'] = fixDiceBearUrl(response['avatar_url']);
+      if (groupData['avatar_url'] != null) {
+        groupData['avatar_url'] = fixDiceBearUrl(groupData['avatar_url']);
       }
-      return Success(GroupModel.fromJson(response));
+      return Success(GroupModel.fromJson(groupData));
     } catch (e) {
       return Failure('Failed to load group: ${e.toString()}');
     }

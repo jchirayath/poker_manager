@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
-import '../../../profile/data/repositories/profile_repository.dart';
-import '../../../../shared/models/result.dart';
 import 'create_game_screen.dart';
 
 class GamesGroupSelectorScreen extends ConsumerWidget {

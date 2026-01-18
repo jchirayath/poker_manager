@@ -91,7 +91,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         },
         failure: (message, errorData) {},
       );
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error: $e');
+    }
   }
 
   Future<void> _recordSettlement(
@@ -164,8 +166,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     final participantCount = gameWithParticipants.participants.length;
 
     // Show confirmation dialog
+    final context0 = context;
     final confirmed = await showDialog<bool>(
-      context: context,
+      context: context0,
       builder: (context) => AlertDialog(
         title: const Text('Start Game?'),
         content: Text(
@@ -206,7 +209,9 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
         // Force refresh the transactions
         debugPrint('🔄 Force refreshing transactions...');
+        // ignore: unused_result
         ref.refresh(gameTransactionsProvider(game.id));
+        // ignore: unused_result
         ref.refresh(gameWithParticipantsProvider(game.id));
 
         if (mounted) {
@@ -375,6 +380,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
     if (_shouldRefreshTransactions) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        // ignore: unused_result
         ref.refresh(gameTransactionsProvider(widget.gameId));
         setState(() => _shouldRefreshTransactions = false);
       });
@@ -469,7 +475,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     onPressed: () => _stopGame(game, transactions),
                   ),
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
                 ),
               // Edit Button
               if (game.status == 'scheduled' || game.status == 'in_progress')
@@ -494,6 +500,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           ),
           body: RefreshIndicator(
             onRefresh: () async {
+              // ignore: unused_result
               ref.refresh(gameWithParticipantsProvider(widget.gameId));
             },
             child: SingleChildScrollView(

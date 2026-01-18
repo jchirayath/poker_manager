@@ -417,45 +417,8 @@ void main() {
               .maybeSingle();
 
           final avatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$email&excludeMetadata=true';
-          if (existingProfile == null) {
-            // Profile wasn't created by trigger, create it directly
-            try {
-              await client.from('profiles').insert({
-                'id': userId,
-                'email': email,
-                'username': username,
-                'first_name': firstName,
-                'last_name': lastName,
-                'avatar_url': avatarUrl,
-                'street_address': street,
-                'city': city,
-                'state_province': state,
-                'postal_code': postal,
-                'country': country,
-                'created_at': nowIso,
-                'updated_at': nowIso,
-              });
-            } catch (e) {
-              print('    ⚠️  Failed to create profile: $e');
-              rethrow;
-            }
-          } else {
-            // Profile exists, just update the additional fields
-            try {
-              await client.from('profiles').update({
-                'avatar_url': avatarUrl,
-                'street_address': street,
-                'city': city,
-                'state_province': state,
-                'postal_code': postal,
-                'country': country,
-                'updated_at': nowIso,
-              }).eq('id', userId);
-            } catch (e) {
-              print('    ⚠️  Failed to update profile: $e');
-            }
-          }
 
+          // Create location first (before updating/creating profile)
           final locationId = uuid.v4();
           try {
             await client.from('locations').insert({
@@ -475,6 +438,37 @@ void main() {
             });
           } catch (e) {
             print('    ⚠️  Location insert failed: $e');
+          }
+
+          if (existingProfile == null) {
+            // Profile wasn't created by trigger, create it directly
+            try {
+              await client.from('profiles').insert({
+                'id': userId,
+                'email': email,
+                'username': username,
+                'first_name': firstName,
+                'last_name': lastName,
+                'avatar_url': avatarUrl,
+                'primary_location_id': locationId,
+                'created_at': nowIso,
+                'updated_at': nowIso,
+              });
+            } catch (e) {
+              print('    ⚠️  Failed to create profile: $e');
+              rethrow;
+            }
+          } else {
+            // Profile exists, just update the additional fields
+            try {
+              await client.from('profiles').update({
+                'avatar_url': avatarUrl,
+                'primary_location_id': locationId,
+                'updated_at': nowIso,
+              }).eq('id', userId);
+            } catch (e) {
+              print('    ⚠️  Failed to update profile: $e');
+            }
           }
         } catch (e) {
           print('  ✗ Failed to create user $email: $e');

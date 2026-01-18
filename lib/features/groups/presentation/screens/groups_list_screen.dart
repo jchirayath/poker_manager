@@ -226,6 +226,7 @@ class _GroupsListTab extends ConsumerWidget {
   });
 
   Future<void> _refresh(WidgetRef ref) async {
+    // ignore: unused_result
     await ref.refresh(groupsProvider.future);
   }
 

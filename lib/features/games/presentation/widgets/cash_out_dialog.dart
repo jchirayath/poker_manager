@@ -101,7 +101,7 @@ class _CashOutDialogState extends ConsumerState<CashOutDialog> {
           // If still loading transactions, proceed without check
           await _addCashOut(amount);
         },
-        error: (_, __) async {
+        error: (error, stackTrace) async {
           // If error loading transactions, proceed without check
           await _addCashOut(amount);
         },

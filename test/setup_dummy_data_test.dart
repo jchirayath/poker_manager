@@ -177,110 +177,60 @@ void main() {
           'first': 'Avery',
           'last': 'Nguyen',
           'username': 'avery.nguyen',
-          'street': '101 River Walk',
-          'city': 'Austin',
-          'state': 'TX',
-          'postal': '78701',
-          'country': 'United States',
         },
         {
           'email': 'bella.martinez@dummy.test',
           'first': 'Bella',
           'last': 'Martinez',
           'username': 'bella.martinez',
-          'street': '245 Cedar Trail',
-          'city': 'Denver',
-          'state': 'CO',
-          'postal': '80203',
-          'country': 'United States',
         },
         {
           'email': 'cam.johnson@dummy.test',
           'first': 'Cam',
           'last': 'Johnson',
           'username': 'cam.johnson',
-          'street': '77 Orchard Lane',
-          'city': 'Chicago',
-          'state': 'IL',
-          'postal': '60610',
-          'country': 'United States',
         },
         {
           'email': 'dylan.cho@dummy.test',
           'first': 'Dylan',
           'last': 'Cho',
           'username': 'dylan.cho',
-          'street': '980 Hillcrest Blvd',
-          'city': 'Los Angeles',
-          'state': 'CA',
-          'postal': '90027',
-          'country': 'United States',
         },
         {
           'email': 'ella.wright@dummy.test',
           'first': 'Ella',
           'last': 'Wright',
           'username': 'ella.wright',
-          'street': '15 Harbor View Dr',
-          'city': 'Seattle',
-          'state': 'WA',
-          'postal': '98101',
-          'country': 'United States',
         },
         {
           'email': 'finley.patel@dummy.test',
           'first': 'Finley',
           'last': 'Patel',
           'username': 'finley.patel',
-          'street': '300 Brookstone Ave',
-          'city': 'Phoenix',
-          'state': 'AZ',
-          'postal': '85004',
-          'country': 'United States',
         },
         {
           'email': 'gia.ross@dummy.test',
           'first': 'Gia',
           'last': 'Ross',
           'username': 'gia.ross',
-          'street': '612 Meadow Ridge Rd',
-          'city': 'Nashville',
-          'state': 'TN',
-          'postal': '37203',
-          'country': 'United States',
         },
         {
           'email': 'henry.lee@dummy.test',
           'first': 'Henry',
           'last': 'Lee',
           'username': 'henry.lee',
-          'street': '54 Pine Street',
-          'city': 'Boston',
-          'state': 'MA',
-          'postal': '02110',
-          'country': 'United States',
         },
         {
           'email': 'iris.khan@dummy.test',
           'first': 'Iris',
           'last': 'Khan',
           'username': 'iris.khan',
-          'street': '890 Elmwood Pl',
-          'city': 'Columbus',
-          'state': 'OH',
-          'postal': '43215',
-          'country': 'United States',
         },
         {
           'email': 'jax.ramirez@dummy.test',
           'first': 'Jax',
           'last': 'Ramirez',
           'username': 'jax.ramirez',
-          'street': '442 Maple Bend',
-          'city': 'Miami',
-          'state': 'FL',
-          'postal': '33130',
-          'country': 'United States',
         },
       ];
 
@@ -291,22 +241,91 @@ void main() {
 
       String? adminUserId;
 
-      for (final user in dummyUsers) {
+      // Address data for each user (order matches dummyUsers)
+      final dummyAddresses = [
+        {
+          'street_address': '101 River Walk',
+          'city': 'Austin',
+          'state_province': 'TX',
+          'postal_code': '78701',
+          'country': 'United States',
+        },
+        {
+          'street_address': '245 Cedar Trail',
+          'city': 'Denver',
+          'state_province': 'CO',
+          'postal_code': '80203',
+          'country': 'United States',
+        },
+        {
+          'street_address': '77 Orchard Lane',
+          'city': 'Chicago',
+          'state_province': 'IL',
+          'postal_code': '60610',
+          'country': 'United States',
+        },
+        {
+          'street_address': '980 Hillcrest Blvd',
+          'city': 'Los Angeles',
+          'state_province': 'CA',
+          'postal_code': '90027',
+          'country': 'United States',
+        },
+        {
+          'street_address': '15 Harbor View Dr',
+          'city': 'Seattle',
+          'state_province': 'WA',
+          'postal_code': '98101',
+          'country': 'United States',
+        },
+        {
+          'street_address': '300 Brookstone Ave',
+          'city': 'Phoenix',
+          'state_province': 'AZ',
+          'postal_code': '85004',
+          'country': 'United States',
+        },
+        {
+          'street_address': '612 Meadow Ridge Rd',
+          'city': 'Nashville',
+          'state_province': 'TN',
+          'postal_code': '37203',
+          'country': 'United States',
+        },
+        {
+          'street_address': '54 Pine Street',
+          'city': 'Boston',
+          'state_province': 'MA',
+          'postal_code': '02110',
+          'country': 'United States',
+        },
+        {
+          'street_address': '890 Elmwood Pl',
+          'city': 'Columbus',
+          'state_province': 'OH',
+          'postal_code': '43215',
+          'country': 'United States',
+        },
+        {
+          'street_address': '442 Maple Bend',
+          'city': 'Miami',
+          'state_province': 'FL',
+          'postal_code': '33130',
+          'country': 'United States',
+        },
+      ];
+
+      for (var i = 0; i < dummyUsers.length; i++) {
+        final user = dummyUsers[i];
+        final address = dummyAddresses[i];
         final email = user['email']!;
         final firstName = user['first']!;
         final lastName = user['last']!;
         final username = user['username']!;
-        final street = user['street']!;
-        final city = user['city']!;
-        final state = user['state']!;
-        final postal = user['postal']!;
-        final country = user['country']!;
 
         try {
           String userId;
-
           final existing = existingUsers.where((u) => u.email == email).toList();
-
           if (existing.isNotEmpty) {
             userId = existing.first.id;
             print('  ℹ Using existing user $firstName $lastName ($email)');
@@ -321,7 +340,6 @@ void main() {
                     'username': username,
                     'first_name': firstName,
                     'last_name': lastName,
-                    'country': country,
                   },
                 ),
               );
@@ -356,6 +374,26 @@ void main() {
               .maybeSingle();
 
           final avatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$email&excludeMetadata=true';
+
+          // Create location first (before profile)
+          final locationId = uuid.v4();
+          try {
+            await client.from('locations').insert({
+              'id': locationId,
+              'group_id': null,
+              'profile_id': userId,
+              ...address,
+              'label': '$firstName $lastName Home',
+              'is_primary': true,
+              'created_by': userId,
+              'created_at': nowIso,
+              'updated_at': nowIso,
+            });
+            locationIds.add(locationId);
+          } catch (e) {
+            print('    ⚠️  Location insert failed: $e');
+          }
+
           if (existingProfile == null) {
             // Profile wasn't created by trigger, create it directly
             try {
@@ -366,6 +404,7 @@ void main() {
                 'first_name': firstName,
                 'last_name': lastName,
                 'avatar_url': avatarUrl,
+                'primary_location_id': locationId,
                 'created_at': nowIso,
                 'updated_at': nowIso,
               });
@@ -378,33 +417,12 @@ void main() {
             try {
               await client.from('profiles').update({
                 'avatar_url': avatarUrl,
+                'primary_location_id': locationId,
                 'updated_at': nowIso,
               }).eq('id', userId);
             } catch (e) {
               print('    ⚠️  Failed to update profile: $e');
             }
-          }
-
-          final locationId = uuid.v4();
-          try {
-            await client.from('locations').insert({
-              'id': locationId,
-              'group_id': null,
-              'profile_id': userId,
-              'street_address': street,
-              'city': city,
-              'state_province': state,
-              'postal_code': postal,
-              'country': country,
-              'label': '$firstName $lastName Home',
-              'is_primary': true,
-              'created_by': userId,
-              'created_at': nowIso,
-              'updated_at': nowIso,
-            });
-            locationIds.add(locationId);
-          } catch (e) {
-            print('    ⚠️  Location insert failed: $e');
           }
         } catch (e) {
           print('  ✗ Failed to create user $email: $e');
@@ -433,7 +451,6 @@ void main() {
                 'username': adminUsername,
                 'first_name': adminFirst,
                 'last_name': adminLast,
-                'country': 'United States',
               },
             ),
           );
@@ -455,35 +472,8 @@ void main() {
             .maybeSingle();
 
         final adminAvatarUrl = 'https://api.dicebear.com/7.x/avataaars/svg?seed=$adminEmail&excludeMetadata=true';
-        if (existingAdminProfile == null) {
-          // Profile wasn't created by trigger, create it directly
-          try {
-            await client.from('profiles').insert({
-              'id': adminUserId,
-              'email': adminEmail,
-              'username': adminUsername,
-              'first_name': adminFirst,
-              'last_name': adminLast,
-              'avatar_url': adminAvatarUrl,
-              'created_at': nowIso,
-              'updated_at': nowIso,
-            });
-          } catch (e) {
-            print('    ⚠️  Failed to create admin profile: $e');
-            rethrow;
-          }
-        } else {
-          // Profile exists, update additional fields
-          try {
-            await client.from('profiles').update({
-              'avatar_url': adminAvatarUrl,
-              'updated_at': nowIso,
-            }).eq('id', adminUserId);
-          } catch (e) {
-            print('    ⚠️  Failed to update admin profile: $e');
-          }
-        }
 
+        // Create admin location first
         final adminLocationId = uuid.v4();
         try {
           await client.from('locations').insert({
@@ -504,6 +494,37 @@ void main() {
           locationIds.add(adminLocationId);
         } catch (e) {
           print('    ⚠️  Admin location insert failed: $e');
+        }
+
+        if (existingAdminProfile == null) {
+          // Profile wasn't created by trigger, create it directly
+          try {
+            await client.from('profiles').insert({
+              'id': adminUserId,
+              'email': adminEmail,
+              'username': adminUsername,
+              'first_name': adminFirst,
+              'last_name': adminLast,
+              'avatar_url': adminAvatarUrl,
+              'primary_location_id': adminLocationId,
+              'created_at': nowIso,
+              'updated_at': nowIso,
+            });
+          } catch (e) {
+            print('    ⚠️  Failed to create admin profile: $e');
+            rethrow;
+          }
+        } else {
+          // Profile exists, update additional fields
+          try {
+            await client.from('profiles').update({
+              'avatar_url': adminAvatarUrl,
+              'primary_location_id': adminLocationId,
+              'updated_at': nowIso,
+            }).eq('id', adminUserId);
+          } catch (e) {
+            print('    ⚠️  Failed to update admin profile: $e');
+          }
         }
       } catch (e) {
         print('  ✗ Failed to create admin user: $e');
@@ -682,7 +703,7 @@ void main() {
         locationIds.add(loc['id'] as String);
       }
 
-      print('🎮 Creating 4 games per group (12 total) + 1 GBP game...');
+      print('🎮 Creating 4 games per group (12 total: 2 completed, 1 cancelled, 1 scheduled per group) + 1 GBP game...');
       final gamesCreated = <String>[];
       final allParticipants = <Map<String, dynamic>>[];
 

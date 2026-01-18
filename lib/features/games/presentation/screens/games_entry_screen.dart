@@ -461,7 +461,7 @@ class _GameCard extends StatelessWidget {
   static final DateFormat _timeFormatter = DateFormat('h:mm a');
 
   static Widget _buildGroupAvatar(String? url, String fallback, BuildContext context) {
-    final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : 'G';
+    // ...existing code...
     if ((url ?? '').isEmpty) {
       return Icon(
         Icons.group,

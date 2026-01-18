@@ -334,6 +334,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
 
                   if (mounted) {
                     // Refresh locations and get the updated list
+                    // ignore: unused_result
                     ref.refresh(groupLocationsProvider(_groupId!));
                     
                     // Get the updated locations list
@@ -347,16 +348,16 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                     }
                     
                     Navigator.pop(context0);
-                    
-                    if (mounted) {
+                    if (context0.mounted) {
                       ScaffoldMessenger.of(context0).showSnackBar(
                         const SnackBar(content: Text('Location added successfully')),
                       );
                     }
                   }
                 } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                  final context0 = context;
+                  if (context0.mounted) {
+                    ScaffoldMessenger.of(context0).showSnackBar(
                       SnackBar(content: Text('Error adding location: $e')),
                     );
                   }
@@ -418,15 +419,15 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            colorScheme.primaryContainer.withOpacity(0.3),
-                            colorScheme.secondaryContainer.withOpacity(0.3),
+                            colorScheme.primaryContainer.withAlpha((0.3 * 255).toInt()),
+                            colorScheme.secondaryContainer.withAlpha((0.3 * 255).toInt()),
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: colorScheme.outline.withOpacity(0.2),
+                          color: colorScheme.outline.withAlpha((0.2 * 255).toInt()),
                           width: 1,
                         ),
                       ),
@@ -499,7 +500,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: colorScheme.primary.withOpacity(0.1),
+                        color: colorScheme.primary.withAlpha((0.1 * 255).toInt()),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -530,7 +531,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.1),
+                              color: colorScheme.primary.withAlpha((0.1 * 255).toInt()),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -566,7 +567,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.1),
+                              color: colorScheme.primary.withAlpha((0.1 * 255).toInt()),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -651,7 +652,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: colorScheme.primary.withOpacity(0.1),
+                                color: colorScheme.primary.withAlpha((0.1 * 255).toInt()),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -770,7 +771,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.1),
+                              color: colorScheme.primary.withAlpha((0.1 * 255).toInt()),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -801,7 +802,7 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.1),
+                              color: colorScheme.primary.withAlpha((0.1 * 255).toInt()),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -831,11 +832,11 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                 // Allow Member Transactions Option
                 Card(
                   elevation: 0,
-                  color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  color: colorScheme.surfaceContainerHighest.withAlpha((0.3 * 255).toInt()),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(
-                      color: colorScheme.outline.withOpacity(0.2),
+                      color: colorScheme.outline.withAlpha((0.2 * 255).toInt()),
                       width: 1,
                     ),
                   ),
@@ -960,10 +961,10 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
-                              color: isSelected ? colorScheme.primaryContainer.withOpacity(0.3) : colorScheme.surface,
+                              color: isSelected ? colorScheme.primaryContainer.withAlpha((0.3 * 255).toInt()) : colorScheme.surface,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: isSelected ? colorScheme.primary : colorScheme.outline.withOpacity(0.3),
+                                color: isSelected ? colorScheme.primary : colorScheme.outline.withAlpha((0.3 * 255).toInt()),
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -1027,14 +1028,14 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
                     gradient: LinearGradient(
                       colors: [
                         colorScheme.primary,
-                        colorScheme.primary.withOpacity(0.8),
+                        colorScheme.primary.withAlpha((0.8 * 255).toInt()),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: colorScheme.primary.withOpacity(0.3),
+                        color: colorScheme.primary.withAlpha((0.3 * 255).toInt()),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),

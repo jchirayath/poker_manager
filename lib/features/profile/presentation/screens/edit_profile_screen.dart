@@ -800,7 +800,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 Expanded(
                                   flex: 3,
                                   child: DropdownButtonFormField<String>(
-                                    value: _selectedCountry,
+                                    initialValue: _selectedCountry,
                                     isExpanded: true,
                                     decoration: InputDecoration(
                                       labelText: 'Country',

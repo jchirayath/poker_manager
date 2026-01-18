@@ -5,7 +5,7 @@ import 'dart:math';
 
 /// Fixes DiceBear avatar URLs to exclude metadata tags
 ///
-/// DiceBear API v7+ includes <metadata/> tags by default which flutter_svg
+/// DiceBear API v7+ includes &lt;metadata/&gt; tags by default which flutter_svg
 /// cannot parse. This function adds &excludeMetadata=true to fix that.
 ///
 /// Example:

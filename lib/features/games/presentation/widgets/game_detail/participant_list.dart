@@ -30,6 +30,7 @@ class ParticipantList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -303,12 +304,13 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.outline,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
           ),
         ),
         const SizedBox(height: 4),
@@ -479,7 +481,6 @@ class _ActionButtons extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currency = Currencies.symbols[game.currency] ?? game.currency;
-    final theme = Theme.of(context);
 
     return Row(
       children: [
