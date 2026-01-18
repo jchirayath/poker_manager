@@ -364,54 +364,7 @@ class GamesRepository {
           .single();
 
       debugPrint('✅ Transaction inserted: ${txnResponse['id']}');
-
-      // Update participant totals
-      final participant = await _client
-          .from('game_participants')
-          .select()
-          .eq('game_id', gameId)
-          .eq('user_id', userId)
-          .maybeSingle();
-
-      double currentBuyin = 0;
-      double currentCashout = 0;
-
-      if (participant != null) {
-        currentBuyin = ValidationHelpers.roundToCurrency(
-          (participant['total_buyin'] ?? 0).toDouble()
-        );
-        currentCashout = ValidationHelpers.roundToCurrency(
-          (participant['total_cashout'] ?? 0).toDouble()
-        );
-      }
-
-      if (type == 'buyin') {
-        currentBuyin += roundedAmount;
-      } else if (type == 'cashout') {
-        currentCashout += roundedAmount;
-      }
-
-      // Round final totals
-      currentBuyin = ValidationHelpers.roundToCurrency(currentBuyin);
-      currentCashout = ValidationHelpers.roundToCurrency(currentCashout);
-
-      // Validate final totals don't exceed reasonable bounds
-      if (currentBuyin > 100000 || currentCashout > 100000) {
-        return const Failure('Participant total exceeds reasonable bounds');
-      }
-
-      // Update participant totals - RLS policy now allows group members to update
-      final updateResult = await _client
-          .from('game_participants')
-          .update({
-            'total_buyin': currentBuyin,
-            'total_cashout': currentCashout,
-          })
-          .eq('game_id', gameId)
-          .eq('user_id', userId)
-          .select();
-
-      debugPrint('📊 Update participant result: $updateResult (buyin: $currentBuyin, cashout: $currentCashout)');
+      debugPrint('📊 Participant totals will be auto-updated by database trigger');
 
       return Success(_mapTransactionRowToModel(Map<String, dynamic>.from(txnResponse as Map)));
     } catch (e) {
@@ -628,44 +581,7 @@ class GamesRepository {
           debugPrint('💰 Inserting ${transactions.length} buy-in transactions...');
           final txnResponse = await _client.from('transactions').insert(transactions).select();
           debugPrint('✅ Successfully inserted ${(txnResponse as List).length} buy-in transactions');
-
-          // Update participant totals for each participant
-          debugPrint('📊 Updating participant totals...');
-          for (final participantJson in participants) {
-            final userId = participantJson['user_id'] as String;
-
-            // Fetch current participant totals
-            final participant = await _client
-                .from('game_participants')
-                .select('total_buyin, total_cashout')
-                .eq('game_id', gameId)
-                .eq('user_id', userId)
-                .maybeSingle();
-
-            double currentBuyin = 0;
-            double currentCashout = 0;
-
-            if (participant != null) {
-              currentBuyin = (participant['total_buyin'] ?? 0).toDouble();
-              currentCashout = (participant['total_cashout'] ?? 0).toDouble();
-            }
-
-            // Add the buy-in amount
-            currentBuyin += game.buyinAmount;
-
-            // Update participant totals
-            await _client
-                .from('game_participants')
-                .update({
-                  'total_buyin': currentBuyin,
-                  'total_cashout': currentCashout,
-                })
-                .eq('game_id', gameId)
-                .eq('user_id', userId);
-
-            debugPrint('  - Updated totals for user $userId: buyin=$currentBuyin, cashout=$currentCashout');
-          }
-          debugPrint('✅ Successfully updated participant totals');
+          debugPrint('📊 Participant totals will be auto-updated by database trigger');
 
           // Now update the game status to in_progress
           final response = await _client
