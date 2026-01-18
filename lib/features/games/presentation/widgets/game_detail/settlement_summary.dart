@@ -78,6 +78,57 @@ class PaymentMethod {
 /// Identifier types for payment apps
 enum IdentifierType { email, phone, username }
 
+/// Utility functions for masking sensitive payment identifiers
+class IdentifierMasking {
+  /// Masks an email address, showing only first 2 chars and domain
+  /// e.g., "john.doe@example.com" -> "jo***@example.com"
+  static String maskEmail(String email) {
+    final parts = email.split('@');
+    if (parts.length != 2) return '***';
+
+    final localPart = parts[0];
+    final domain = parts[1];
+
+    if (localPart.length <= 2) {
+      return '${localPart[0]}***@$domain';
+    }
+    return '${localPart.substring(0, 2)}***@$domain';
+  }
+
+  /// Masks a phone number, showing only last 4 digits
+  /// e.g., "+1 (555) 123-4567" -> "***-4567"
+  static String maskPhone(String phone) {
+    // Remove all non-digit characters
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 4) return '***';
+
+    final lastFour = digits.substring(digits.length - 4);
+    return '***-$lastFour';
+  }
+
+  /// Masks a username, showing only first 2 and last char
+  /// e.g., "johndoe" -> "jo***e"
+  static String maskUsername(String username) {
+    if (username.isEmpty) return '***';
+    if (username.length <= 3) return '${username[0]}***';
+
+    return '${username.substring(0, 2)}***${username[username.length - 1]}';
+  }
+
+  /// Get masked value based on identifier type
+  static String mask(IdentifierType type, String value) {
+    if (value.isEmpty) return '';
+    switch (type) {
+      case IdentifierType.email:
+        return maskEmail(value);
+      case IdentifierType.phone:
+        return maskPhone(value);
+      case IdentifierType.username:
+        return maskUsername(value);
+    }
+  }
+}
+
 class SettlementSummary extends StatelessWidget {
   final GameModel game;
   final List<GameParticipantModel> participants;
@@ -638,6 +689,8 @@ class _PayNowSheetState extends State<_PayNowSheet> {
   PaymentMethod _selectedMethod = PaymentMethod.venmo;
   IdentifierType _selectedIdentifierType = IdentifierType.username;
   final Map<IdentifierType, TextEditingController> _controllers = {};
+  final Map<IdentifierType, String> _originalValues = {};
+  final Map<IdentifierType, bool> _isEditing = {};
   bool _isLaunching = false;
 
   @override
@@ -652,20 +705,26 @@ class _PayNowSheetState extends State<_PayNowSheet> {
     // Initialize controllers for each available identifier type
     for (final type in _availableIdentifierTypes) {
       _controllers[type] = TextEditingController();
+      _isEditing[type] = false;
 
+      String originalValue = '';
       if (profile != null) {
         switch (type) {
           case IdentifierType.username:
-            _controllers[type]!.text = profile.username ?? '';
+            originalValue = profile.username ?? '';
             break;
           case IdentifierType.email:
-            _controllers[type]!.text = profile.email;
+            originalValue = profile.email;
             break;
           case IdentifierType.phone:
-            _controllers[type]!.text = profile.phoneNumber ?? '';
+            originalValue = profile.phoneNumber ?? '';
             break;
         }
       }
+
+      // Store original value and show masked version
+      _originalValues[type] = originalValue;
+      _controllers[type]!.text = IdentifierMasking.mask(type, originalValue);
     }
 
     // Set initial selection based on available data
@@ -678,6 +737,30 @@ class _PayNowSheetState extends State<_PayNowSheet> {
         _selectedIdentifierType = IdentifierType.phone;
       }
     }
+  }
+
+  void _toggleEditing(IdentifierType type) {
+    setState(() {
+      _isEditing[type] = !(_isEditing[type] ?? false);
+      if (_isEditing[type]!) {
+        // Clear the masked value so user can enter fresh
+        _controllers[type]!.text = '';
+      } else {
+        // If user clears the field, restore masked original
+        if (_controllers[type]!.text.isEmpty) {
+          _controllers[type]!.text = IdentifierMasking.mask(type, _originalValues[type] ?? '');
+        }
+      }
+    });
+  }
+
+  /// Get the actual identifier to use for payment
+  /// If user has edited, use their input; otherwise use original value
+  String _getIdentifierForPayment(IdentifierType type) {
+    if (_isEditing[type] == true && _controllers[type]!.text.isNotEmpty) {
+      return _controllers[type]!.text.trim();
+    }
+    return _originalValues[type] ?? '';
   }
 
   @override
@@ -749,7 +832,7 @@ class _PayNowSheetState extends State<_PayNowSheet> {
     setState(() => _isLaunching = true);
 
     final formattedAmount = widget.amount.toStringAsFixed(2);
-    final identifier = _controllers[_selectedIdentifierType]?.text.trim() ?? '';
+    final identifier = _getIdentifierForPayment(_selectedIdentifierType);
     final note = Uri.encodeComponent('Poker Settlement');
 
     String url;
@@ -916,7 +999,9 @@ class _PayNowSheetState extends State<_PayNowSheet> {
                   icon: _getIdentifierIcon(type),
                   controller: _controllers[type]!,
                   isSelected: _selectedIdentifierType == type,
+                  isEditing: _isEditing[type] ?? false,
                   onTap: () => setState(() => _selectedIdentifierType = type),
+                  onToggleEdit: () => _toggleEditing(type),
                 ),
               )),
               const SizedBox(height: 16),
@@ -1051,14 +1136,16 @@ class _PaymentAppButton extends StatelessWidget {
   }
 }
 
-/// Identifier selection card with radio-style selection
+/// Identifier selection card with radio-style selection and privacy masking
 class _IdentifierCard extends StatelessWidget {
   final IdentifierType type;
   final String label;
   final IconData icon;
   final TextEditingController controller;
   final bool isSelected;
+  final bool isEditing;
   final VoidCallback onTap;
+  final VoidCallback onToggleEdit;
 
   const _IdentifierCard({
     required this.type,
@@ -1066,7 +1153,9 @@ class _IdentifierCard extends StatelessWidget {
     required this.icon,
     required this.controller,
     required this.isSelected,
+    required this.isEditing,
     required this.onTap,
+    required this.onToggleEdit,
   });
 
   @override
@@ -1134,56 +1223,106 @@ class _IdentifierCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Editable text field
+              // Value display or editable text field
               Expanded(
-                child: TextField(
-                  controller: controller,
-                  enabled: isSelected,
-                  style: TextStyle(
-                    color: isSelected ? theme.colorScheme.onSurface : theme.colorScheme.outline,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                child: isEditing && isSelected
+                    ? TextField(
+                        controller: controller,
+                        autofocus: true,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          hintText: _getHintText(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.green),
+                          ),
+                          filled: true,
+                          fillColor: theme.colorScheme.surface,
+                        ),
+                        keyboardType: type == IdentifierType.phone
+                            ? TextInputType.phone
+                            : type == IdentifierType.email
+                                ? TextInputType.emailAddress
+                                : TextInputType.text,
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? theme.colorScheme.surface
+                              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected
+                                ? theme.colorScheme.outline.withValues(alpha: 0.3)
+                                : theme.colorScheme.outline.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Text(
+                          controller.text.isEmpty ? 'Not set' : controller.text,
+                          style: TextStyle(
+                            color: controller.text.isEmpty
+                                ? theme.colorScheme.outline
+                                : (isSelected ? theme.colorScheme.onSurface : theme.colorScheme.outline),
+                            fontStyle: controller.text.isEmpty ? FontStyle.italic : FontStyle.normal,
+                          ),
+                        ),
                       ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.green),
-                    ),
-                    disabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: isSelected
-                        ? theme.colorScheme.surface
-                        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                  ),
-                  keyboardType: type == IdentifierType.phone
-                      ? TextInputType.phone
-                      : type == IdentifierType.email
-                          ? TextInputType.emailAddress
-                          : TextInputType.text,
-                ),
               ),
+
+              // Edit button (only show when selected)
+              if (isSelected) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onToggleEdit,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isEditing
+                          ? Colors.green.withValues(alpha: 0.2)
+                          : theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      isEditing ? Icons.check : Icons.edit,
+                      size: 18,
+                      color: isEditing ? Colors.green : theme.colorScheme.outline,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _getHintText() {
+    switch (type) {
+      case IdentifierType.email:
+        return 'Enter email address';
+      case IdentifierType.phone:
+        return 'Enter phone number';
+      case IdentifierType.username:
+        return 'Enter username';
+    }
   }
 }
 
