@@ -135,7 +135,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     } catch (_) {}
   }
 
-  void _invalidateProviders(String gameId, String groupId) {
+  Future<void> _invalidateProviders(String gameId, String groupId, {List<String>? participantUserIds}) async {
     debugPrint('🔄 Invalidating providers for game $gameId');
     ref.invalidate(gameWithParticipantsProvider(gameId));
     ref.invalidate(gameTransactionsProvider(gameId));
@@ -150,6 +150,27 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     ref.invalidate(recentGamesStatsProvider);
     ref.invalidate(recentGameStatsProvider);
     ref.invalidate(groupStatsProvider(groupId));
+
+    // Get participant user IDs if not provided
+    List<String>? userIds = participantUserIds;
+    if (userIds == null) {
+      try {
+        final gameWithParticipants = await ref.read(gameWithParticipantsProvider(gameId).future);
+        userIds = gameWithParticipants.participants.map((p) => p.userId).toList();
+      } catch (e) {
+        debugPrint('⚠️ Could not fetch participants to invalidate user transactions: $e');
+      }
+    }
+
+    // Invalidate user transactions for each participant
+    if (userIds != null && userIds.isNotEmpty) {
+      for (final userId in userIds) {
+        ref.invalidate(userTransactionsProvider(
+          UserTransactionsKey(gameId: gameId, userId: userId),
+        ));
+      }
+      debugPrint('🔄 Invalidated userTransactionsProvider for ${userIds.length} participants');
+    }
 
     // Force refresh transactions
     setState(() {
@@ -202,7 +223,8 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
       if (result != null && mounted) {
         debugPrint('✅ Game started, invalidating providers...');
-        _invalidateProviders(game.id, game.groupId);
+        final participantUserIds = gameWithParticipants.participants.map((p) => p.userId).toList();
+        _invalidateProviders(game.id, game.groupId, participantUserIds: participantUserIds);
 
         // Wait a bit for the database to fully commit
         await Future.delayed(const Duration(milliseconds: 500));

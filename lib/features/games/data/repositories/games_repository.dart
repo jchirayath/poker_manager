@@ -629,6 +629,44 @@ class GamesRepository {
           final txnResponse = await _client.from('transactions').insert(transactions).select();
           debugPrint('✅ Successfully inserted ${(txnResponse as List).length} buy-in transactions');
 
+          // Update participant totals for each participant
+          debugPrint('📊 Updating participant totals...');
+          for (final participantJson in participants) {
+            final userId = participantJson['user_id'] as String;
+
+            // Fetch current participant totals
+            final participant = await _client
+                .from('game_participants')
+                .select('total_buyin, total_cashout')
+                .eq('game_id', gameId)
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            double currentBuyin = 0;
+            double currentCashout = 0;
+
+            if (participant != null) {
+              currentBuyin = (participant['total_buyin'] ?? 0).toDouble();
+              currentCashout = (participant['total_cashout'] ?? 0).toDouble();
+            }
+
+            // Add the buy-in amount
+            currentBuyin += game.buyinAmount;
+
+            // Update participant totals
+            await _client
+                .from('game_participants')
+                .update({
+                  'total_buyin': currentBuyin,
+                  'total_cashout': currentCashout,
+                })
+                .eq('game_id', gameId)
+                .eq('user_id', userId);
+
+            debugPrint('  - Updated totals for user $userId: buyin=$currentBuyin, cashout=$currentCashout');
+          }
+          debugPrint('✅ Successfully updated participant totals');
+
           // Now update the game status to in_progress
           final response = await _client
               .from('games')
