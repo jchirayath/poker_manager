@@ -9,6 +9,7 @@ import '../../../data/models/game_participant_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../providers/games_provider.dart';
 import '../../../../groups/presentation/providers/groups_provider.dart';
+import '../cash_out_dialog.dart';
 
 class ParticipantList extends ConsumerWidget {
   final GameModel game;
@@ -569,58 +570,34 @@ class _ActionButtons extends ConsumerWidget {
   }
 
   void _showCashoutDialog(BuildContext context, WidgetRef ref, String currency) {
-    final controller = TextEditingController();
+    // Get transactions to calculate suggested amount (current stack)
+    final transactionsAsync = ref.read(userTransactionsProvider(
+      UserTransactionsKey(gameId: game.id, userId: participant.userId),
+    ));
+
+    double suggestedAmount = 0;
+    transactionsAsync.whenData((transactions) {
+      final totalBuyin = transactions.where((t) => t.type == 'buyin').fold<double>(0, (sum, t) => sum + t.amount);
+      final totalCashout = transactions.where((t) => t.type == 'cashout').fold<double>(0, (sum, t) => sum + t.amount);
+      suggestedAmount = totalBuyin - totalCashout;
+    });
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cash-out'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: 'Amount',
-            prefixText: '$currency ',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final amount = double.tryParse(controller.text);
-              if (amount != null && amount > 0) {
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                Navigator.pop(ctx);
-                final repository = ref.read(gamesRepositoryProvider);
-                final result = await repository.addTransaction(
-                  gameId: game.id,
-                  userId: participant.userId,
-                  type: 'cashout',
-                  amount: amount,
-                );
-                result.when(
-                  success: (_) {
-                    ref.invalidate(gameWithParticipantsProvider(game.id));
-                    ref.invalidate(userTransactionsProvider(
-                      UserTransactionsKey(gameId: game.id, userId: participant.userId),
-                    ));
-                    ref.invalidate(gameTransactionsProvider(game.id));
-                    onRefresh();
-                  },
-                  failure: (message, _) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('Error: $message'), backgroundColor: Colors.red),
-                    );
-                  },
-                );
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
+      builder: (ctx) => CashOutDialog(
+        gameId: game.id,
+        userId: participant.userId,
+        userName: participant.profile?.fullName ?? 'Player',
+        currency: game.currency,
+        suggestedAmount: suggestedAmount > 0 ? suggestedAmount : 0,
+        onCashOut: () {
+          ref.invalidate(gameWithParticipantsProvider(game.id));
+          ref.invalidate(userTransactionsProvider(
+            UserTransactionsKey(gameId: game.id, userId: participant.userId),
+          ));
+          ref.invalidate(gameTransactionsProvider(game.id));
+          onRefresh();
+        },
       ),
     );
   }
