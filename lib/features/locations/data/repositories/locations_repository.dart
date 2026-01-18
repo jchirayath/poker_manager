@@ -7,12 +7,35 @@ class LocationsRepository {
   final SupabaseClient _client = SupabaseService.instance;
 
   /// Get all locations for a group
+  /// Returns both group-specific locations and personal locations of group members
   Future<Result<List<LocationModel>>> getGroupLocations(String groupId) async {
     try {
+      // Get all group members' profile IDs
+      final membersResponse = await _client
+          .from('group_members')
+          .select('user_id')
+          .eq('group_id', groupId);
+
+      final memberProfileIds = (membersResponse as List)
+          .map((m) => m['user_id'] as String)
+          .toList();
+
+      // Build the OR condition for querying locations
+      String orCondition;
+      if (memberProfileIds.isEmpty) {
+        // If no members, just get group-specific locations
+        orCondition = 'group_id.eq.$groupId';
+      } else {
+        // Get locations where:
+        // 1. group_id matches (group-specific locations), OR
+        // 2. profile_id is in the list of group members (personal locations of members)
+        orCondition = 'group_id.eq.$groupId,profile_id.in.(${memberProfileIds.join(',')})';
+      }
+
       final response = await _client
           .from('locations')
           .select()
-          .eq('group_id', groupId)
+          .or(orCondition)
           .order('is_primary', ascending: false)
           .order('created_at', ascending: false);
 

@@ -934,12 +934,15 @@ class _EditGameScreenState extends ConsumerState<EditGameScreen> {
     
     locationsAsync.whenData((locations) {
       if (_selectedLocationId != null) {
-        final location = locations.firstWhere(
-          (loc) => loc.id == _selectedLocationId,
-          orElse: () => null as LocationModel,
-        );
-        locationString = location.fullAddress;
-            }
+        try {
+          final location = locations.firstWhere(
+            (loc) => loc.id == _selectedLocationId,
+          );
+          locationString = location.label ?? location.fullAddress;
+        } catch (e) {
+          // Location not found
+        }
+      }
     });
     
     // Call the original update game with the location string

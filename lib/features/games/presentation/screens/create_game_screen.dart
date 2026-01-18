@@ -525,21 +525,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     }
   }
 
-  /// Get locations from selected members' profiles
-  /// Combines locations table entries with addresses from member profiles
-  /// Ensures unique addresses - if multiple members share an address, shows all names
+  /// Get locations for selected members
+  /// Returns group locations and member locations from the locations table
   Future<List<LocationModel>> _getFilteredLocations(
     List<LocationModel> allLocations,
     List<dynamic> members,
   ) async {
-    // Start with all group-level locations from the locations table
-    final locationsList = <LocationModel>[
-      ...allLocations.where((loc) => loc.profileId == null),
-    ];
-
     // If no members selected, return just group-level locations
     if (_selectedPlayerIds.isEmpty) {
-      return locationsList;
+      return allLocations.where((loc) => loc.profileId == null).toList();
     }
 
     // Get the selected members' profiles
@@ -547,63 +541,24 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         .where((m) => _selectedPlayerIds.contains(m.userId))
         .toList();
 
-    // Extract unique profile IDs for filtering locations table
+    // Extract unique profile IDs for filtering
     final memberProfileIds = <String>{};
-
-    // Group members by their addresses to handle duplicates
-    final addressToMembers = <String, List<dynamic>>{};
-
     for (final member in selectedMembers) {
       if (member.profile != null) {
         memberProfileIds.add(member.profile!.id);
-
-        // Add location from member's profile if they have an address
-        if (member.profile!.hasAddress) {
-          final profileAddress = member.profile!.fullAddress;
-
-          if (profileAddress.isNotEmpty) {
-            // Group members by address
-            if (!addressToMembers.containsKey(profileAddress)) {
-              addressToMembers[profileAddress] = [];
-            }
-            addressToMembers[profileAddress]!.add(member);
-          }
-        }
       }
     }
 
-    // Create unique location entries - no label so fullAddress is used
-    addressToMembers.forEach((address, membersAtAddress) {
-      // Use the first member's profile for the location details
-      final firstMember = membersAtAddress.first;
+    // Return group locations + member locations (no duplicates needed - locations table is source of truth)
+    return allLocations.where((location) {
+      // Include group-level locations
+      if (location.profileId == null) return true;
 
-      locationsList.add(
-        LocationModel(
-          id: 'profile_${firstMember.profile!.id}', // Virtual ID using first member
-          groupId: widget.groupId,
-          profileId: firstMember.profile!.id,
-          streetAddress: firstMember.profile!.streetAddress ?? '',
-          city: firstMember.profile!.city,
-          stateProvince: firstMember.profile!.stateProvince,
-          postalCode: firstMember.profile!.postalCode,
-          country: firstMember.profile!.country ?? 'USA',
-          label: null, // No label - will display fullAddress
-          isPrimary: false,
-        ),
-      );
-    });
+      // Include locations belonging to selected members
+      if (memberProfileIds.contains(location.profileId)) return true;
 
-    // Also include any locations from the locations table that belong to selected members
-    final memberLocations = allLocations
-        .where((location) {
-          return location.profileId != null &&
-              memberProfileIds.contains(location.profileId);
-        })
-        .toList();
-
-    locationsList.addAll(memberLocations);
-
-    return locationsList;
+      return false;
+    }).toList();
   }
 
 
@@ -657,34 +612,16 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       // Get the location address if a location was selected
       String? locationString;
       if (_selectedLocationId != null) {
-        // Check if this is a virtual profile-based location
-        if (_selectedLocationId!.startsWith('profile_')) {
-          // Extract the profile ID and find the member's address
-          final profileId = _selectedLocationId!.replaceFirst('profile_', '');
-          final membersAsync = ref.read(groupMembersProvider(widget.groupId));
-          final members = membersAsync.value ?? [];
-          try {
-            final member = members.firstWhere(
-              (m) => m.profile?.id == profileId,
-            );
-            if (member.profile != null) {
-              locationString = member.profile!.fullAddress;
-            }
-          } catch (e) {
-            // Member not found, locationString stays null
-          }
-        } else {
-          // Real location from locations table
-          final locationsAsync = ref.read(groupLocationsProvider(widget.groupId));
-          final locations = locationsAsync.value ?? [];
-          try {
-            final selectedLocation = locations.firstWhere(
-              (loc) => loc.id == _selectedLocationId,
-            );
-            locationString = selectedLocation.label ?? selectedLocation.fullAddress;
-          } catch (e) {
-            // Location not found, locationString stays null
-          }
+        final locationsAsync = ref.read(groupLocationsProvider(widget.groupId));
+        final locations = locationsAsync.value ?? [];
+        try {
+          final selectedLocation = locations.firstWhere(
+            (loc) => loc.id == _selectedLocationId,
+          );
+          // Use label if available, otherwise full address
+          locationString = selectedLocation.label ?? selectedLocation.fullAddress;
+        } catch (e) {
+          // Location not found, locationString stays null
         }
       }
 
@@ -1647,9 +1584,6 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                                   final hasLabel = location.label != null && location.label!.isNotEmpty;
                                   final fullAddr = location.fullAddress;
                                   final displayText = hasLabel ? location.label! : (fullAddr.isNotEmpty ? fullAddr : 'Unknown Location');
-
-                                  // Debug: Print location details
-                                  debugPrint('Location ID: ${location.id}, Label: ${location.label}, FullAddress: $fullAddr, Display: $displayText');
 
                                   return DropdownMenuItem(
                                     value: location.id,

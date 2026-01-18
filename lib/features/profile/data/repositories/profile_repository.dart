@@ -78,47 +78,64 @@ class ProfileRepository {
   }) async {
     try {
       final updates = <String, dynamic>{};
+      bool hasAddressUpdate = false;
 
       if (username != null && username.isNotEmpty) {
         updates['username'] = username;
       } else if (username != null && username.isEmpty) {
         updates['username'] = null;
       }
-      
+
       if (firstName != null && firstName.isNotEmpty) updates['first_name'] = firstName;
       if (lastName != null && lastName.isNotEmpty) updates['last_name'] = lastName;
-      
+
       if (phoneNumber != null && phoneNumber.isNotEmpty) {
         updates['phone_number'] = phoneNumber;
       } else if (phoneNumber != null && phoneNumber.isEmpty) {
         updates['phone_number'] = null;
       }
-      
-      if (streetAddress != null && streetAddress.isNotEmpty) {
-        updates['street_address'] = streetAddress;
-      } else if (streetAddress != null && streetAddress.isEmpty) {
-        updates['street_address'] = null;
+
+      // Track address updates
+      if (streetAddress != null) {
+        hasAddressUpdate = true;
+        if (streetAddress.isNotEmpty) {
+          updates['street_address'] = streetAddress;
+        } else {
+          updates['street_address'] = null;
+        }
       }
-      
-      if (city != null && city.isNotEmpty) {
-        updates['city'] = city;
-      } else if (city != null && city.isEmpty) {
-        updates['city'] = null;
+
+      if (city != null) {
+        hasAddressUpdate = true;
+        if (city.isNotEmpty) {
+          updates['city'] = city;
+        } else {
+          updates['city'] = null;
+        }
       }
-      
-      if (stateProvince != null && stateProvince.isNotEmpty) {
-        updates['state_province'] = stateProvince;
-      } else if (stateProvince != null && stateProvince.isEmpty) {
-        updates['state_province'] = null;
+
+      if (stateProvince != null) {
+        hasAddressUpdate = true;
+        if (stateProvince.isNotEmpty) {
+          updates['state_province'] = stateProvince;
+        } else {
+          updates['state_province'] = null;
+        }
       }
-      
-      if (postalCode != null && postalCode.isNotEmpty) {
-        updates['postal_code'] = postalCode;
-      } else if (postalCode != null && postalCode.isEmpty) {
-        updates['postal_code'] = null;
+
+      if (postalCode != null) {
+        hasAddressUpdate = true;
+        if (postalCode.isNotEmpty) {
+          updates['postal_code'] = postalCode;
+        } else {
+          updates['postal_code'] = null;
+        }
       }
-      
-      if (country != null && country.isNotEmpty) updates['country'] = country;
+
+      if (country != null) {
+        hasAddressUpdate = true;
+        updates['country'] = country;
+      }
 
       // Skip update if no fields to update
       if (updates.isEmpty) {
@@ -138,10 +155,24 @@ class ProfileRepository {
 
       debugPrint('🔵 Updating profile for user: $userId with updates: $updates');
 
+      // Update profiles table
       await _client
           .from('profiles')
           .update(updates)
           .eq('id', userId);
+
+      // DUAL WRITE: If address was updated, also update/create location
+      if (hasAddressUpdate && streetAddress != null && streetAddress.isNotEmpty) {
+        await _syncAddressToLocation(
+          userId: userId,
+          streetAddress: streetAddress,
+          city: city,
+          stateProvince: stateProvince,
+          postalCode: postalCode,
+          country: country ?? 'USA',
+          firstName: firstName,
+        );
+      }
 
       // Fetch the updated profile separately
       final response = await _client
@@ -162,6 +193,77 @@ class ProfileRepository {
       debugPrint('🔴 Profile update exception: $e');
       debugPrint('Stack trace: $stack');
       return Failure('Failed to update profile: ${e.toString()}');
+    }
+  }
+
+  /// Sync address from profile to locations table (dual-write pattern)
+  /// This ensures addresses appear in location dropdowns
+  Future<void> _syncAddressToLocation({
+    required String userId,
+    required String streetAddress,
+    String? city,
+    String? stateProvince,
+    String? postalCode,
+    required String country,
+    String? firstName,
+  }) async {
+    try {
+      // Check if user has a primary location
+      final existingLocation = await _client
+          .from('locations')
+          .select()
+          .eq('profile_id', userId)
+          .eq('is_primary', true)
+          .maybeSingle();
+
+      if (existingLocation != null) {
+        // Update existing primary location
+        debugPrint('📍 Updating existing primary location for user: $userId');
+        await _client
+            .from('locations')
+            .update({
+              'street_address': streetAddress,
+              'city': city,
+              'state_province': stateProvince,
+              'postal_code': postalCode,
+              'country': country,
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', existingLocation['id']);
+      } else {
+        // Create new primary location
+        debugPrint('📍 Creating new primary location for user: $userId');
+        final label = firstName != null && firstName.isNotEmpty
+            ? '$firstName\'s Address'
+            : 'Primary Address';
+
+        final newLocation = await _client
+            .from('locations')
+            .insert({
+              'profile_id': userId,
+              'street_address': streetAddress,
+              'city': city,
+              'state_province': stateProvince,
+              'postal_code': postalCode,
+              'country': country,
+              'label': label,
+              'is_primary': true,
+              'created_by': userId,
+            })
+            .select()
+            .maybeSingle();
+
+        // Update profile to reference this location
+        if (newLocation != null) {
+          await _client
+              .from('profiles')
+              .update({'primary_location_id': newLocation['id']})
+              .eq('id', userId);
+        }
+      }
+    } catch (e) {
+      // Don't fail the profile update if location sync fails
+      debugPrint('⚠️ Failed to sync address to location: $e');
     }
   }
 
@@ -211,6 +313,19 @@ class ProfileRepository {
 
       if (response == null) {
         return const Failure('Failed to create local profile');
+      }
+
+      // DUAL WRITE: Also create location if address provided
+      if (streetAddress != null && streetAddress.isNotEmpty) {
+        await _syncAddressToLocation(
+          userId: userId,
+          streetAddress: streetAddress,
+          city: city,
+          stateProvince: stateProvince,
+          postalCode: postalCode,
+          country: country?.isNotEmpty == true ? country! : 'United States',
+          firstName: firstName,
+        );
       }
 
       final responseMap = response;
