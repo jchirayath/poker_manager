@@ -56,10 +56,10 @@ class AppConstants {
   static const String appName = 'Poker Manager';
   static const String appNameWithBeta = 'Poker Manager Beta';
   static const String companyName = 'Poker Manager Team';
-  static const String developerEmail = 'support@pokermanager.app';
+  static const String developerEmail = 'jacobjc@gmail.com';
   static const String copyright = '© 2026 Poker Manager Team';
   static const String appTagline = 'Your Game, Your Way';
-  static const String websiteUrl = 'https://pokermanager.app';
+  static const String websiteUrl = 'https://pokermanager.app - Comming soon';
 
   // Feedback categories
   static const List<String> feedbackCategories = [

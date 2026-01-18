@@ -754,13 +754,16 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               content: const Text('Start the game now? All selected players are assumed to have paid their buy-in.'),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Later'),
-                ),
-                ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context); // Close dialog
-                    _startGame(
+                    Navigator.pop(context); // Close Create Game screen
+                  },
+                  child: const Text('Create Game'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(context); // Close dialog
+                    await _startGame(
                       groupId: widget.groupId,
                       gameName: _nameController.text,
                       playerIds: _selectedPlayerIds.toList(),
@@ -768,7 +771,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       currency: _selectedCurrency,
                     );
                   },
-                  child: const Text('Start Game'),
+                  child: const Text('Create and Start Game'),
                 ),
               ],
             ),

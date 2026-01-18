@@ -32,6 +32,12 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _playerKeys = {};
 
+  // Section keys for quick navigation
+  final GlobalKey _settlementKey = GlobalKey(debugLabel: 'settlement_section');
+  final GlobalKey _rankingsKey = GlobalKey(debugLabel: 'rankings_section');
+  final GlobalKey _participantsKey = GlobalKey(debugLabel: 'participants_section');
+  final GlobalKey _actionsKey = GlobalKey(debugLabel: 'actions_section');
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -45,6 +51,21 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollToSection(GlobalKey key) async {
+    // Wait for the widget tree to build and async data to load
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    if (key.currentContext != null) {
+      // Use Scrollable.ensureVisible which handles nested scroll views better
+      await Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.0, // Align to top of viewport
       );
     }
   }
@@ -361,9 +382,23 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                   );
                 },
               ),
+              // Stop Game Button (for in-progress games)
+              if (game.status == 'in_progress')
+                transactionsAsync.when(
+                  data: (transactions) => IconButton(
+                    icon: const Icon(Icons.stop_circle),
+                    tooltip: 'Stop Game',
+                    color: Colors.red[700],
+                    onPressed: () => _stopGame(game, transactions),
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                ),
+              // Edit Button
               if (game.status == 'scheduled' || game.status == 'in_progress')
                 IconButton(
                   icon: const Icon(Icons.edit),
+                  tooltip: 'Edit Game',
                   onPressed: () async {
                     final result = await Navigator.push(
                       context,
@@ -438,35 +473,44 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                       transactionsAsync.when(
                         loading: () => const Center(child: CircularProgressIndicator()),
                         error: (error, stackTrace) => const SizedBox.shrink(),
-                        data: (transactions) => SettlementSummary(
-                          game: game,
-                          participants: participants,
-                          transactions: transactions,
-                          settlementStatus: _settlementStatus,
-                          onMarkSettled: _recordSettlement,
-                          onResetSettlement: _deleteSettlement,
+                        data: (transactions) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              key: _rankingsKey,
+                              child: PlayerRankings(
+                                game: game,
+                                participants: participants,
+                                transactions: transactions,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Container(
+                              key: _settlementKey,
+                              child: SettlementSummary(
+                                game: game,
+                                participants: participants,
+                                transactions: transactions,
+                                settlementStatus: _settlementStatus,
+                                onMarkSettled: _recordSettlement,
+                                onResetSettlement: _deleteSettlement,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-
-                      transactionsAsync.when(
-                        loading: () => const SizedBox.shrink(),
-                        error: (error, stackTrace) => const SizedBox.shrink(),
-                        data: (transactions) => PlayerRankings(
-                          game: game,
-                          participants: participants,
-                          transactions: transactions,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
                     ],
 
                     // Participants list
-                    ParticipantList(
-                      game: game,
-                      participants: participants,
-                      playerKeys: _playerKeys,
-                      onRefresh: () => _invalidateProviders(game.id, game.groupId),
+                    Container(
+                      key: _participantsKey,
+                      child: ParticipantList(
+                        game: game,
+                        participants: participants,
+                        playerKeys: _playerKeys,
+                        onRefresh: () => _invalidateProviders(game.id, game.groupId),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -474,14 +518,17 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     transactionsAsync.when(
                       loading: () => const SizedBox.shrink(),
                       error: (error, stackTrace) => const SizedBox.shrink(),
-                      data: (transactions) => GameActionButtons(
-                        game: game,
-                        transactions: transactions,
-                        isStartingGame: _isStartingGame,
-                        onStartGame: () => _startGame(game),
-                        onStopGame: () => _stopGame(game, transactions),
-                        onCancelGame: () => _cancelGame(game),
-                        onDeleteGame: () => _deleteGame(game),
+                      data: (transactions) => Container(
+                        key: _actionsKey,
+                        child: GameActionButtons(
+                          game: game,
+                          transactions: transactions,
+                          isStartingGame: _isStartingGame,
+                          onStartGame: () => _startGame(game),
+                          onStopGame: () => _stopGame(game, transactions),
+                          onCancelGame: () => _cancelGame(game),
+                          onDeleteGame: () => _deleteGame(game),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -490,8 +537,69 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
               ),
             ),
           ),
+          // Quick navigation FAB (only for completed games)
+          floatingActionButton: game.status == 'completed'
+              ? FloatingActionButton(
+                  onPressed: () => _showNavigationMenu(context),
+                  tooltip: 'Quick Navigation',
+                  child: const Icon(Icons.explore),
+                )
+              : null,
         );
       },
+    );
+  }
+
+  void _showNavigationMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Jump to Section',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events),
+              title: const Text('Player Rankings'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_rankingsKey);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet),
+              title: const Text('Settlements'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_settlementKey);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Participants'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_participantsKey);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Game Actions'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_actionsKey);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 }

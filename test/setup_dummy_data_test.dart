@@ -10,9 +10,8 @@
 //   CLEAR_DUMMY_DATA=true INSERT_DATA=false flutter test test/setup_dummy_data_test.dart
 //
 //   # Insert dummy data only (without clearing first):
-//   INSERT_DATA=true flutter test test/setup_dummy_data_test.dart
-//
-//   # Clear all data AND insert dummy data (default):
+//        NSERT_DATA=true flutter test test/setup_dummy_data_test.dart
+     / . /   # Clear all data AND insert dummy data (default):
 //   flutter test test/setup_dummy_data_test.dart
 //
 //   # Or explicitly:
