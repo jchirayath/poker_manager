@@ -2,6 +2,7 @@ import '../../../common/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/currencies.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -323,41 +324,14 @@ class _MyGamesTab extends ConsumerWidget {
   }
 
   Widget _buildStatusBadge(BuildContext context, String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-
-    switch (status) {
-      case 'in_progress':
-        bgColor = Colors.green.withValues(alpha: 0.2);
-        textColor = Colors.green[700]!;
-        label = 'Active';
-        break;
-      case 'scheduled':
-        bgColor = Colors.orange.withValues(alpha: 0.2);
-        textColor = Colors.orange[700]!;
-        label = 'Scheduled';
-        break;
-      case 'completed':
-        bgColor = Colors.blue.withValues(alpha: 0.2);
-        textColor = Colors.blue[700]!;
-        label = 'Completed';
-        break;
-      case 'cancelled':
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = 'Cancelled';
-        break;
-      default:
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = status;
-    }
+    final statusColor = AppColors.getGameStatusColor(status);
+    // Use 'Active' label for in_progress to match existing UI expectation
+    final label = status == 'in_progress' ? 'Active' : AppColors.getGameStatusLabel(status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: AppColors.withAlpha20(statusColor),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -365,7 +339,7 @@ class _MyGamesTab extends ConsumerWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: textColor,
+          color: statusColor,
         ),
       ),
     );
@@ -1229,41 +1203,14 @@ class _PublicGamesTabState extends ConsumerState<_PublicGamesTab> {
   }
 
   Widget _buildStatusBadge(BuildContext context, String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-
-    switch (status) {
-      case 'in_progress':
-        bgColor = Colors.green.withValues(alpha: 0.2);
-        textColor = Colors.green[700]!;
-        label = 'Active';
-        break;
-      case 'scheduled':
-        bgColor = Colors.orange.withValues(alpha: 0.2);
-        textColor = Colors.orange[700]!;
-        label = 'Scheduled';
-        break;
-      case 'completed':
-        bgColor = Colors.blue.withValues(alpha: 0.2);
-        textColor = Colors.blue[700]!;
-        label = 'Completed';
-        break;
-      case 'cancelled':
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = 'Cancelled';
-        break;
-      default:
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = status;
-    }
+    final statusColor = AppColors.getGameStatusColor(status);
+    // Use 'Active' label for in_progress to match existing UI expectation
+    final label = status == 'in_progress' ? 'Active' : AppColors.getGameStatusLabel(status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: AppColors.withAlpha20(statusColor),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -1271,7 +1218,7 @@ class _PublicGamesTabState extends ConsumerState<_PublicGamesTab> {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: textColor,
+          color: statusColor,
         ),
       ),
     );

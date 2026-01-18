@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/currencies.dart';
 import '../../../../../core/utils/avatar_utils.dart';
 import '../../../data/models/game_model.dart';
@@ -169,47 +170,19 @@ class GameHeaderCard extends StatelessWidget {
   }
 
   Widget _buildStatusChip(BuildContext context) {
-    Color backgroundColor;
-    Color textColor;
-    String label;
-
-    switch (game.status) {
-      case 'scheduled':
-        backgroundColor = Colors.blue.withValues(alpha: 0.15);
-        textColor = Colors.blue;
-        label = 'Scheduled';
-        break;
-      case 'in_progress':
-        backgroundColor = Colors.orange.withValues(alpha: 0.15);
-        textColor = Colors.orange;
-        label = 'In Progress';
-        break;
-      case 'completed':
-        backgroundColor = Colors.green.withValues(alpha: 0.15);
-        textColor = Colors.green;
-        label = 'Completed';
-        break;
-      case 'cancelled':
-        backgroundColor = Colors.red.withValues(alpha: 0.15);
-        textColor = Colors.red;
-        label = 'Cancelled';
-        break;
-      default:
-        backgroundColor = Colors.grey.withValues(alpha: 0.15);
-        textColor = Colors.grey;
-        label = game.status;
-    }
+    final statusColor = AppColors.getGameStatusColor(game.status);
+    final label = AppColors.getGameStatusLabel(game.status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: AppColors.withAlpha15(statusColor),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: textColor,
+          color: statusColor,
           fontWeight: FontWeight.w600,
           fontSize: 12,
         ),

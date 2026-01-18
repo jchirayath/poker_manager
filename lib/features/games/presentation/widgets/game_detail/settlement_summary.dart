@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/currencies.dart';
 import '../../../../../core/utils/avatar_utils.dart';
 import '../../../../profile/data/models/profile_model.dart';
@@ -30,14 +31,14 @@ class PaymentMethod {
     id: 'cash',
     label: 'Cash',
     icon: Icons.money,
-    color: Colors.green,
+    color: AppColors.paymentCash,
   );
 
   static const venmo = PaymentMethod(
     id: 'venmo',
     label: 'Venmo',
     icon: Icons.mobile_friendly,
-    color: Color(0xFF3D95CE),
+    color: AppColors.paymentVenmo,
     supportsDeepLink: true,
   );
 
@@ -45,7 +46,7 @@ class PaymentMethod {
     id: 'paypal',
     label: 'PayPal',
     icon: Icons.account_balance_wallet,
-    color: Color(0xFF003087),
+    color: AppColors.paymentPayPal,
     supportsDeepLink: true,
   );
 
@@ -53,7 +54,7 @@ class PaymentMethod {
     id: 'zelle',
     label: 'Zelle',
     icon: Icons.send_to_mobile,
-    color: Color(0xFF6D1ED4),
+    color: AppColors.paymentZelle,
   );
 
   /// All available payment methods for settlement

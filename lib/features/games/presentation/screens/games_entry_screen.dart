@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/constants/business_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
@@ -540,39 +541,16 @@ class _GameCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final game = gameWithGroup.game;
 
-    Color iconColor;
-    IconData iconData;
-    Color backgroundColor;
-    
-    switch (game.status) {
-      case 'in_progress':
-        iconColor = Colors.white;
-        iconData = Icons.play_arrow;
-        backgroundColor = Colors.green;
-        break;
-      case 'completed':
-        iconColor = Colors.white;
-        iconData = Icons.check_circle;
-        backgroundColor = Colors.blue;
-        break;
-      case 'cancelled':
-        iconColor = Colors.white;
-        iconData = Icons.cancel;
-        backgroundColor = Colors.grey;
-        break;
-      default: // scheduled
-        iconColor = Colors.white;
-        iconData = Icons.schedule;
-        backgroundColor = Colors.orange;
-    }
-    
+    final backgroundColor = AppColors.getGameStatusColor(game.status);
+    final iconData = AppColors.getGameStatusIcon(game.status);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: backgroundColor,
-          child: Icon(iconData, color: iconColor),
+          child: Icon(iconData, color: Colors.white),
         ),
         title: showGroupInfo
             ? Row(
