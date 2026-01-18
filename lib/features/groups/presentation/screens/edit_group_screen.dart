@@ -18,6 +18,7 @@ class EditGroupScreen extends ConsumerStatefulWidget {
   final String currency;
   final double defaultBuyin;
   final List<double> additionalBuyins;
+  final bool autoSendRsvpEmails;
 
   const EditGroupScreen({
     super.key,
@@ -29,6 +30,7 @@ class EditGroupScreen extends ConsumerStatefulWidget {
     required this.currency,
     required this.defaultBuyin,
     required this.additionalBuyins,
+    this.autoSendRsvpEmails = true,
   });
 
   @override
@@ -45,6 +47,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
   late String _privacy;
   late String _currency;
   late double _defaultBuyin;
+  late bool _autoSendRsvpEmails;
   String? _avatarUrl;
   File? _selectedImage;
   final ImagePicker _imagePicker = ImagePicker();
@@ -62,6 +65,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
     _privacy = widget.privacy;
     _currency = widget.currency;
     _defaultBuyin = widget.defaultBuyin;
+    _autoSendRsvpEmails = widget.autoSendRsvpEmails;
     _avatarUrl = widget.avatarUrl;
   }
 
@@ -393,6 +397,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         defaultCurrency: _currency,
         defaultBuyin: _defaultBuyin,
         additionalBuyinValues: additionalBuyins,
+        autoSendRsvpEmails: _autoSendRsvpEmails,
       );
 
       if (!mounted) return;
@@ -700,6 +705,59 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // RSVP Email Settings Card
+                    Card(
+                      elevation: 0,
+                      color: colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.email, color: colorScheme.primary, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'RSVP Email Settings',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            SwitchListTile(
+                              value: _autoSendRsvpEmails,
+                              onChanged: (value) {
+                                setState(() => _autoSendRsvpEmails = value);
+                              },
+                              title: const Text('Auto-send RSVP emails'),
+                              subtitle: const Text(
+                                'Automatically send RSVP invitation emails when a new game is created',
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
 

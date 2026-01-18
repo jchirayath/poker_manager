@@ -12,9 +12,11 @@ import '../widgets/game_detail/settlement_summary.dart';
 import '../widgets/game_detail/player_rankings.dart';
 import '../widgets/game_detail/participant_list.dart';
 import '../widgets/game_detail/game_action_buttons.dart';
+import '../widgets/game_detail/rsvp_widgets.dart';
 import '../widgets/seating_chart_dialog.dart';
 import 'edit_game_screen.dart';
 import '../../../stats/presentation/providers/stats_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class GameDetailScreen extends ConsumerStatefulWidget {
   final String gameId;
@@ -608,6 +610,76 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                       ),
                     ],
 
+                    // RSVP Summary (only for scheduled games)
+                    if (game.status == 'scheduled') ...[
+                      groupAsync.when(
+                        data: (group) {
+                          final currentUserAsync = ref.watch(authStateProvider);
+                          final currentUser = currentUserAsync.value;
+                          final isAdmin = currentUser != null &&
+                              ref.watch(groupMembersProvider(game.groupId)).maybeWhen(
+                                data: (members) => members.any(
+                                  (m) => m.userId == currentUser.id && m.role == 'admin',
+                                ),
+                                orElse: () => false,
+                              );
+
+                          return RsvpSummaryCard(
+                            participants: participants,
+                            canSendEmails: isAdmin,
+                            onSendEmails: isAdmin ? () => _sendRsvpEmails(game.id) : null,
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                      const SizedBox(height: 16),
+                      // User's own RSVP selector
+                      Builder(
+                        builder: (context) {
+                          final currentUserAsync = ref.watch(authStateProvider);
+                          final currentUser = currentUserAsync.value;
+
+                          if (currentUser == null) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final userParticipant = participants.firstWhere(
+                            (p) => p.userId == currentUser.id,
+                            orElse: () => participants.first,
+                          );
+
+                          if (userParticipant.userId != currentUser.id) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Your RSVP:',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  RsvpSelectorButton(
+                                    gameId: game.id,
+                                    userId: currentUser.id,
+                                    currentStatus: userParticipant.rsvpStatus,
+                                    onChanged: () => _invalidateProviders(game.id, game.groupId),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
                     // Participants list
                     Container(
                       key: _participantsKey,
@@ -707,5 +779,47 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _sendRsvpEmails(String gameId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send RSVP Emails'),
+        content: const Text(
+          'This will send RSVP invitation emails to all group members. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final repository = ref.read(gamesRepositoryProvider);
+    final result = await repository.sendRsvpEmails(gameId: gameId);
+
+    if (mounted) {
+      result.when(
+        success: (_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('RSVP emails sent successfully!')),
+          );
+        },
+        failure: (error, _) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to send emails: $error')),
+          );
+        },
+      );
+    }
   }
 }

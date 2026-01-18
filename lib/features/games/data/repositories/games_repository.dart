@@ -231,7 +231,7 @@ class GamesRepository {
           return {
             'game_id': gameId,
             'user_id': userId,
-            'rsvp_status': 'going',
+            'rsvp_status': 'maybe',
           };
         }).toList();
 
@@ -281,15 +281,84 @@ class GamesRepository {
     required String rsvpStatus,
   }) async {
     try {
-      await _client.from('game_participants').upsert({
-        'game_id': gameId,
-        'user_id': userId,
-        'rsvp_status': rsvpStatus,
-      });
+      // First check if participant exists
+      final existing = await _client
+          .from('game_participants')
+          .select('id')
+          .eq('game_id', gameId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Update existing participant
+        await _client
+            .from('game_participants')
+            .update({'rsvp_status': rsvpStatus})
+            .eq('game_id', gameId)
+            .eq('user_id', userId);
+      } else {
+        // Insert new participant
+        await _client.from('game_participants').insert({
+          'game_id': gameId,
+          'user_id': userId,
+          'rsvp_status': rsvpStatus,
+        });
+      }
 
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update RSVP: ${e.toString()}');
+    }
+  }
+
+  /// Remove a participant from a game
+  Future<Result<void>> removeParticipant({
+    required String gameId,
+    required String userId,
+  }) async {
+    try {
+      await _client
+          .from('game_participants')
+          .delete()
+          .eq('game_id', gameId)
+          .eq('user_id', userId);
+
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to remove participant: ${e.toString()}');
+    }
+  }
+
+  /// Send RSVP emails for a game to all group members or a specific user
+  /// Uses Supabase Function to generate magic links and send emails
+  Future<Result<void>> sendRsvpEmails({
+    required String gameId,
+    String? userId, // If null, sends to all group members
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'send-rsvp-emails',
+        body: {
+          'gameId': gameId,
+          if (userId != null) 'userId': userId,
+        },
+      );
+
+      if (response.status != 200) {
+        final errorData = response.data;
+        final errorMessage = errorData is Map ? errorData['error'] ?? 'Unknown error' : 'Unknown error';
+        return Failure('Failed to send RSVP emails: $errorMessage');
+      }
+
+      return const Success(null);
+    } catch (e, stackTrace) {
+      ErrorLoggerService.logError(
+        e,
+        stackTrace,
+        context: 'sendRsvpEmails',
+        additionalData: {'gameId': gameId},
+      );
+      return Failure('Failed to send RSVP emails: ${e.toString()}');
     }
   }
 
@@ -675,7 +744,7 @@ class GamesRepository {
             return {
               'game_id': gameId,
               'user_id': userId,
-              'rsvp_status': 'going',
+              'rsvp_status': 'maybe',
             };
           }).toList();
 

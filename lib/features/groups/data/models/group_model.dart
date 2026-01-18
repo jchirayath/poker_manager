@@ -15,6 +15,7 @@ abstract class GroupModel with _$GroupModel {
     @JsonKey(name: 'default_currency') required String defaultCurrency,
     @JsonKey(name: 'default_buyin') required double defaultBuyin,
     @JsonKey(name: 'additional_buyin_values') required List<double> additionalBuyinValues,
+    @JsonKey(name: 'auto_send_rsvp_emails') @Default(true) bool autoSendRsvpEmails,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
   }) = _GroupModel;

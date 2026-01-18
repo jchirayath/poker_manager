@@ -151,6 +151,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             additionalBuyins: extraMap['additionalBuyins'] is List
                 ? List<double>.from((extraMap['additionalBuyins'] as List).map((e) => (e as num).toDouble()))
                 : <double>[],
+            autoSendRsvpEmails: extraMap['autoSendRsvpEmails'] as bool? ?? true,
           );
         },
       ),

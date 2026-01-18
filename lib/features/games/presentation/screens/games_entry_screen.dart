@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/constants/business_constants.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
@@ -113,6 +114,23 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
         : null;
     final groupName = groupAsync?.whenOrNull(data: (group) => group?.name);
 
+    // Calculate game counts for each status
+    int activeCount = 0;
+    int scheduledCount = 0;
+    int completedCount = 0;
+    int cancelledCount = 0;
+
+    if (UIConstants.showGameCountsInTabs) {
+      activeGamesAsync.whenData((games) {
+        activeCount = games.where((g) => g.game.status == 'in_progress').length;
+        scheduledCount = games.where((g) => g.game.status == 'scheduled').length;
+      });
+      pastGamesAsync.whenData((games) {
+        completedCount = games.where((g) => g.game.status == 'completed').length;
+        cancelledCount = games.where((g) => g.game.status == 'cancelled').length;
+      });
+    }
+
     return Scaffold(
       drawer: _isGroupSpecific ? null : const AppDrawer(),
       appBar: AppBar(
@@ -133,11 +151,31 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          tabs: const [
-            Tab(icon: Icon(Icons.play_circle), text: 'Active'),
-            Tab(icon: Icon(Icons.schedule), text: 'Scheduled'),
-            Tab(icon: Icon(Icons.check_circle), text: 'Completed'),
-            Tab(icon: Icon(Icons.cancel), text: 'Cancelled'),
+          tabs: [
+            Tab(
+              icon: const Icon(Icons.play_circle),
+              text: UIConstants.showGameCountsInTabs
+                  ? 'Active ($activeCount)'
+                  : 'Active',
+            ),
+            Tab(
+              icon: const Icon(Icons.schedule),
+              text: UIConstants.showGameCountsInTabs
+                  ? 'Scheduled ($scheduledCount)'
+                  : 'Scheduled',
+            ),
+            Tab(
+              icon: const Icon(Icons.check_circle),
+              text: UIConstants.showGameCountsInTabs
+                  ? 'Completed ($completedCount)'
+                  : 'Completed',
+            ),
+            Tab(
+              icon: const Icon(Icons.cancel),
+              text: UIConstants.showGameCountsInTabs
+                  ? 'Cancelled ($cancelledCount)'
+                  : 'Cancelled',
+            ),
           ],
         ),
       ),

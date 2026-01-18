@@ -261,20 +261,24 @@ class UIConstants {
   // Currency formatting
   static const String currencySymbol = '\$';
   static const String defaultCurrencyCode = 'USD';
-  
+
   // Date/Time formats
   static const String displayDateFormat = 'MMM d, y';
   static const String displayTimeFormat = 'h:mm a';
   static const String displayDateTimeFormat = 'MMM d, y h:mm a';
-  
+
   // Empty state messages
   static const String noGamesMessage = 'No games found';
   static const String noSettlementsMessage = 'No settlements yet';
   static const String noTransactionsMessage = 'No transactions recorded';
   static const String noParticipantsMessage = 'No participants yet';
-  
+
   // Loading messages
   static const String loadingMessage = 'Loading...';
   static const String savingMessage = 'Saving...';
   static const String calculatingMessage = 'Calculating...';
+
+  // Tab display options
+  /// Show game counts in tab labels (e.g., "Active (5)")
+  static const bool showGameCountsInTabs = true;
 }

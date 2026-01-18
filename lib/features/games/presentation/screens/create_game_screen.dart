@@ -733,7 +733,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   id: '',
                   gameId: game.id,
                   userId: userId,
-                  rsvpStatus: 'going',
+                  rsvpStatus: 'maybe',
                   totalBuyin: 0,
                   totalCashout: 0,
                   netResult: 0,
@@ -762,7 +762,21 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         ref.invalidate(groupGamesProvider(widget.groupId));
         ref.invalidate(activeGamesProvider);
 
-        // Removed unused variable 'successMessage'
+        // Send RSVP emails if auto-send is enabled (for single games only)
+        if (!_isRecurring) {
+          final groupAsync = ref.read(groupProvider(widget.groupId));
+          groupAsync.whenData((group) async {
+            if (group != null && group.autoSendRsvpEmails) {
+              final createdGameState = ref.read(createGameProvider);
+              createdGameState.whenData((game) async {
+                if (game != null) {
+                  final repository = ref.read(gamesRepositoryProvider);
+                  await repository.sendRsvpEmails(gameId: game.id);
+                }
+              });
+            }
+          });
+        }
 
         // Show a dialog to confirm starting the game (only for single games)
         if (!_isRecurring) {

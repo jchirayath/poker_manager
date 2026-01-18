@@ -455,6 +455,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                           'currency': group.defaultCurrency,
                           'defaultBuyin': group.defaultBuyin,
                           'additionalBuyins': group.additionalBuyinValues,
+                          'autoSendRsvpEmails': group.autoSendRsvpEmails,
                         },
                       );
                     },

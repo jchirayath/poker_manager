@@ -79,6 +79,7 @@ class GroupController {
     String? defaultCurrency,
     double? defaultBuyin,
     List<double>? additionalBuyinValues,
+    bool? autoSendRsvpEmails,
   }) async {
     final result = await _repository.updateGroup(
       groupId: groupId,
@@ -89,6 +90,7 @@ class GroupController {
       defaultCurrency: defaultCurrency,
       defaultBuyin: defaultBuyin,
       additionalBuyinValues: additionalBuyinValues,
+      autoSendRsvpEmails: autoSendRsvpEmails,
     );
 
     if (result is Success) {

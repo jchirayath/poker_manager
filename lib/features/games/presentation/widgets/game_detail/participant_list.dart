@@ -11,6 +11,8 @@ import '../../providers/games_provider.dart';
 import '../../../../groups/presentation/providers/groups_provider.dart';
 import '../cash_out_dialog.dart';
 import '../../../../stats/presentation/providers/stats_provider.dart';
+import '../../../../auth/presentation/providers/auth_provider.dart';
+import 'rsvp_widgets.dart';
 
 class ParticipantList extends ConsumerWidget {
   final GameModel game;
@@ -93,6 +95,10 @@ class _ParticipantCard extends ConsumerWidget {
     // Fetch group members to check if participant is admin
     final groupMembersAsync = ref.watch(groupMembersProvider(game.groupId));
 
+    // Get current user to check if they're an admin
+    final currentUserAsync = ref.watch(authStateProvider);
+    final currentUser = currentUserAsync.value;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -114,11 +120,20 @@ class _ParticipantCard extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                          Flexible(
+                            child: Text(
+                              name,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
+                          ),
+                          // Show RSVP status badge
+                          const SizedBox(width: 8),
+                          RsvpStatusBadge(
+                            rsvpStatus: participant.rsvpStatus,
+                            compact: true,
                           ),
                           // Show admin badge if participant is admin
                           groupMembersAsync.when(
@@ -180,6 +195,33 @@ class _ParticipantCard extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Show delete button for scheduled games if current user is admin
+                if (game.status == 'scheduled' && currentUser != null)
+                  groupMembersAsync.when(
+                    data: (members) {
+                      final currentUserMember = members.firstWhere(
+                        (m) => m.userId == currentUser.id,
+                        orElse: () => members.first,
+                      );
+                      if (currentUserMember.userId == currentUser.id &&
+                          currentUserMember.role == 'admin') {
+                        return IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          color: theme.colorScheme.error,
+                          onPressed: () => _showRemoveParticipantDialog(
+                            context,
+                            ref,
+                            participant,
+                            name,
+                          ),
+                          tooltip: 'Remove participant',
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -286,6 +328,65 @@ class _ParticipantCard extends ConsumerWidget {
           initials,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
+      ),
+    );
+  }
+
+  void _showRemoveParticipantDialog(
+    BuildContext context,
+    WidgetRef ref,
+    GameParticipantModel participant,
+    String name,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Participant'),
+        content: Text('Are you sure you want to remove $name from this game?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+
+              final repository = ref.read(gamesRepositoryProvider);
+              final result = await repository.removeParticipant(
+                gameId: game.id,
+                userId: participant.userId,
+              );
+
+              result.when(
+                success: (_) {
+                  ref.invalidate(gameWithParticipantsProvider(game.id));
+                  onRefresh();
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text('$name removed from game'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                failure: (message, _) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $message'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
   }

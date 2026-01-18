@@ -127,6 +127,7 @@ class GroupsRepository {
     String? defaultCurrency,
     double? defaultBuyin,
     List<double>? additionalBuyinValues,
+    bool? autoSendRsvpEmails,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -142,6 +143,7 @@ class GroupsRepository {
       if (additionalBuyinValues != null) {
         updates['additional_buyin_values'] = additionalBuyinValues;
       }
+      if (autoSendRsvpEmails != null) updates['auto_send_rsvp_emails'] = autoSendRsvpEmails;
 
       final response = await _client
           .from('groups')
