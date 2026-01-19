@@ -815,12 +815,19 @@ class GamesRepository {
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('id', gameId)
-          .select()
-          .single();
+          .select();
+
+      // Check if update affected any rows
+      if (response is List && response.isEmpty) {
+        debugPrint('❌ Failed to update seating chart - game not found or no permission. Are you the game host?');
+        return const Failure('Game not found or you do not have permission to update it. Are you the game host?');
+      }
+
+      final gameData = response is List ? response.first : response;
 
       debugPrint('✅ Seating chart updated successfully');
       return Success(
-        _mapGameRowToModel(Map<String, dynamic>.from(response as Map)),
+        _mapGameRowToModel(Map<String, dynamic>.from(gameData as Map)),
       );
     } catch (e, stackTrace) {
       debugPrint('❌ Error updating seating chart: $e');
