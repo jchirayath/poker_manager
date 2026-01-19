@@ -8,27 +8,27 @@ import '../../../../shared/models/result.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../locations/data/repositories/locations_repository.dart';
 import '../../../locations/data/models/location_model.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 
 final profileRepositoryProvider = Provider((ref) => ProfileRepository());
 
+final authRepositoryProvider = Provider((ref) => AuthRepository());
+
 final currentProfileProvider = StreamProvider<ProfileModel?>((ref) async* {
-  final userId = SupabaseService.currentUserId;
-  if (userId == null) {
-    yield null;
-    return;
-  }
-
   final repository = ref.watch(profileRepositoryProvider);
+  final authRepository = ref.watch(authRepositoryProvider);
 
-  // Emit immediately
-  final initial = await repository.getProfile(userId);
-  yield initial is Success<ProfileModel> ? initial.data : null;
+  // Listen to auth state changes - this will automatically update when user logs in/out
+  await for (final user in authRepository.watchCurrentUser()) {
+    if (user == null) {
+      yield null;
+      continue;
+    }
 
-  // Then poll periodically for changes
-  yield* Stream.periodic(const Duration(seconds: 30)).asyncMap((_) async {
-    final result = await repository.getProfile(userId);
-    return result is Success<ProfileModel> ? result.data : null;
-  });
+    // Fetch the full profile for the current user
+    final result = await repository.getProfile(user.id);
+    yield result is Success<ProfileModel> ? result.data : null;
+  }
 });
 
 final profileControllerProvider = Provider((ref) {

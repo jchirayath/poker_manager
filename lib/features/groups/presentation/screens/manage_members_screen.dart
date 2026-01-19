@@ -1322,15 +1322,75 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
                                   side: BorderSide(color: colorScheme.outlineVariant),
                                 ),
                                 margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  leading: _buildUserAvatar(p?.avatarUrl, p != null && p.fullName.isNotEmpty ? p.fullName[0] : '?'),
-                                  title: Row(
-                                    children: [
-                                      Flexible(child: Text(p?.fullName ?? 'Unknown')),
-                                      if (isLocal) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
+                                child: Stack(
+                                  children: [
+                                    ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                      leading: _buildUserAvatar(p?.avatarUrl, p != null && p.fullName.isNotEmpty ? p.fullName[0] : '?'),
+                                      title: Text(p?.fullName ?? 'Unknown'),
+                                      subtitle: Text(
+                                        m.isCreator
+                                            ? 'Creator'
+                                            : (m.role == 'admin' ? 'Admin' : 'Member'),
+                                        style: TextStyle(
+                                          fontWeight: m.isCreator || m.role == 'admin' ? FontWeight.bold : FontWeight.normal,
+                                          color: m.isCreator
+                                              ? colorScheme.tertiary
+                                              : (m.role == 'admin' ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                                        ),
+                                      ),
+                                      trailing: _isAdmin
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            // Local users cannot be admins, so no toggle for them
+                                            if (!isLocal) ...[
+                                              if (m.isCreator)
+                                                // Creator can toggle their own admin status
+                                                Switch(
+                                                  value: m.role == 'admin',
+                                                  onChanged: (value) => _toggleMemberRole(m.userId, value, m.isCreator),
+                                                )
+                                              else ...[
+                                                // Non-creator registered members can have role toggled
+                                                Switch(
+                                                  value: m.role == 'admin',
+                                                  onChanged: (value) => _toggleMemberRole(m.userId, value, m.isCreator),
+                                                ),
+                                              ],
+                                            ],
+                                            // Edit button only for local users
+                                            if (isLocal)
+                                              IconButton(
+                                                icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+                                                tooltip: 'Edit local user',
+                                                onPressed: () async {
+                                                  final result = await context.push(
+                                                    '/groups/${widget.groupId}/local-user/${m.userId}',
+                                                    extra: p,
+                                                  );
+                                                  if (result == true) {
+                                                    await _refreshMembers();
+                                                  }
+                                                },
+                                              ),
+                                            // Delete button for non-creators only
+                                            if (!m.isCreator)
+                                              IconButton(
+                                                icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                                                onPressed: () => _removeUser(m.userId),
+                                                tooltip: 'Remove Member',
+                                              ),
+                                          ],
+                                        )
+                                      : null,
+                                    ),
+                                    // Position "Local" badge in top-right corner
+                                    if (isLocal)
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: colorScheme.secondaryContainer,
@@ -1345,59 +1405,8 @@ class _ManageMembersScreenState extends ConsumerState<ManageMembersScreen> {
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    ],
-                                  ),
-                                  subtitle: Text(
-                                    m.isCreator
-                                        ? 'Creator'
-                                        : (m.role == 'admin' ? 'Admin' : 'Member'),
-                                    style: TextStyle(
-                                      fontWeight: m.isCreator || m.role == 'admin' ? FontWeight.bold : FontWeight.normal,
-                                      color: m.isCreator
-                                          ? colorScheme.tertiary
-                                          : (m.role == 'admin' ? colorScheme.primary : colorScheme.onSurfaceVariant),
-                                    ),
-                                  ),
-                                  trailing: _isAdmin
-                                      ? Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (m.isCreator)
-                                              // Creator can toggle their own admin status
-                                              Switch(
-                                                value: m.role == 'admin',
-                                                onChanged: (value) => _toggleMemberRole(m.userId, value, m.isCreator),
-                                              )
-                                            else ...[
-                                              // Non-creator members can have role toggled and be removed
-                                              Switch(
-                                                value: m.role == 'admin',
-                                                onChanged: (value) => _toggleMemberRole(m.userId, value, m.isCreator),
-                                              ),
-                                              if (isLocal)
-                                                IconButton(
-                                                  icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
-                                                  tooltip: 'Edit local user',
-                                                  onPressed: () async {
-                                                    final result = await context.push(
-                                                      '/groups/${widget.groupId}/local-user/${m.userId}',
-                                                      extra: p,
-                                                    );
-                                                    if (result == true) {
-                                                      await _refreshMembers();
-                                                    }
-                                                  },
-                                                ),
-                                              IconButton(
-                                                icon: Icon(Icons.delete_outline, color: colorScheme.error),
-                                                onPressed: () => _removeUser(m.userId),
-                                                tooltip: 'Remove Member',
-                                              ),
-                                            ],
-                                          ],
-                                        )
-                                      : null,
+                                      ),
+                                  ],
                                 ),
                               );
                             });

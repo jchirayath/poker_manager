@@ -10,6 +10,7 @@ import '../../../../core/utils/avatar_utils.dart';
 import 'games_group_selector_screen.dart';
 import 'game_detail_screen.dart';
 import 'create_game_screen.dart';
+import 'quick_game_screen.dart';
 import '../providers/games_provider.dart';
 import '../../../locations/presentation/providers/locations_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
@@ -321,6 +322,29 @@ class _GamesEntryScreenState extends ConsumerState<GamesEntryScreen>
                 onTap: () {
                   Navigator.pop(context);
                   context.push(RouteConstants.createGroup);
+                },
+              ),
+              // Quick Game option
+              _buildCreateGameTile(
+                context: context,
+                icon: Icons.flash_on,
+                iconColor: colorScheme.tertiary,
+                title: 'Quick Game',
+                subtitle: 'Create a group and start a game instantly',
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const QuickGameScreen(),
+                    ),
+                  );
+
+                  // Handle tab navigation if result is provided
+                  if (result is Map && result['navigateToTab'] != null) {
+                    _refreshGames();
+                    final tabIndex = result['navigateToTab'] as int;
+                    _tabController.animateTo(tabIndex);
+                  }
                 },
               ),
               const SizedBox(height: 16),
