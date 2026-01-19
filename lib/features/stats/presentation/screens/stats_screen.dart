@@ -2,6 +2,7 @@ import '../../../common/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/currencies.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -95,7 +96,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen>
             onQueryChanged: (value) => setState(() => _gameQuery = value),
             currentUserId: currentUserId,
             onRefresh: () async {
-              ref.invalidate(recentGameStatsProvider);
+              ref.invalidate(recentGamesStatsProvider);
             },
           ),
           // Groups Tab
@@ -323,41 +324,14 @@ class _MyGamesTab extends ConsumerWidget {
   }
 
   Widget _buildStatusBadge(BuildContext context, String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-
-    switch (status) {
-      case 'in_progress':
-        bgColor = Colors.green.withValues(alpha: 0.2);
-        textColor = Colors.green[700]!;
-        label = 'Active';
-        break;
-      case 'scheduled':
-        bgColor = Colors.orange.withValues(alpha: 0.2);
-        textColor = Colors.orange[700]!;
-        label = 'Scheduled';
-        break;
-      case 'completed':
-        bgColor = Colors.blue.withValues(alpha: 0.2);
-        textColor = Colors.blue[700]!;
-        label = 'Completed';
-        break;
-      case 'cancelled':
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = 'Cancelled';
-        break;
-      default:
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = status;
-    }
+    final statusColor = AppColors.getGameStatusColor(status);
+    // Use 'Active' label for in_progress to match existing UI expectation
+    final label = status == 'in_progress' ? 'Active' : AppColors.getGameStatusLabel(status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: AppColors.withAlpha20(statusColor),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -365,7 +339,7 @@ class _MyGamesTab extends ConsumerWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: textColor,
+          color: statusColor,
         ),
       ),
     );
@@ -423,7 +397,7 @@ class _MyGamesTab extends ConsumerWidget {
                 width: 24,
                 height: 24,
                 alignment: Alignment.center,
-                child: Text('?', style: TextStyle(fontSize: 16)),
+                child: const Text('?', style: TextStyle(fontSize: 16)),
               );
             },
           ),
@@ -710,6 +684,10 @@ class _GroupsTab extends ConsumerWidget {
     final colorScheme = theme.colorScheme;
     final highlightColor = colorScheme.primaryContainer.withValues(alpha: 0.3);
 
+    // Calculate total wins and losses
+    final totalWins = players.where((p) => p.$2.net > 0).fold<double>(0, (sum, p) => sum + p.$2.net);
+    final totalLosses = players.where((p) => p.$2.net < 0).fold<double>(0, (sum, p) => sum + p.$2.net.abs());
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -762,6 +740,90 @@ class _GroupsTab extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 12),
+
+            // Summary row
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: (totalWins - totalLosses).abs() > 0.01
+                    ? Border.all(color: Colors.orange, width: 2)
+                    : null,
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            'Total Wins',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatAmount(totalWins, currency),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          Text(
+                            'Total Losses',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatAmount(totalLosses, currency),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if ((totalWins - totalLosses).abs() > 0.01) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber, size: 14, color: Colors.orange[700]),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Imbalanced: Wins ≠ Losses',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.orange[700],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
             Table(
               columnWidths: const {
                 0: FixedColumnWidth(36),
@@ -1141,41 +1203,14 @@ class _PublicGamesTabState extends ConsumerState<_PublicGamesTab> {
   }
 
   Widget _buildStatusBadge(BuildContext context, String status) {
-    Color bgColor;
-    Color textColor;
-    String label;
-
-    switch (status) {
-      case 'in_progress':
-        bgColor = Colors.green.withValues(alpha: 0.2);
-        textColor = Colors.green[700]!;
-        label = 'Active';
-        break;
-      case 'scheduled':
-        bgColor = Colors.orange.withValues(alpha: 0.2);
-        textColor = Colors.orange[700]!;
-        label = 'Scheduled';
-        break;
-      case 'completed':
-        bgColor = Colors.blue.withValues(alpha: 0.2);
-        textColor = Colors.blue[700]!;
-        label = 'Completed';
-        break;
-      case 'cancelled':
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = 'Cancelled';
-        break;
-      default:
-        bgColor = Colors.grey.withValues(alpha: 0.2);
-        textColor = Colors.grey[700]!;
-        label = status;
-    }
+    final statusColor = AppColors.getGameStatusColor(status);
+    // Use 'Active' label for in_progress to match existing UI expectation
+    final label = status == 'in_progress' ? 'Active' : AppColors.getGameStatusLabel(status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: AppColors.withAlpha20(statusColor),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -1183,7 +1218,7 @@ class _PublicGamesTabState extends ConsumerState<_PublicGamesTab> {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: textColor,
+          color: statusColor,
         ),
       ),
     );

@@ -5,7 +5,6 @@ import '../../../settlements/presentation/screens/settlement_screen.dart';
 import '../../data/models/game_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../providers/games_provider.dart';
-import '../providers/games_pagination_provider.dart';
 import '../widgets/game_detail/game_header_card.dart';
 import '../widgets/game_detail/game_totals_card.dart';
 import '../widgets/game_detail/player_quick_access.dart';
@@ -13,7 +12,11 @@ import '../widgets/game_detail/settlement_summary.dart';
 import '../widgets/game_detail/player_rankings.dart';
 import '../widgets/game_detail/participant_list.dart';
 import '../widgets/game_detail/game_action_buttons.dart';
+import '../widgets/game_detail/rsvp_widgets.dart';
+import '../widgets/seating_chart_dialog.dart';
 import 'edit_game_screen.dart';
+import '../../../stats/presentation/providers/stats_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 class GameDetailScreen extends ConsumerStatefulWidget {
   final String gameId;
@@ -32,6 +35,12 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _playerKeys = {};
 
+  // Section keys for quick navigation
+  final GlobalKey _settlementKey = GlobalKey(debugLabel: 'settlement_section');
+  final GlobalKey _rankingsKey = GlobalKey(debugLabel: 'rankings_section');
+  final GlobalKey _participantsKey = GlobalKey(debugLabel: 'participants_section');
+  final GlobalKey _actionsKey = GlobalKey(debugLabel: 'actions_section');
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -45,6 +54,21 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
         key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _scrollToSection(GlobalKey key) async {
+    // Wait for the widget tree to build and async data to load
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    if (key.currentContext != null) {
+      // Use Scrollable.ensureVisible which handles nested scroll views better
+      await Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.0, // Align to top of viewport
       );
     }
   }
@@ -67,9 +91,11 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
             });
           }
         },
-        failure: (_, __) {},
+        failure: (message, errorData) {},
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error: $e');
+    }
   }
 
   Future<void> _recordSettlement(
@@ -111,34 +137,118 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
     } catch (_) {}
   }
 
-  void _invalidateProviders(String gameId, String groupId) {
+  Future<void> _invalidateProviders(String gameId, String groupId, {List<String>? participantUserIds}) async {
+    debugPrint('🔄 Invalidating providers for game $gameId');
     ref.invalidate(gameWithParticipantsProvider(gameId));
     ref.invalidate(gameTransactionsProvider(gameId));
     ref.invalidate(activeGamesProvider);
     ref.invalidate(pastGamesProvider);
     ref.invalidate(groupGamesProvider(groupId));
-    ref.invalidate(paginatedGamesProvider);
     // Invalidate settlement providers to clear cached settlement data
     ref.invalidate(gameSettlementsProvider(gameId));
     ref.invalidate(gameSettlementsRealtimeProvider(gameId));
     ref.invalidate(settlementValidationProvider(gameId));
+    // Invalidate stats providers to refresh stats screen
+    ref.invalidate(recentGamesStatsProvider);
+    ref.invalidate(recentGameStatsProvider);
+    ref.invalidate(groupStatsProvider(groupId));
+
+    // Get participant user IDs if not provided
+    List<String>? userIds = participantUserIds;
+    if (userIds == null) {
+      try {
+        final gameWithParticipants = await ref.read(gameWithParticipantsProvider(gameId).future);
+        userIds = gameWithParticipants.participants.map((p) => p.userId).toList();
+      } catch (e) {
+        debugPrint('⚠️ Could not fetch participants to invalidate user transactions: $e');
+      }
+    }
+
+    // Invalidate user transactions for each participant
+    if (userIds != null && userIds.isNotEmpty) {
+      for (final userId in userIds) {
+        ref.invalidate(userTransactionsProvider(
+          UserTransactionsKey(gameId: gameId, userId: userId),
+        ));
+      }
+      debugPrint('🔄 Invalidated userTransactionsProvider for ${userIds.length} participants');
+    }
+
+    // Force refresh transactions
+    setState(() {
+      _shouldRefreshTransactions = true;
+    });
+    debugPrint('✅ Providers invalidated, will refresh transactions');
   }
 
   Future<void> _startGame(GameModel game) async {
     if (_isStartingGame) return;
 
+    // Get participant count from the provider
+    final gameWithParticipants = await ref.read(gameWithParticipantsProvider(game.id).future);
+    final participantCount = gameWithParticipants.participants.length;
+
+    // Show confirmation dialog
+    final context0 = context;
+    final confirmed = await showDialog<bool>(
+      context: context0,
+      builder: (context) => AlertDialog(
+        title: const Text('Start Game?'),
+        content: Text(
+          'Start the game now?\n\n'
+          'This will create buy-in transactions for all $participantCount player${participantCount != 1 ? 's' : ''} '
+          '(\$${game.buyinAmount.toStringAsFixed(2)} each).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start Game'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() => _isStartingGame = true);
 
     try {
+      debugPrint('🎮 Starting game ${game.id} with $participantCount participants');
+
       final result = await ref
           .read(startGameProvider.notifier)
           .startExistingGame(game.id);
 
       if (result != null && mounted) {
-        _invalidateProviders(game.id, game.groupId);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Game started!')),
-        );
+        debugPrint('✅ Game started, invalidating providers...');
+        final participantUserIds = gameWithParticipants.participants.map((p) => p.userId).toList();
+        _invalidateProviders(game.id, game.groupId, participantUserIds: participantUserIds);
+
+        // Wait a bit for the database to fully commit
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Force refresh the transactions
+        debugPrint('🔄 Force refreshing transactions...');
+        // ignore: unused_result
+        ref.refresh(gameTransactionsProvider(game.id));
+        // ignore: unused_result
+        ref.refresh(gameWithParticipantsProvider(game.id));
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Game started! $participantCount buy-in${participantCount != 1 ? 's' : ''} recorded.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navigate back to games list, showing Active tab
+          Navigator.pop(context, {'navigateToTab': 0});
+        }
       }
     } finally {
       if (mounted) setState(() => _isStartingGame = false);
@@ -294,6 +404,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
 
     if (_shouldRefreshTransactions) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        // ignore: unused_result
         ref.refresh(gameTransactionsProvider(widget.gameId));
         setState(() => _shouldRefreshTransactions = false);
       });
@@ -346,9 +457,55 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
             title: const Text('Game Details'),
             centerTitle: true,
             actions: [
+              // Seating Chart Button
+              IconButton(
+                icon: Icon(
+                  game.hasSeatingChart ? Icons.event_seat : Icons.event_seat_outlined,
+                ),
+                tooltip: 'Seating Chart',
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => SeatingChartDialog(
+                      game: game,
+                      participants: participants,
+                    ),
+                  );
+                },
+              ),
+              // Start Game Button (for scheduled games)
+              if (game.status == 'scheduled')
+                IconButton(
+                  icon: _isStartingGame
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(Icons.play_circle),
+                  tooltip: 'Start Game',
+                  color: Colors.green[700],
+                  onPressed: _isStartingGame ? null : () => _startGame(game),
+                ),
+              // Stop Game Button (for in-progress games)
+              if (game.status == 'in_progress')
+                transactionsAsync.when(
+                  data: (transactions) => IconButton(
+                    icon: const Icon(Icons.stop_circle),
+                    tooltip: 'Stop Game',
+                    color: Colors.red[700],
+                    onPressed: () => _stopGame(game, transactions),
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
+                ),
+              // Edit Button
               if (game.status == 'scheduled' || game.status == 'in_progress')
                 IconButton(
                   icon: const Icon(Icons.edit),
+                  tooltip: 'Edit Game',
                   onPressed: () async {
                     final result = await Navigator.push(
                       context,
@@ -367,6 +524,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
           ),
           body: RefreshIndicator(
             onRefresh: () async {
+              // ignore: unused_result
               ref.refresh(gameWithParticipantsProvider(widget.gameId));
             },
             child: SingleChildScrollView(
@@ -380,7 +538,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     // Group info
                     groupAsync.when(
                       loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
                       data: (group) {
                         if (group == null) return const SizedBox.shrink();
                         return GameHeaderCard(
@@ -401,7 +559,7 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                           child: Center(child: CircularProgressIndicator()),
                         ),
                       ),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
                       data: (transactions) => GameTotalsCard(
                         game: game,
                         transactions: transactions,
@@ -422,51 +580,133 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
                     if (game.status == 'completed') ...[
                       transactionsAsync.when(
                         loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => const SizedBox.shrink(),
-                        data: (transactions) => SettlementSummary(
-                          game: game,
-                          participants: participants,
-                          transactions: transactions,
-                          settlementStatus: _settlementStatus,
-                          onMarkSettled: _recordSettlement,
-                          onResetSettlement: _deleteSettlement,
+                        error: (error, stackTrace) => const SizedBox.shrink(),
+                        data: (transactions) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              key: _rankingsKey,
+                              child: PlayerRankings(
+                                game: game,
+                                participants: participants,
+                                transactions: transactions,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Container(
+                              key: _settlementKey,
+                              child: SettlementSummary(
+                                game: game,
+                                participants: participants,
+                                transactions: transactions,
+                                settlementStatus: _settlementStatus,
+                                onMarkSettled: _recordSettlement,
+                                onResetSettlement: _deleteSettlement,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                    ],
 
-                      transactionsAsync.when(
+                    // RSVP Summary (only for scheduled games)
+                    if (game.status == 'scheduled') ...[
+                      groupAsync.when(
+                        data: (group) {
+                          final currentUserAsync = ref.watch(authStateProvider);
+                          final currentUser = currentUserAsync.value;
+                          final isAdmin = currentUser != null &&
+                              ref.watch(groupMembersProvider(game.groupId)).maybeWhen(
+                                data: (members) => members.any(
+                                  (m) => m.userId == currentUser.id && m.role == 'admin',
+                                ),
+                                orElse: () => false,
+                              );
+
+                          return RsvpSummaryCard(
+                            participants: participants,
+                            canSendEmails: isAdmin,
+                            onSendEmails: isAdmin ? () => _sendRsvpEmails(game.id) : null,
+                          );
+                        },
                         loading: () => const SizedBox.shrink(),
                         error: (_, __) => const SizedBox.shrink(),
-                        data: (transactions) => PlayerRankings(
-                          game: game,
-                          participants: participants,
-                          transactions: transactions,
-                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // User's own RSVP selector
+                      Builder(
+                        builder: (context) {
+                          final currentUserAsync = ref.watch(authStateProvider);
+                          final currentUser = currentUserAsync.value;
+
+                          if (currentUser == null) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final userParticipant = participants.firstWhere(
+                            (p) => p.userId == currentUser.id,
+                            orElse: () => participants.first,
+                          );
+
+                          if (userParticipant.userId != currentUser.id) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Your RSVP:',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  RsvpSelectorButton(
+                                    gameId: game.id,
+                                    userId: currentUser.id,
+                                    currentStatus: userParticipant.rsvpStatus,
+                                    onChanged: () => _invalidateProviders(game.id, game.groupId),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
                     ],
 
                     // Participants list
-                    ParticipantList(
-                      game: game,
-                      participants: participants,
-                      playerKeys: _playerKeys,
-                      onRefresh: () => _invalidateProviders(game.id, game.groupId),
+                    Container(
+                      key: _participantsKey,
+                      child: ParticipantList(
+                        game: game,
+                        participants: participants,
+                        playerKeys: _playerKeys,
+                        onRefresh: () => _invalidateProviders(game.id, game.groupId),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
                     // Action buttons
                     transactionsAsync.when(
                       loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                      data: (transactions) => GameActionButtons(
-                        game: game,
-                        transactions: transactions,
-                        isStartingGame: _isStartingGame,
-                        onStartGame: () => _startGame(game),
-                        onStopGame: () => _stopGame(game, transactions),
-                        onCancelGame: () => _cancelGame(game),
-                        onDeleteGame: () => _deleteGame(game),
+                      error: (error, stackTrace) => const SizedBox.shrink(),
+                      data: (transactions) => Container(
+                        key: _actionsKey,
+                        child: GameActionButtons(
+                          game: game,
+                          transactions: transactions,
+                          isStartingGame: _isStartingGame,
+                          onStartGame: () => _startGame(game),
+                          onStopGame: () => _stopGame(game, transactions),
+                          onCancelGame: () => _cancelGame(game),
+                          onDeleteGame: () => _deleteGame(game),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -475,8 +715,111 @@ class _GameDetailScreenState extends ConsumerState<GameDetailScreen> {
               ),
             ),
           ),
+          // Quick navigation FAB (only for completed games)
+          floatingActionButton: game.status == 'completed'
+              ? FloatingActionButton(
+                  onPressed: () => _showNavigationMenu(context),
+                  tooltip: 'Quick Navigation',
+                  child: const Icon(Icons.explore),
+                )
+              : null,
         );
       },
     );
+  }
+
+  void _showNavigationMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Jump to Section',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events),
+              title: const Text('Player Rankings'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_rankingsKey);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet),
+              title: const Text('Settlements'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_settlementKey);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Participants'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_participantsKey);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Game Actions'),
+              onTap: () {
+                Navigator.pop(context);
+                _scrollToSection(_actionsKey);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendRsvpEmails(String gameId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send RSVP Emails'),
+        content: const Text(
+          'This will send RSVP invitation emails to all group members. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final repository = ref.read(gamesRepositoryProvider);
+    final result = await repository.sendRsvpEmails(gameId: gameId);
+
+    if (mounted) {
+      result.when(
+        success: (_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('RSVP emails sent successfully!')),
+          );
+        },
+        failure: (error, _) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to send emails: $error')),
+          );
+        },
+      );
+    }
   }
 }

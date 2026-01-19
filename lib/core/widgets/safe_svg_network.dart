@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
 
 /// A safe wrapper for SvgPicture.network that handles errors gracefully
-/// Particularly handles SVGs with unsupported elements like <metadata/>
+/// Particularly handles SVGs with unsupported elements like &lt;metadata/&gt;
 /// 
-/// The issue: DiceBear and other SVG sources may include <metadata/> tags
+/// The issue: DiceBear and other SVG sources may include &lt;metadata/&gt; tags
 /// that flutter_svg cannot parse, causing app crashes.
 /// 
 /// SOLUTION: When using DiceBear API, add `&excludeMetadata=true` to URLs:
@@ -91,7 +92,7 @@ class SafeSvgNetwork extends StatelessWidget {
   Future<void> _loadSvg() async {
     try {
       // This will throw if the SVG has parsing errors
-      await svg.fromSvgString('<svg></svg>', 'test');
+      SvgPicture.string('<svg></svg>');
       // If we get here, flutter_svg is working
       return;
     } catch (e) {
@@ -105,12 +106,18 @@ class SafeSvgNetwork extends StatelessWidget {
       SizedBox(
         width: width,
         height: height,
-        child: Icon(
-          Icons.account_circle,
-          size: (width != null && height != null) 
-            ? (width! < height! ? width : height) * 0.8
-            : 24,
-          color: color ?? Colors.grey,
+        child: Builder(
+          builder: (context) {
+            double iconSize = 24;
+            if (width != null && height != null) {
+              iconSize = (width! < height! ? width! : height!) * 0.8;
+            }
+            return Icon(
+              Icons.account_circle,
+              size: iconSize,
+              color: color ?? Colors.grey,
+            );
+          },
         ),
       );
   }

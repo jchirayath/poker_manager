@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
-import '../../../profile/data/repositories/profile_repository.dart';
-import '../../../../shared/models/result.dart';
-import 'games_list_screen.dart';
+import 'create_game_screen.dart';
 
 class GamesGroupSelectorScreen extends ConsumerWidget {
   const GamesGroupSelectorScreen({super.key});
@@ -40,19 +38,6 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
       backgroundImage: NetworkImage(url),
       child: const SizedBox.shrink(),
     );
-  }
-
-  Future<String> _getCreatorName(String createdBy) async {
-    try {
-      final repository = ProfileRepository();
-      final result = await repository.getProfile(createdBy);
-      if (result is Success<dynamic>) {
-        return (result as Success).data.fullName;
-      }
-    } catch (e) {
-      // Fallback to ID if profile fetch fails
-    }
-    return createdBy;
   }
 
   @override
@@ -127,14 +112,19 @@ class GamesGroupSelectorScreen extends ConsumerWidget {
                     ],
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    // Navigate to games list for this group
-                    Navigator.of(context).push(
+                  onTap: () async {
+                    // Navigate directly to create game screen for this group
+                    final result = await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) =>
-                            GamesListScreen(groupId: group.id),
+                            CreateGameScreen(groupId: group.id),
                       ),
                     );
+
+                    // If game was created, pop back to games screen
+                    if (result is Map && result['navigateToTab'] != null && context.mounted) {
+                      Navigator.of(context).pop(result);
+                    }
                   },
                 ),
               );

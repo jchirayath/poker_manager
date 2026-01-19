@@ -29,7 +29,6 @@ class AuthRepository {
           email: response.user!.email ?? email,
           firstName: '',
           lastName: '',
-          country: 'United States',
         ));
       }
     } catch (e) {
@@ -82,7 +81,6 @@ class AuthRepository {
           email: email,
           firstName: firstName,
           lastName: lastName,
-          country: country,
         ));
       }
     } catch (e) {
@@ -114,7 +112,6 @@ class AuthRepository {
             .update({
               'first_name': firstName,
               'last_name': lastName,
-              'country': country,
             })
             .eq('id', userId);
         return UserModel(
@@ -122,7 +119,6 @@ class AuthRepository {
           email: email,
           firstName: firstName,
           lastName: lastName,
-          country: country,
         );
       }
       return UserModel.fromJson(existing);
@@ -137,7 +133,6 @@ class AuthRepository {
             'email': email,
             'first_name': firstName,
             'last_name': lastName,
-            'country': country,
           })
           .select()
           .single();
@@ -173,6 +168,17 @@ class AuthRepository {
     }
   }
 
+  Future<Result<void>> updatePassword(String newPassword) async {
+    try {
+      await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      return const Success(null);
+    } catch (e) {
+      return Failure('Password update failed: ${e.toString()}');
+    }
+  }
+
   Future<UserModel> _getProfile(String userId) async {
     final response = await _client
         .from('profiles')
@@ -187,7 +193,6 @@ class AuthRepository {
         email: authUser?.email ?? '',
         firstName: '',
         lastName: '',
-        country: 'United States',
       );
     }
     return UserModel.fromJson(response);

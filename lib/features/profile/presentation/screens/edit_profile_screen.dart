@@ -7,9 +7,12 @@ import '../../../../core/utils/avatar_utils.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../locations/data/repositories/locations_repository.dart';
+import '../../../locations/data/models/location_model.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/utils/input_validators.dart';
+import '../../../../shared/models/result.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -98,12 +101,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   late TextEditingController _phoneController;
-  late TextEditingController _streetController;
+  late TextEditingController _streetAddressController;
   late TextEditingController _cityController;
-  late TextEditingController _stateController;
+  late TextEditingController _stateProvinceController;
   late TextEditingController _postalCodeController;
-
-  String? _selectedCountry;
+  String _selectedCountry = 'United States';
+  String? _existingLocationId;
   File? _imageFile;
   bool _isLoading = false;
   bool _controllersInitialized = false;
@@ -115,9 +118,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _lastNameController = TextEditingController();
     _usernameController = TextEditingController();
     _phoneController = TextEditingController();
-    _streetController = TextEditingController();
+    _streetAddressController = TextEditingController();
     _cityController = TextEditingController();
-    _stateController = TextEditingController();
+    _stateProvinceController = TextEditingController();
     _postalCodeController = TextEditingController();
   }
 
@@ -127,9 +130,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     _lastNameController.dispose();
     _usernameController.dispose();
     _phoneController.dispose();
-    _streetController.dispose();
+    _streetAddressController.dispose();
     _cityController.dispose();
-    _stateController.dispose();
+    _stateProvinceController.dispose();
     _postalCodeController.dispose();
     super.dispose();
   }
@@ -327,6 +330,29 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
   }
 
+  Future<void> _loadPrimaryLocation(String? locationId) async {
+    if (locationId == null) return;
+
+    try {
+      final locationsRepo = LocationsRepository();
+      final result = await locationsRepo.getLocation(locationId);
+
+      if (result is Success<LocationModel>) {
+        final location = result.data;
+        setState(() {
+          _streetAddressController.text = location.streetAddress;
+          _cityController.text = location.city ?? '';
+          _stateProvinceController.text = location.stateProvince ?? '';
+          _postalCodeController.text = location.postalCode ?? '';
+          _selectedCountry = location.country;
+          _existingLocationId = location.id;
+        });
+      }
+    } catch (e) {
+      // Silently fail - address is optional
+    }
+  }
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -351,6 +377,36 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             );
           }
         } else {
+          // Avatar uploaded successfully
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Avatar uploaded successfully'),
+                duration: Duration(seconds: 1),
+              ),
+            );
+          }
+        }
+      }
+
+      // Handle address if provided
+      if (_streetAddressController.text.trim().isNotEmpty) {
+        final addressSuccess = await controller.updateAddress(
+          locationId: _existingLocationId,
+          streetAddress: _streetAddressController.text.trim(),
+          city: _cityController.text.trim(),
+          stateProvince: _stateProvinceController.text.trim(),
+          postalCode: _postalCodeController.text.trim(),
+          country: _selectedCountry,
+        );
+
+        if (!addressSuccess && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Address update failed. Other changes saved.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
         }
       }
 
@@ -360,11 +416,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         lastName: _lastNameController.text.trim(),
         username: _usernameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
-        streetAddress: _streetController.text.trim(),
-        city: _cityController.text.trim(),
-        stateProvince: _stateController.text.trim(),
-        postalCode: _postalCodeController.text.trim(),
-        country: _selectedCountry,
       );
 
       if (!mounted) return;
@@ -381,8 +432,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           const SnackBar(content: Text('Failed to update profile')),
         );
       }
-    } catch (e, stack) {
-      debugPrintStack(stackTrace: stack);
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -486,23 +536,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             _lastNameController.text = profile.lastName ?? '';
             _usernameController.text = profile.username ?? '';
             _phoneController.text = profile.phoneNumber ?? '';
-            _streetController.text = profile.streetAddress ?? '';
-            _cityController.text = profile.city ?? '';
-            _stateController.text = profile.stateProvince ?? '';
-            _postalCodeController.text = profile.postalCode ?? '';
-            String mappedCountry = profile.country ?? 'United States';
-            if (mappedCountry == 'US' || mappedCountry == 'USA' || mappedCountry == 'U.S.' || mappedCountry == 'U.S.A.') {
-              mappedCountry = 'United States';
-            } else if (mappedCountry == 'UK' || mappedCountry == 'GB') {
-              mappedCountry = 'United Kingdom';
-            } else if (mappedCountry == 'CA') {
-              mappedCountry = 'Canada';
-            }
-            if (AppConstants.countries.contains(mappedCountry)) {
-              _selectedCountry = mappedCountry;
-            } else {
-              _selectedCountry = 'United States';
-            }
+            _loadPrimaryLocation(profile.primaryLocationId);
             _controllersInitialized = true;
           }
 
@@ -704,16 +738,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Address Card
+                        // Address Card (Optional)
                         _buildSectionCard(
                           context: context,
                           icon: Icons.location_on_outlined,
                           title: 'Address (Optional)',
                           children: [
                             TextFormField(
-                              controller: _streetController,
+                              controller: _streetAddressController,
                               decoration: InputDecoration(
                                 labelText: 'Street Address',
+                                hintText: '123 Main St',
                                 prefixIcon: Icon(Icons.home_outlined, color: colorScheme.primary),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                               ),
@@ -722,22 +757,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             Row(
                               children: [
                                 Expanded(
-                                  flex: 2,
+                                  flex: 3,
                                   child: TextFormField(
                                     controller: _cityController,
                                     decoration: InputDecoration(
                                       labelText: 'City',
-                                      prefixIcon: Icon(Icons.location_city_outlined, color: colorScheme.primary),
+                                      hintText: 'San Francisco',
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Expanded(
+                                  flex: 2,
                                   child: TextFormField(
-                                    controller: _stateController,
+                                    controller: _stateProvinceController,
                                     decoration: InputDecoration(
                                       labelText: 'State',
+                                      hintText: 'CA',
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
                                   ),
@@ -748,25 +785,27 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             Row(
                               children: [
                                 Expanded(
+                                  flex: 2,
                                   child: TextFormField(
                                     controller: _postalCodeController,
                                     decoration: InputDecoration(
                                       labelText: 'Postal Code',
-                                      prefixIcon: Icon(Icons.markunread_mailbox_outlined, color: colorScheme.primary),
+                                      hintText: '94102',
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
-                                    validator: InputValidators.validatePostalCode,
+                                    keyboardType: TextInputType.number,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Expanded(
+                                  flex: 3,
                                   child: DropdownButtonFormField<String>(
-                                    value: _selectedCountry,
+                                    initialValue: _selectedCountry,
+                                    isExpanded: true,
                                     decoration: InputDecoration(
                                       labelText: 'Country',
                                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
-                                    isExpanded: true,
                                     items: AppConstants.countries.map((country) {
                                       return DropdownMenuItem(
                                         value: country,
@@ -774,11 +813,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                       );
                                     }).toList(),
                                     onChanged: (value) {
-                                      setState(() => _selectedCountry = value);
-                                    },
-                                    validator: (value) {
-                                      if (value == null) return 'Required';
-                                      return null;
+                                      if (value != null) {
+                                        setState(() => _selectedCountry = value);
+                                      }
                                     },
                                   ),
                                 ),

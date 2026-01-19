@@ -48,6 +48,8 @@ class GamesRepository {
       'status': (raw['status'] ?? 'scheduled').toString(),
       'recurrencePattern': raw['recurrence_pattern'] as Map<String, dynamic>?,
       'parentGameId': raw['parent_game_id']?.toString(),
+      'allowMemberTransactions': raw['allow_member_transactions'] ?? false,
+      'seatingChart': raw['seating_chart'] as Map<String, dynamic>?,
       'createdAt': createdAtRaw?.toString(),
       'updatedAt': updatedAtRaw?.toString(),
     });
@@ -197,6 +199,7 @@ class GamesRepository {
     required double buyinAmount,
     required List<double> additionalBuyinValues,
     List<String>? participantUserIds,
+    bool allowMemberTransactions = false,
   }) async {
     try {
       final response = await _client
@@ -212,23 +215,30 @@ class GamesRepository {
             'buyin_amount': buyinAmount,
             'additional_buyin_values': additionalBuyinValues,
             'status': 'scheduled',
+            'allow_member_transactions': allowMemberTransactions,
           })
           .select()
           .single();
 
       final gameId = response['id'] as String;
-      
+      debugPrint('✅ Game created with ID: $gameId');
+
       // Add participants if provided
       if (participantUserIds != null && participantUserIds.isNotEmpty) {
+        debugPrint('👥 Adding ${participantUserIds.length} participants to game $gameId');
         final participants = participantUserIds.map((userId) {
+          debugPrint('  - Adding participant: $userId');
           return {
             'game_id': gameId,
             'user_id': userId,
-            'rsvp_status': 'going',
+            'rsvp_status': 'maybe',
           };
         }).toList();
-        
-        await _client.from('game_participants').insert(participants);
+
+        final participantResponse = await _client.from('game_participants').insert(participants).select();
+        debugPrint('✅ Successfully added ${(participantResponse as List).length} participants');
+      } else {
+        debugPrint('⚠️ WARNING: No participants provided for game $gameId');
       }
 
       return Success(
@@ -271,15 +281,84 @@ class GamesRepository {
     required String rsvpStatus,
   }) async {
     try {
-      await _client.from('game_participants').upsert({
-        'game_id': gameId,
-        'user_id': userId,
-        'rsvp_status': rsvpStatus,
-      });
+      // First check if participant exists
+      final existing = await _client
+          .from('game_participants')
+          .select('id')
+          .eq('game_id', gameId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existing != null) {
+        // Update existing participant
+        await _client
+            .from('game_participants')
+            .update({'rsvp_status': rsvpStatus})
+            .eq('game_id', gameId)
+            .eq('user_id', userId);
+      } else {
+        // Insert new participant
+        await _client.from('game_participants').insert({
+          'game_id': gameId,
+          'user_id': userId,
+          'rsvp_status': rsvpStatus,
+        });
+      }
 
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update RSVP: ${e.toString()}');
+    }
+  }
+
+  /// Remove a participant from a game
+  Future<Result<void>> removeParticipant({
+    required String gameId,
+    required String userId,
+  }) async {
+    try {
+      await _client
+          .from('game_participants')
+          .delete()
+          .eq('game_id', gameId)
+          .eq('user_id', userId);
+
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to remove participant: ${e.toString()}');
+    }
+  }
+
+  /// Send RSVP emails for a game to all group members or a specific user
+  /// Uses Supabase Function to generate magic links and send emails
+  Future<Result<void>> sendRsvpEmails({
+    required String gameId,
+    String? userId, // If null, sends to all group members
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        'send-rsvp-emails',
+        body: {
+          'gameId': gameId,
+          if (userId != null) 'userId': userId,
+        },
+      );
+
+      if (response.status != 200) {
+        final errorData = response.data;
+        final errorMessage = errorData is Map ? errorData['error'] ?? 'Unknown error' : 'Unknown error';
+        return Failure('Failed to send RSVP emails: $errorMessage');
+      }
+
+      return const Success(null);
+    } catch (e, stackTrace) {
+      ErrorLoggerService.logError(
+        e,
+        stackTrace,
+        context: 'sendRsvpEmails',
+        additionalData: {'gameId': gameId},
+      );
+      return Failure('Failed to send RSVP emails: ${e.toString()}');
     }
   }
 
@@ -313,7 +392,7 @@ class GamesRepository {
 
       // Validate IDs
       if (gameId.isEmpty || userId.isEmpty) {
-        return Failure('Game ID and User ID are required');
+        return const Failure('Game ID and User ID are required');
       }
 
       // Verify game exists and is in valid state for transactions
@@ -354,54 +433,7 @@ class GamesRepository {
           .single();
 
       debugPrint('✅ Transaction inserted: ${txnResponse['id']}');
-
-      // Update participant totals
-      final participant = await _client
-          .from('game_participants')
-          .select()
-          .eq('game_id', gameId)
-          .eq('user_id', userId)
-          .maybeSingle();
-
-      double currentBuyin = 0;
-      double currentCashout = 0;
-
-      if (participant != null) {
-        currentBuyin = ValidationHelpers.roundToCurrency(
-          (participant['total_buyin'] ?? 0).toDouble()
-        );
-        currentCashout = ValidationHelpers.roundToCurrency(
-          (participant['total_cashout'] ?? 0).toDouble()
-        );
-      }
-
-      if (type == 'buyin') {
-        currentBuyin += roundedAmount;
-      } else if (type == 'cashout') {
-        currentCashout += roundedAmount;
-      }
-
-      // Round final totals
-      currentBuyin = ValidationHelpers.roundToCurrency(currentBuyin);
-      currentCashout = ValidationHelpers.roundToCurrency(currentCashout);
-
-      // Validate final totals don't exceed reasonable bounds
-      if (currentBuyin > 100000 || currentCashout > 100000) {
-        return Failure('Participant total exceeds reasonable bounds');
-      }
-
-      // Update participant totals - RLS policy now allows group members to update
-      final updateResult = await _client
-          .from('game_participants')
-          .update({
-            'total_buyin': currentBuyin,
-            'total_cashout': currentCashout,
-          })
-          .eq('game_id', gameId)
-          .eq('user_id', userId)
-          .select();
-
-      debugPrint('📊 Update participant result: $updateResult (buyin: $currentBuyin, cashout: $currentCashout)');
+      debugPrint('📊 Participant totals will be auto-updated by database trigger');
 
       return Success(_mapTransactionRowToModel(Map<String, dynamic>.from(txnResponse as Map)));
     } catch (e) {
@@ -567,9 +599,9 @@ class GamesRepository {
     String status,
   ) async {
     try {
-      // If game is being started, ensure all group members are participants, then create buy-in transactions for all participants BEFORE setting status to in_progress
+      // If game is being started, create buy-in transactions for existing game participants BEFORE setting status to in_progress
       if (status == 'in_progress') {
-        debugPrint('🎮 Preparing to start game - ensuring all group members are participants and creating buy-in transactions');
+        debugPrint('🎮 Preparing to start game - creating buy-in transactions for game participants');
         try {
           // Fetch the game to get groupId and buyinAmount
           final gameResponse = await _client
@@ -579,48 +611,33 @@ class GamesRepository {
               .single();
           final game = _mapGameRowToModel(Map<String, dynamic>.from(gameResponse as Map));
 
-          // Fetch all group members for this game
-          final groupId = game.groupId;
-          final groupMembersResponse = await _client
-              .from('group_members')
-              .select('user_id')
-              .eq('group_id', groupId);
-          final groupMembers = groupMembersResponse as List? ?? [];
-          final groupMemberIds = groupMembers.map((m) => m['user_id'] as String).toSet();
-
           // Fetch all current participants for this game
           final participantsResponse = await _client
               .from('game_participants')
               .select('user_id')
               .eq('game_id', gameId);
           final participants = participantsResponse as List? ?? [];
-          final participantIds = participants.map((p) => p['user_id'] as String).toSet();
+          debugPrint('📋 Found ${participants.length} participants for game $gameId');
 
-          // Find group members not yet participants
-          final missingParticipantIds = groupMemberIds.difference(participantIds);
-          if (missingParticipantIds.isNotEmpty) {
-            debugPrint('➕ Adding missing participants: ${missingParticipantIds.join(", ")}');
-            final newParticipants = missingParticipantIds.map((userId) => {
-              'game_id': gameId,
-              'user_id': userId,
-              'rsvp_status': 'going',
-            }).toList();
-            await _client.from('game_participants').insert(newParticipants);
+          if (participants.isEmpty) {
+            debugPrint('⚠️ WARNING: No participants found for game $gameId. Cannot create buy-in transactions.');
+            // Still update the game status even if no participants
+            final response = await _client
+                .from('games')
+                .update({'status': status})
+                .eq('id', gameId)
+                .select()
+                .single();
+            final updatedGame = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
+            return Success(updatedGame);
           }
 
-          // Fetch updated participants list
-          final allParticipantsResponse = await _client
-              .from('game_participants')
-              .select('user_id')
-              .eq('game_id', gameId);
-          final allParticipants = allParticipantsResponse as List? ?? [];
-          debugPrint('📋 Creating buy-ins for ${allParticipants.length} participants');
-
-          // Batch insert buy-in and zero cash-out transactions for all participants
+          // Batch insert buy-in transactions for existing participants only
           final nowIso = DateTime.now().toIso8601String();
           final transactions = <Map<String, dynamic>>[];
-          for (final participantJson in allParticipants) {
+          for (final participantJson in participants) {
             final userId = participantJson['user_id'] as String;
+            debugPrint('  - Creating buy-in for user: $userId');
             transactions.add({
               'game_id': gameId,
               'user_id': userId,
@@ -629,10 +646,11 @@ class GamesRepository {
               'timestamp': nowIso,
             });
           }
-          if (transactions.isNotEmpty) {
-            final txnResponse = await _client.from('transactions').insert(transactions).select();
-            debugPrint('✅ Batch inserted ${transactions.length} buy-in transactions for all participants');
-          }
+
+          debugPrint('💰 Inserting ${transactions.length} buy-in transactions...');
+          final txnResponse = await _client.from('transactions').insert(transactions).select();
+          debugPrint('✅ Successfully inserted ${(txnResponse as List).length} buy-in transactions');
+          debugPrint('📊 Participant totals will be auto-updated by database trigger');
 
           // Now update the game status to in_progress
           final response = await _client
@@ -643,8 +661,10 @@ class GamesRepository {
               .single();
           final updatedGame = _mapGameRowToModel(Map<String, dynamic>.from(response as Map));
           return Success(updatedGame);
-        } catch (e) {
-          debugPrint('⚠️ Warning: Error creating buy-in transactions or updating status: $e');
+        } catch (e, stackTrace) {
+          debugPrint('❌ Error creating buy-in transactions or updating status: $e');
+          debugPrint('Stack trace: $stackTrace');
+          ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.updateGameStatus');
           return Failure('Failed to start game: ${e.toString()}');
         }
       } else {
@@ -671,24 +691,77 @@ class GamesRepository {
     required String currency,
     required double buyinAmount,
     required List<double> additionalBuyinValues,
+    bool? allowMemberTransactions,
+    List<String>? participantUserIds,
   }) async {
     try {
       debugPrint('🔄 Updating game: $gameId');
-      
+
+      final updateData = {
+        'name': name,
+        'game_date': gameDate.toIso8601String(),
+        'location': location,
+        'currency': currency,
+        'buyin_amount': buyinAmount,
+        'additional_buyin_values': additionalBuyinValues,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (allowMemberTransactions != null) {
+        updateData['allow_member_transactions'] = allowMemberTransactions;
+      }
+
       final response = await _client
           .from('games')
-          .update({
-            'name': name,
-            'game_date': gameDate.toIso8601String(),
-            'location': location,
-            'currency': currency,
-            'buyin_amount': buyinAmount,
-            'additional_buyin_values': additionalBuyinValues,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
+          .update(updateData)
           .eq('id', gameId)
           .select()
           .single();
+
+      // Update participants if provided
+      if (participantUserIds != null) {
+        // Get existing participants
+        final existingParticipants = await _client
+            .from('game_participants')
+            .select('user_id')
+            .eq('game_id', gameId);
+
+        final existingUserIds = (existingParticipants as List)
+            .map((p) => p['user_id'] as String)
+            .toSet();
+
+        final newUserIds = participantUserIds.toSet();
+
+        // Find users to add (in new list but not in existing)
+        final usersToAdd = newUserIds.difference(existingUserIds);
+
+        // Find users to remove (in existing but not in new list)
+        final usersToRemove = existingUserIds.difference(newUserIds);
+
+        // Add new participants
+        if (usersToAdd.isNotEmpty) {
+          final participantsToAdd = usersToAdd.map((userId) {
+            return {
+              'game_id': gameId,
+              'user_id': userId,
+              'rsvp_status': 'maybe',
+            };
+          }).toList();
+
+          await _client.from('game_participants').insert(participantsToAdd);
+        }
+
+        // Remove participants
+        if (usersToRemove.isNotEmpty) {
+          for (final userId in usersToRemove) {
+            await _client
+                .from('game_participants')
+                .delete()
+                .eq('game_id', gameId)
+                .eq('user_id', userId);
+          }
+        }
+      }
 
       debugPrint('✅ Game updated successfully');
       return Success(
@@ -705,7 +778,7 @@ class GamesRepository {
   Future<Result<void>> deleteGame(String gameId) async {
     try {
       debugPrint('🗑️ Attempting to delete game: $gameId');
-      
+
       // Delete all related records (transactions, participants, settlements)
       // Supabase handles cascading deletes via foreign key constraints
       final response = await _client
@@ -715,8 +788,8 @@ class GamesRepository {
           .select();
 
       debugPrint('✅ Delete response: $response');
-      
-      if (response == null || (response is List && response.isEmpty)) {
+
+      if ((response.isEmpty)) {
         debugPrint('⚠️ No rows were deleted - game might not exist');
       }
 
@@ -725,6 +798,35 @@ class GamesRepository {
       debugPrint('❌ Error deleting game: $e');
       debugPrint('Stack trace: $stackTrace');
       return Failure('Failed to delete game: ${e.toString()}');
+    }
+  }
+
+  Future<Result<GameModel>> updateSeatingChart({
+    required String gameId,
+    required Map<String, dynamic> seatingChart,
+  }) async {
+    try {
+      debugPrint('🪑 Updating seating chart for game: $gameId');
+
+      final response = await _client
+          .from('games')
+          .update({
+            'seating_chart': seatingChart,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', gameId)
+          .select()
+          .single();
+
+      debugPrint('✅ Seating chart updated successfully');
+      return Success(
+        _mapGameRowToModel(Map<String, dynamic>.from(response as Map)),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating seating chart: $e');
+      debugPrint('Stack trace: $stackTrace');
+      ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.updateSeatingChart');
+      return Failure('Failed to update seating chart: ${e.toString()}');
     }
   }
 
@@ -750,6 +852,7 @@ class GamesRepository {
         status,
         recurrence_pattern,
         parent_game_id,
+        allow_member_transactions,
         created_at,
         updated_at,
         game_participants (
@@ -828,6 +931,7 @@ class GamesRepository {
         status,
         recurrence_pattern,
         parent_game_id,
+        allow_member_transactions,
         created_at,
         updated_at,
         game_participants (
@@ -963,7 +1067,7 @@ class GamesRepository {
 
       debugPrint('✅ Loaded ${response.length} settlements');
       return Success(List<Map<String, dynamic>>.from(response));
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('⚠️  Could not load settlements: $e');
       // Don't treat this as a critical error - just return empty list
       return const Success([]);
@@ -1003,6 +1107,106 @@ class GamesRepository {
         },
       );
       return Failure('Failed to delete settlement: ${e.toString()}');
+    }
+  }
+
+  /// Update game settings (allow_member_transactions)
+  Future<Result<GameModel>> updateGameSettings({
+    required String gameId,
+    required bool allowMemberTransactions,
+  }) async {
+    try {
+      debugPrint('⚙️ Updating game settings: $gameId');
+
+      final response = await _client
+          .from('games')
+          .update({
+            'allow_member_transactions': allowMemberTransactions,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', gameId)
+          .select()
+          .single();
+
+      debugPrint('✅ Game settings updated successfully');
+      return Success(
+        _mapGameRowToModel(Map<String, dynamic>.from(response as Map)),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error updating game settings: $e');
+      debugPrint('Stack trace: $stackTrace');
+      ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.updateGameSettings');
+      return Failure('Failed to update game settings: ${e.toString()}');
+    }
+  }
+
+  /// Check if user can create transactions for this game
+  Future<Result<bool>> canUserCreateTransaction({
+    required String gameId,
+    required String userId,
+  }) async {
+    try {
+      debugPrint('🔐 Checking transaction permission for user: $userId on game: $gameId');
+
+      // Get the game details
+      final gameResponse = await _client
+          .from('games')
+          .select('group_id, allow_member_transactions')
+          .eq('id', gameId)
+          .maybeSingle();
+
+      if (gameResponse == null) {
+        return const Failure('Game not found');
+      }
+
+      final groupId = gameResponse['group_id'] as String;
+      final allowMemberTransactions = gameResponse['allow_member_transactions'] as bool? ?? false;
+
+      // Check if user is admin or creator
+      final memberResponse = await _client
+          .from('group_members')
+          .select('role')
+          .eq('group_id', groupId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (memberResponse == null) {
+        // Check if user is the group creator
+        final groupResponse = await _client
+            .from('groups')
+            .select('created_by')
+            .eq('id', groupId)
+            .single();
+
+        if (groupResponse['created_by'] == userId) {
+          debugPrint('✅ User is group creator - permission granted');
+          return const Success(true);
+        }
+
+        debugPrint('❌ User is not a member of this group');
+        return const Success(false);
+      }
+
+      final userRole = memberResponse['role'] as String;
+
+      // Admins always have permission
+      if (userRole == 'admin') {
+        debugPrint('✅ User is admin - permission granted');
+        return const Success(true);
+      }
+
+      // Regular members only have permission if game allows it
+      if (allowMemberTransactions) {
+        debugPrint('✅ User is member and game allows member transactions - permission granted');
+        return const Success(true);
+      }
+
+      debugPrint('❌ User is member but game does not allow member transactions');
+      return const Success(false);
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error checking transaction permission: $e');
+      ErrorLoggerService.logError(e, stackTrace, context: 'GamesRepository.canUserCreateTransaction');
+      return Failure('Failed to check permission: ${e.toString()}');
     }
   }
 }

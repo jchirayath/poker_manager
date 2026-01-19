@@ -8,7 +8,11 @@ import '../../../data/models/game_model.dart';
 import '../../../data/models/game_participant_model.dart';
 import '../../../data/models/transaction_model.dart';
 import '../../providers/games_provider.dart';
-import '../../providers/games_provider.dart' show gameWithParticipantsProvider;
+import '../../../../groups/presentation/providers/groups_provider.dart';
+import '../cash_out_dialog.dart';
+import '../../../../stats/presentation/providers/stats_provider.dart';
+import '../../../../auth/presentation/providers/auth_provider.dart';
+import 'rsvp_widgets.dart';
 
 class ParticipantList extends ConsumerWidget {
   final GameModel game;
@@ -28,6 +32,7 @@ class ParticipantList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -45,7 +50,7 @@ class ParticipantList extends ConsumerWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: participants.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final participant = participants[index];
               return _ParticipantCard(
@@ -87,6 +92,13 @@ class _ParticipantCard extends ConsumerWidget {
       ),
     );
 
+    // Fetch group members to check if participant is admin
+    final groupMembersAsync = ref.watch(groupMembersProvider(game.groupId));
+
+    // Get current user to check if they're an admin
+    final currentUserAsync = ref.watch(authStateProvider);
+    final currentUser = currentUserAsync.value;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -106,11 +118,72 @@ class _ParticipantCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // Show RSVP status badge
+                          const SizedBox(width: 8),
+                          RsvpStatusBadge(
+                            rsvpStatus: participant.rsvpStatus,
+                            compact: true,
+                          ),
+                          // Show admin badge if participant is admin
+                          groupMembersAsync.when(
+                            data: (members) {
+                              final member = members.firstWhere(
+                                (m) => m.userId == participant.userId,
+                                orElse: () => members.first,
+                              );
+                              if (member.userId == participant.userId && member.role == 'admin') {
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[700],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.red[900]!,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.verified_user,
+                                          size: 14,
+                                          color: Colors.white,
+                                        ),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'ADMIN',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
+                            loading: () => const SizedBox.shrink(),
+                            error: (error, stackTrace) => const SizedBox.shrink(),
+                          ),
+                        ],
                       ),
                       if (profile?.email != null)
                         Text(
@@ -122,6 +195,33 @@ class _ParticipantCard extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Show delete button for scheduled games if current user is admin
+                if (game.status == 'scheduled' && currentUser != null)
+                  groupMembersAsync.when(
+                    data: (members) {
+                      final currentUserMember = members.firstWhere(
+                        (m) => m.userId == currentUser.id,
+                        orElse: () => members.first,
+                      );
+                      if (currentUserMember.userId == currentUser.id &&
+                          currentUserMember.role == 'admin') {
+                        return IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          color: theme.colorScheme.error,
+                          onPressed: () => _showRemoveParticipantDialog(
+                            context,
+                            ref,
+                            participant,
+                            name,
+                          ),
+                          tooltip: 'Remove participant',
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stackTrace) => const SizedBox.shrink(),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -129,7 +229,7 @@ class _ParticipantCard extends ConsumerWidget {
             // Transactions
             transactionsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const Text('Error loading transactions'),
+              error: (error, stackTrace) => const Text('Error loading transactions'),
               data: (transactions) {
                 final buyins = transactions.where((t) => t.type == 'buyin').toList();
                 final cashouts = transactions.where((t) => t.type == 'cashout').toList();
@@ -224,10 +324,69 @@ class _ParticipantCard extends ConsumerWidget {
         width: 40,
         height: 40,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Text(
+        errorBuilder: (context, error, stackTrace) => Text(
           initials,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
+      ),
+    );
+  }
+
+  void _showRemoveParticipantDialog(
+    BuildContext context,
+    WidgetRef ref,
+    GameParticipantModel participant,
+    String name,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Participant'),
+        content: Text('Are you sure you want to remove $name from this game?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+
+              final repository = ref.read(gamesRepositoryProvider);
+              final result = await repository.removeParticipant(
+                gameId: game.id,
+                userId: participant.userId,
+              );
+
+              result.when(
+                success: (_) {
+                  ref.invalidate(gameWithParticipantsProvider(game.id));
+                  onRefresh();
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text('$name removed from game'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                },
+                failure: (message, _) {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $message'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
       ),
     );
   }
@@ -246,12 +405,13 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Column(
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.outline,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.outline,
           ),
         ),
         const SizedBox(height: 4),
@@ -320,12 +480,12 @@ class _TransactionTable extends ConsumerWidget {
                     topRight: Radius.circular(7),
                   ),
                 ),
-                child: Row(
+                child: const Row(
                   children: [
-                    const SizedBox(width: 32, child: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
-                    const Expanded(child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold))),
-                    const Text('Amount', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 32),
+                    SizedBox(width: 32, child: Text('#', style: TextStyle(fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('Time', style: TextStyle(fontWeight: FontWeight.bold))),
+                    Text('Amount', style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(width: 32),
                   ],
                 ),
               ),
@@ -422,16 +582,15 @@ class _ActionButtons extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currency = Currencies.symbols[game.currency] ?? game.currency;
-    final theme = Theme.of(context);
 
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
+          child: FilledButton.icon(
             onPressed: () => _showBuyinDialog(context, ref, currency),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: theme.colorScheme.primary,
-              side: BorderSide(color: theme.colorScheme.primary),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.blue[600],
+              foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.add),
             label: const Text('Buy-in'),
@@ -442,8 +601,8 @@ class _ActionButtons extends ConsumerWidget {
           child: FilledButton.icon(
             onPressed: () => _showCashoutDialog(context, ref, currency),
             style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.tertiary,
-              foregroundColor: theme.colorScheme.onTertiary,
+              backgroundColor: Colors.orange[600],
+              foregroundColor: Colors.white,
             ),
             icon: const Icon(Icons.attach_money),
             label: const Text('Cash-out'),
@@ -496,6 +655,11 @@ class _ActionButtons extends ConsumerWidget {
                       UserTransactionsKey(gameId: game.id, userId: participant.userId),
                     ));
                     ref.invalidate(gameTransactionsProvider(game.id));
+
+                    // Invalidate stats providers to refresh stats screen
+                    ref.invalidate(recentGamesStatsProvider);
+                    ref.invalidate(recentGameStatsProvider);
+
                     onRefresh();
                   },
                   failure: (message, _) {
@@ -514,58 +678,34 @@ class _ActionButtons extends ConsumerWidget {
   }
 
   void _showCashoutDialog(BuildContext context, WidgetRef ref, String currency) {
-    final controller = TextEditingController();
+    // Get transactions to calculate suggested amount (current stack)
+    final transactionsAsync = ref.read(userTransactionsProvider(
+      UserTransactionsKey(gameId: game.id, userId: participant.userId),
+    ));
+
+    double suggestedAmount = 0;
+    transactionsAsync.whenData((transactions) {
+      final totalBuyin = transactions.where((t) => t.type == 'buyin').fold<double>(0, (sum, t) => sum + t.amount);
+      final totalCashout = transactions.where((t) => t.type == 'cashout').fold<double>(0, (sum, t) => sum + t.amount);
+      suggestedAmount = totalBuyin - totalCashout;
+    });
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cash-out'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: 'Amount',
-            prefixText: '$currency ',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final amount = double.tryParse(controller.text);
-              if (amount != null && amount > 0) {
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                Navigator.pop(ctx);
-                final repository = ref.read(gamesRepositoryProvider);
-                final result = await repository.addTransaction(
-                  gameId: game.id,
-                  userId: participant.userId,
-                  type: 'cashout',
-                  amount: amount,
-                );
-                result.when(
-                  success: (_) {
-                    ref.invalidate(gameWithParticipantsProvider(game.id));
-                    ref.invalidate(userTransactionsProvider(
-                      UserTransactionsKey(gameId: game.id, userId: participant.userId),
-                    ));
-                    ref.invalidate(gameTransactionsProvider(game.id));
-                    onRefresh();
-                  },
-                  failure: (message, _) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('Error: $message'), backgroundColor: Colors.red),
-                    );
-                  },
-                );
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
+      builder: (ctx) => CashOutDialog(
+        gameId: game.id,
+        userId: participant.userId,
+        userName: participant.profile?.fullName ?? 'Player',
+        currency: game.currency,
+        suggestedAmount: suggestedAmount > 0 ? suggestedAmount : 0,
+        onCashOut: () {
+          ref.invalidate(gameWithParticipantsProvider(game.id));
+          ref.invalidate(userTransactionsProvider(
+            UserTransactionsKey(gameId: game.id, userId: participant.userId),
+          ));
+          ref.invalidate(gameTransactionsProvider(game.id));
+          onRefresh();
+        },
       ),
     );
   }

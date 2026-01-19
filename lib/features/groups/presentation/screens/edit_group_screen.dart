@@ -18,6 +18,7 @@ class EditGroupScreen extends ConsumerStatefulWidget {
   final String currency;
   final double defaultBuyin;
   final List<double> additionalBuyins;
+  final bool autoSendRsvpEmails;
 
   const EditGroupScreen({
     super.key,
@@ -29,6 +30,7 @@ class EditGroupScreen extends ConsumerStatefulWidget {
     required this.currency,
     required this.defaultBuyin,
     required this.additionalBuyins,
+    this.autoSendRsvpEmails = true,
   });
 
   @override
@@ -45,6 +47,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
   late String _privacy;
   late String _currency;
   late double _defaultBuyin;
+  late bool _autoSendRsvpEmails;
   String? _avatarUrl;
   File? _selectedImage;
   final ImagePicker _imagePicker = ImagePicker();
@@ -62,6 +65,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
     _privacy = widget.privacy;
     _currency = widget.currency;
     _defaultBuyin = widget.defaultBuyin;
+    _autoSendRsvpEmails = widget.autoSendRsvpEmails;
     _avatarUrl = widget.avatarUrl;
   }
 
@@ -147,7 +151,6 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error picking image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick image: $e')),
@@ -205,7 +208,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
             width: 100,
             height: 100,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildFallbackAvatar(letter, colorScheme),
+            errorBuilder: (context, error, stackTrace) => _buildFallbackAvatar(letter, colorScheme),
           ),
         );
       }
@@ -325,7 +328,6 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         );
       }
     } catch (e) {
-      debugPrint('🔴 Error deleting group: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -336,9 +338,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
   }
 
   Future<void> _updateGroup() async {
-    debugPrint('🔵 Updating group');
     if (!_formKey.currentState!.validate()) {
-      debugPrint('🔴 Form validation failed');
       return;
     }
 
@@ -362,10 +362,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
               .storage
               .from('group-avatars')
               .getPublicUrl(fileName);
-          
-          debugPrint('✅ Avatar uploaded: $newAvatarUrl');
         } catch (storageError) {
-          debugPrint('⚠️ Storage upload failed: $storageError');
           // Continue without updating avatar if storage fails
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -391,7 +388,6 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
       }
 
       final controller = ref.read(groupControllerProvider);
-      debugPrint('🔵 Calling updateGroup for ${widget.groupId}');
       final ok = await controller.updateGroup(
         groupId: widget.groupId,
         name: _nameController.text.trim(),
@@ -401,26 +397,23 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
         defaultCurrency: _currency,
         defaultBuyin: _defaultBuyin,
         additionalBuyinValues: additionalBuyins,
+        autoSendRsvpEmails: _autoSendRsvpEmails,
       );
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
       if (ok) {
-        debugPrint('✅ Group updated successfully');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Group updated successfully')),
         );
         context.pop();
       } else {
-        debugPrint('🔴 Group update failed');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to update group')),
         );
       }
-    } catch (e, stack) {
-      debugPrint('🔴 Error updating group: $e');
-      debugPrintStack(stackTrace: stack);
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -629,7 +622,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: _privacy,
+                          initialValue: _privacy,
                           decoration: InputDecoration(
                             labelText: 'Privacy',
                             prefixIcon: Icon(
@@ -657,7 +650,7 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                       title: 'Game Settings',
                       children: [
                         DropdownButtonFormField<String>(
-                          value: _currency,
+                          initialValue: _currency,
                           decoration: InputDecoration(
                             labelText: 'Currency',
                             prefixIcon: Icon(Icons.attach_money, color: colorScheme.primary),
@@ -712,6 +705,59 @@ class _EditGroupScreenState extends ConsumerState<EditGroupScreen> {
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // RSVP Email Settings Card
+                    Card(
+                      elevation: 0,
+                      color: colorScheme.secondaryContainer.withValues(alpha: 0.3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.email, color: colorScheme.primary, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'RSVP Email Settings',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            SwitchListTile(
+                              value: _autoSendRsvpEmails,
+                              onChanged: (value) {
+                                setState(() => _autoSendRsvpEmails = value);
+                              },
+                              title: const Text('Auto-send RSVP emails'),
+                              subtitle: const Text(
+                                'Automatically send RSVP invitation emails when a new game is created',
+                              ),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
 

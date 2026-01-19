@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../profile/data/models/profile_model.dart';
 import '../../../profile/data/repositories/profile_repository.dart';
+import '../../../locations/data/repositories/locations_repository.dart';
+import '../../../locations/data/models/location_model.dart';
 import '../../data/repositories/groups_repository.dart';
 import 'groups_provider.dart';
 import '../../../../shared/models/result.dart';
@@ -21,14 +23,15 @@ class LocalUserController {
     required String groupId,
     required String firstName,
     required String lastName,
+    String? username,
     String? email,
     String? phoneNumber,
+    File? avatarFile,
     String? streetAddress,
     String? city,
     String? stateProvince,
     String? postalCode,
-    String? country,
-    File? avatarFile,
+    String country = 'United States',
   }) async {
     final userId = _uuid.v4();
 
@@ -36,13 +39,9 @@ class LocalUserController {
       userId: userId,
       firstName: firstName,
       lastName: lastName,
+      username: username,
       email: email,
       phoneNumber: phoneNumber,
-      streetAddress: streetAddress,
-      city: city,
-      stateProvince: stateProvince,
-      postalCode: postalCode,
-      country: country,
     );
 
     if (created is! Success<ProfileModel>) {
@@ -63,6 +62,38 @@ class LocalUserController {
       }
     }
 
+    // Optional address creation
+    if (streetAddress != null && streetAddress.trim().isNotEmpty) {
+      debugPrint('🔵 Creating address for local user $userId');
+      final locationsRepo = LocationsRepository();
+      final locationResult = await locationsRepo.createLocation(
+        profileId: userId,
+        streetAddress: streetAddress,
+        city: city,
+        stateProvince: stateProvince,
+        postalCode: postalCode,
+        country: country,
+        label: null, // Auto-generated
+        isPrimary: true,
+      );
+
+      if (locationResult is Success<LocationModel>) {
+        debugPrint('🔵 Linking location to profile: ${locationResult.data.id}');
+        final updateResult = await _profiles.updatePrimaryLocation(
+          userId: userId,
+          locationId: locationResult.data.id,
+        );
+
+        if (updateResult is Success<ProfileModel>) {
+          debugPrint('✅ Address created and linked successfully');
+        } else if (updateResult is Failure<ProfileModel>) {
+          debugPrint('🔴 Failed to link address: ${updateResult.message}');
+        }
+      } else if (locationResult is Failure<LocationModel>) {
+        debugPrint('🔴 Address creation failed: ${locationResult.message}');
+      }
+    }
+
     final addMemberResult = await _groups.addMember(groupId: groupId, userId: userId);
     if (addMemberResult is Failure) {
       return Failure(addMemberResult.message, exception: addMemberResult.exception);
@@ -77,39 +108,90 @@ class LocalUserController {
     required String userId,
     String? firstName,
     String? lastName,
+    String? username,
     String? email,
     String? phoneNumber,
+    File? avatarFile,
+    String? locationId,
     String? streetAddress,
     String? city,
     String? stateProvince,
     String? postalCode,
-    String? country,
-    File? avatarFile,
+    String country = 'United States',
   }) async {
     // Upload avatar first if provided
     if (avatarFile != null) {
-      debugPrint('🔵 Uploading avatar for local user $userId');
+      debugPrint('Uploading avatar for local user $userId');
       final avatarResult = await _profiles.uploadAvatar(userId, avatarFile);
       if (avatarResult is Success<String>) {
-        debugPrint('✅ Avatar uploaded: ${avatarResult.data}');
+        debugPrint('Avatar uploaded: ${avatarResult.data}');
       } else if (avatarResult is Failure<String>) {
-        debugPrint('🔴 Avatar upload failed: ${avatarResult.message}');
+        debugPrint('Avatar upload failed: ${avatarResult.message}');
+      }
+    }
+
+    // Handle address if provided
+    if (streetAddress != null && streetAddress.trim().isNotEmpty) {
+      final locationsRepo = LocationsRepository();
+
+      if (locationId != null) {
+        // Update existing location
+        debugPrint('🔵 Updating existing location: $locationId');
+        final result = await locationsRepo.updateLocation(
+          locationId,
+          streetAddress: streetAddress,
+          city: city,
+          stateProvince: stateProvince,
+          postalCode: postalCode,
+          country: country,
+        );
+
+        if (result is Failure<LocationModel>) {
+          debugPrint('🔴 Failed to update location: ${result.message}');
+        } else {
+          debugPrint('✅ Location updated successfully');
+        }
+      } else {
+        // Create new location
+        debugPrint('🔵 Creating new location for user: $userId');
+        final result = await locationsRepo.createLocation(
+          profileId: userId,
+          streetAddress: streetAddress,
+          city: city,
+          stateProvince: stateProvince,
+          postalCode: postalCode,
+          country: country,
+          label: null,
+          isPrimary: true,
+        );
+
+        if (result is Success<LocationModel>) {
+          // Update profile to reference this location as primary
+          debugPrint('🔵 Linking location to profile as primary: ${result.data.id}');
+          final updateProfileResult = await _profiles.updatePrimaryLocation(
+            userId: userId,
+            locationId: result.data.id,
+          );
+
+          if (updateProfileResult is Failure<ProfileModel>) {
+            debugPrint('🔴 Failed to link primary location: ${updateProfileResult.message}');
+          } else {
+            debugPrint('✅ Location created and linked successfully');
+          }
+        } else {
+          debugPrint('🔴 Failed to create location');
+        }
       }
     }
 
     // Update profile with all other fields
-    debugPrint('🔵 Updating profile for local user $userId');
+    debugPrint('Updating profile for local user $userId');
     final updateResult = await _profiles.updateProfile(
       userId: userId,
       firstName: firstName,
       lastName: lastName,
       phoneNumber: phoneNumber,
-      streetAddress: streetAddress,
-      city: city,
-      stateProvince: stateProvince,
-      postalCode: postalCode,
-      country: country,
-      username: null,
+      username: username,
     );
 
     if (updateResult is Failure<ProfileModel>) {

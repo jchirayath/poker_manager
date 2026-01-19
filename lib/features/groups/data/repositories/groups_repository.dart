@@ -26,12 +26,11 @@ class GroupsRepository {
           .select('groups(*)')
           .eq('user_id', userId);
 
-      final groups = (response as List)
+      final groups = response
           .map((json) {
             final groupData = json['groups'] as Map<String, dynamic>;
             // Fix DiceBear URLs to exclude metadata tags
             if (groupData['avatar_url'] != null) {
-              final original = groupData['avatar_url'];
               groupData['avatar_url'] = fixDiceBearUrl(groupData['avatar_url']);
               // Removed group avatar URL fixed debug
             }
@@ -57,11 +56,14 @@ class GroupsRepository {
         return const Failure('Group not found');
       }
 
+      // Ensure response is a Map<String, dynamic>
+      final groupData = response;
+
       // Fix DiceBear URLs to exclude metadata tags
-      if (response['avatar_url'] != null) {
-        response['avatar_url'] = fixDiceBearUrl(response['avatar_url']);
+      if (groupData['avatar_url'] != null) {
+        groupData['avatar_url'] = fixDiceBearUrl(groupData['avatar_url']);
       }
-      return Success(GroupModel.fromJson(response));
+      return Success(GroupModel.fromJson(groupData));
     } catch (e) {
       return Failure('Failed to load group: ${e.toString()}');
     }
@@ -125,6 +127,7 @@ class GroupsRepository {
     String? defaultCurrency,
     double? defaultBuyin,
     List<double>? additionalBuyinValues,
+    bool? autoSendRsvpEmails,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -140,6 +143,7 @@ class GroupsRepository {
       if (additionalBuyinValues != null) {
         updates['additional_buyin_values'] = additionalBuyinValues;
       }
+      if (autoSendRsvpEmails != null) updates['auto_send_rsvp_emails'] = autoSendRsvpEmails;
 
       final response = await _client
           .from('groups')
@@ -243,11 +247,29 @@ class GroupsRepository {
     required String userId,
   }) async {
     try {
-      await _client
+      // First, verify the member exists
+      final checkResponse = await _client
+          .from('group_members')
+          .select('id')
+          .eq('group_id', groupId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (checkResponse == null) {
+        return const Success(null);
+      }
+
+      // Perform the delete with select to get affected rows
+      final response = await _client
           .from('group_members')
           .delete()
           .eq('group_id', groupId)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .select();
+
+      if ((response as List).isEmpty) {
+        return const Failure('Delete blocked by database policy');
+      }
 
       return const Success(null);
     } catch (e) {
@@ -295,8 +317,8 @@ class GroupsRepository {
   /// Fetch all public groups (privacy = 'public')
   Future<Result<List<GroupModel>>> getPublicGroups() async {
     try {
-      debugPrint('[GroupsRepository] Fetching all public groups');
-      debugPrint('[GroupsRepository] Current user ID: ${SupabaseService.currentUserId}');
+      // debugPrint('[GroupsRepository] Fetching all public groups');
+      // debugPrint('[GroupsRepository] Current user ID: ${SupabaseService.currentUserId}');
 
       final response = await _client
           .from('groups')
@@ -304,7 +326,7 @@ class GroupsRepository {
           .eq('privacy', 'public')
           .order('created_at', ascending: false);
 
-      debugPrint('[GroupsRepository] getPublicGroups response: $response');
+      // debugPrint('[GroupsRepository] getPublicGroups response: $response');
 
       final groups = (response as List).map((json) {
         // Fix DiceBear URLs to exclude metadata tags
@@ -314,10 +336,10 @@ class GroupsRepository {
         return GroupModel.fromJson(json);
       }).toList();
 
-      debugPrint('[GroupsRepository] Loaded ${groups.length} public groups (non-paginated)');
+      // debugPrint('[GroupsRepository] Loaded ${groups.length} public groups (non-paginated)');
       return Success(groups);
     } catch (e) {
-      debugPrint('[GroupsRepository] Error loading public groups: $e');
+      // debugPrint('[GroupsRepository] Error loading public groups: $e');
       return Failure('Failed to load public groups: ${e.toString()}');
     }
   }
@@ -329,7 +351,7 @@ class GroupsRepository {
   }) async {
     try {
       final offset = (page - 1) * pageSize;
-      debugPrint('[GroupsRepository] Fetching public groups: page=$page, pageSize=$pageSize, offset=$offset');
+      // debugPrint('[GroupsRepository] Fetching public groups: page=$page, pageSize=$pageSize, offset=$offset');
       debugPrint('[GroupsRepository] Current user ID: ${SupabaseService.currentUserId}');
 
       final response = await _client
@@ -339,7 +361,7 @@ class GroupsRepository {
           .order('created_at', ascending: false)
           .range(offset, offset + pageSize - 1);
 
-      debugPrint('[GroupsRepository] Response: $response');
+      //debugPrint('[GroupsRepository] Response: $response');
 
       final groups = (response as List).map((json) {
         if (json['avatar_url'] != null) {
@@ -348,10 +370,10 @@ class GroupsRepository {
         return GroupModel.fromJson(json);
       }).toList();
 
-      debugPrint('[GroupsRepository] Loaded ${groups.length} public groups');
+      //debugPrint('[GroupsRepository] Loaded ${groups.length} public groups');
       return Success(groups);
     } catch (e) {
-      debugPrint('[GroupsRepository] Error loading public groups: $e');
+      // debugPrint('[GroupsRepository] Error loading public groups: $e');
       return Failure('Failed to load public groups: ${e.toString()}');
     }
   }

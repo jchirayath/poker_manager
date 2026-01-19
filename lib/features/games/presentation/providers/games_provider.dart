@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/game_model.dart';
 import '../../data/models/game_participant_model.dart';
@@ -85,7 +86,7 @@ final activeGamesProvider = FutureProvider<List<GameWithGroup>>((ref) async {
             context: 'activeGamesProvider',
           );
         },
-        failure: (message, _) {
+        failure: (message, errorData) {
           // Log and continue; do not block other groups
           ErrorLoggerService.logWarning(
             'Failed to load games for group ${group.id}: $message',
@@ -228,6 +229,53 @@ final groupGamesProvider = FutureProvider.family<List<GameModel>, String>(
       );
       rethrow;
     }
+  },
+);
+
+/// Provider that returns games for a specific group in GameWithGroup format.
+/// This allows the GamesEntryScreen to display group-specific games using the same UI.
+final groupGamesWithGroupInfoProvider = FutureProvider.family<List<GameWithGroup>, String>(
+  (ref, groupId) async {
+    final gamesRepo = ref.watch(gamesRepositoryProvider);
+    final groupsRepo = ref.watch(groupsRepositoryProvider);
+
+    // Get the group details
+    final groupResult = await groupsRepo.getGroup(groupId);
+    final group = groupResult is Success<GroupModel> ? groupResult.data : null;
+
+    if (group == null) {
+      ErrorLoggerService.logWarning(
+        'Group not found: $groupId',
+        context: 'groupGamesWithGroupInfoProvider',
+      );
+      return [];
+    }
+
+    // Get games for the group
+    final gamesResult = await gamesRepo.getGroupGames(groupId);
+
+    return gamesResult.maybeWhen(
+      success: (games) {
+        final gamesWithGroup = games.map((game) => GameWithGroup(
+          game: game,
+          groupId: group.id,
+          groupName: group.name,
+          groupAvatarUrl: group.avatarUrl,
+        )).toList();
+
+        // Sort by date (newest first)
+        gamesWithGroup.sort((a, b) => b.game.gameDate.compareTo(a.game.gameDate));
+
+        return gamesWithGroup;
+      },
+      orElse: () {
+        ErrorLoggerService.logWarning(
+          'Failed to load games for group: $groupId',
+          context: 'groupGamesWithGroupInfoProvider',
+        );
+        return <GameWithGroup>[];
+      },
+    );
   },
 );
 
@@ -414,6 +462,10 @@ final updateGameProvider =
   return UpdateGameNotifier();
 });
 
+final gamesProvider = NotifierProvider<GamesNotifier, void>(() {
+  return GamesNotifier();
+});
+
 class CreateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
   @override
   build() => const AsyncValue.data(null);
@@ -429,11 +481,12 @@ class CreateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     required double buyinAmount,
     required List<double> additionalBuyinValues,
     List<String>? participantUserIds,
+    bool allowMemberTransactions = false,
   }) async {
     state = const AsyncValue.loading();
     try {
       final repository = ref.watch(gamesRepositoryProvider);
-      
+
       ErrorLoggerService.logDebug(
         'Creating game: $name',
         context: 'CreateGameNotifier',
@@ -450,6 +503,7 @@ class CreateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
         buyinAmount: buyinAmount,
         additionalBuyinValues: additionalBuyinValues,
         participantUserIds: participantUserIds,
+        allowMemberTransactions: allowMemberTransactions,
       );
 
       state = result.when(
@@ -493,13 +547,16 @@ class StartGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     state = const AsyncValue.loading();
     try {
       final repository = ref.watch(gamesRepositoryProvider);
-      
+
+      debugPrint('🎯 StartGameNotifier: Starting game $gameId');
       ErrorLoggerService.logDebug(
         'Starting game: $gameId',
         context: 'StartGameNotifier',
       );
 
+      debugPrint('🎯 StartGameNotifier: Calling updateGameStatus with status=${GameConstants.statusInProgress}');
       final result = await repository.updateGameStatus(gameId, GameConstants.statusInProgress);
+      debugPrint('🎯 StartGameNotifier: updateGameStatus completed');
       
       state = result.when(
         success: (game) {
@@ -617,11 +674,13 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
     required String currency,
     required double buyinAmount,
     required List<double> additionalBuyinValues,
+    bool? allowMemberTransactions,
+    List<String>? participantUserIds,
   }) async {
     state = const AsyncValue.loading();
     try {
       final repository = ref.watch(gamesRepositoryProvider);
-      
+
       ErrorLoggerService.logDebug(
         'Updating game: $gameId',
         context: 'UpdateGameNotifier',
@@ -635,6 +694,8 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
         currency: currency,
         buyinAmount: buyinAmount,
         additionalBuyinValues: additionalBuyinValues,
+        allowMemberTransactions: allowMemberTransactions,
+        participantUserIds: participantUserIds,
       );
 
       state = result.when(
@@ -672,5 +733,90 @@ class UpdateGameNotifier extends Notifier<AsyncValue<GameModel?>> {
 
   void reset() {
     state = const AsyncValue.data(null);
+  }
+}
+
+class GamesNotifier extends Notifier<void> {
+  @override
+  void build() {}
+
+  Future<Result<GameModel>> getGame(String gameId) async {
+    try {
+      final repository = ref.read(gamesRepositoryProvider);
+      return await repository.getGame(gameId);
+    } catch (e, st) {
+      ErrorLoggerService.logError(
+        e,
+        st,
+        context: 'GamesNotifier.getGame',
+        additionalData: {'gameId': gameId},
+      );
+      return Failure('Failed to load game: ${e.toString()}');
+    }
+  }
+
+  Future<Result<GameModel>> updateGameSettings({
+    required String gameId,
+    required bool allowMemberTransactions,
+  }) async {
+    try {
+      ErrorLoggerService.logDebug(
+        'Updating game settings: $gameId, allowMemberTransactions: $allowMemberTransactions',
+        context: 'GamesNotifier.updateGameSettings',
+      );
+
+      final repository = ref.read(gamesRepositoryProvider);
+      final result = await repository.updateGameSettings(
+        gameId: gameId,
+        allowMemberTransactions: allowMemberTransactions,
+      );
+
+      result.when(
+        success: (game) {
+          // Invalidate related providers to refresh the UI
+          ref.invalidate(gameDetailProvider(gameId));
+          ref.invalidate(gameWithParticipantsProvider(gameId));
+          ref.invalidate(groupGamesProvider(game.groupId));
+          ref.invalidate(groupGamesWithGroupInfoProvider(game.groupId));
+
+          ErrorLoggerService.logInfo(
+            'Game settings updated successfully',
+            context: 'GamesNotifier.updateGameSettings',
+          );
+        },
+        failure: (message, errorData) {},
+      );
+
+      return result;
+    } catch (e, st) {
+      ErrorLoggerService.logError(
+        e,
+        st,
+        context: 'GamesNotifier.updateGameSettings',
+        additionalData: {'gameId': gameId},
+      );
+      return Failure('Failed to update game settings: ${e.toString()}');
+    }
+  }
+
+  Future<Result<bool>> canUserCreateTransaction({
+    required String gameId,
+    required String userId,
+  }) async {
+    try {
+      final repository = ref.read(gamesRepositoryProvider);
+      return await repository.canUserCreateTransaction(
+        gameId: gameId,
+        userId: userId,
+      );
+    } catch (e, st) {
+      ErrorLoggerService.logError(
+        e,
+        st,
+        context: 'GamesNotifier.canUserCreateTransaction',
+        additionalData: {'gameId': gameId, 'userId': userId},
+      );
+      return Failure('Failed to check permission: ${e.toString()}');
+    }
   }
 }

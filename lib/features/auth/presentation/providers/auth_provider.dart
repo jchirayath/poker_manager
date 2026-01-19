@@ -43,8 +43,11 @@ class AuthController {
     await _repository.signOut();
   }
 
-  Future<bool> resetPassword(String email) async {
-    final result = await _repository.resetPassword(email);
-    return result is Success;
+  Future<Result<void>> resetPassword(String email) async {
+    return await _repository.resetPassword(email);
+  }
+
+  Future<Result<void>> updatePassword(String newPassword) async {
+    return await _repository.updatePassword(newPassword);
   }
 }

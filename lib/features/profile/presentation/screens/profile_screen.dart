@@ -5,10 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/utils/avatar_utils.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/widgets/change_password_dialog.dart';
 import '../../../common/widgets/app_drawer.dart';
 import '../providers/profile_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../games/presentation/providers/games_provider.dart';
+import '../../../locations/data/repositories/locations_repository.dart';
+import '../../../locations/data/models/location_model.dart';
+import '../../../../shared/models/result.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -40,13 +44,11 @@ class ProfileScreen extends ConsumerWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             errorBuilder: (context, error, stackTrace) {
-              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
-              debugPrint('Error: $error');
               return Container(
                 width: 100,
                 height: 100,
                 alignment: Alignment.center,
-                child: Text('?', style: TextStyle(fontSize: 40)),
+                child: const Text('?', style: TextStyle(fontSize: 40)),
               );
             },
           ),
@@ -114,7 +116,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authUserAsync = ref.watch(authStateProvider);
+    final profileAsync = ref.watch(currentProfileProvider);
     final canPop = Navigator.of(context).canPop();
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -181,14 +183,14 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: authUserAsync.when(
-        data: (user) {
-          if (user == null) {
+      body: profileAsync.when(
+        data: (profile) {
+          if (profile == null) {
             return const Center(child: Text('Not signed in'));
           }
 
-          final initials = (user.firstName.isNotEmpty ? user.firstName[0] : '') +
-              (user.lastName.isNotEmpty ? user.lastName[0] : '');
+          final initials = (profile.firstName?.isNotEmpty == true ? profile.firstName![0] : '') +
+              (profile.lastName?.isNotEmpty == true ? profile.lastName![0] : '');
 
           return SingleChildScrollView(
             child: Column(
@@ -213,7 +215,7 @@ class ProfileScreen extends ConsumerWidget {
                         onTap: () => context.push(RouteConstants.editProfile),
                         child: Stack(
                           children: [
-                            _avatar(context, user.avatarUrl, initials),
+                            _avatar(context, profile.avatarUrl, initials),
                             Positioned(
                               bottom: 0,
                               right: 0,
@@ -239,17 +241,17 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        user.firstName.isNotEmpty || user.lastName.isNotEmpty
-                            ? user.fullName
+                        (profile.firstName?.isNotEmpty == true || profile.lastName?.isNotEmpty == true)
+                            ? '${profile.firstName ?? ''} ${profile.lastName ?? ''}'.trim()
                             : 'User',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (user.username != null && user.username!.isNotEmpty) ...[
+                      if (profile.username != null && profile.username!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          '@${user.username}',
+                          '@${profile.username}',
                           style: theme.textTheme.bodyLarge?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
@@ -275,37 +277,97 @@ class ProfileScreen extends ConsumerWidget {
                             context: context,
                             icon: Icons.email_outlined,
                             label: 'Email',
-                            value: user.email,
+                            value: profile.email,
                           ),
-                          if (user.phoneNumber != null && user.phoneNumber!.isNotEmpty)
+                          if (profile.phoneNumber != null && profile.phoneNumber!.isNotEmpty)
                             _buildInfoTile(
                               context: context,
                               icon: Icons.phone_outlined,
                               label: 'Phone',
-                              value: user.phoneNumber!,
+                              value: profile.phoneNumber!,
                             ),
                         ],
                       ),
 
-                      // Address Card
-                      if (user.hasAddress) ...[
-                        const SizedBox(height: 12),
-                        _buildSectionCard(
-                          context: context,
-                          icon: Icons.location_on_outlined,
-                          title: 'Address',
-                          children: [
-                            _buildInfoTile(
-                              context: context,
-                              icon: Icons.home_outlined,
-                              label: 'Location',
-                              value: user.fullAddress,
-                            ),
-                          ],
+                      const SizedBox(height: 16),
+
+                      // Address Card - Fetch and display if available
+                      if (profile.primaryLocationId != null)
+                        FutureBuilder<Result<LocationModel>>(
+                          future: LocationsRepository().getLocation(profile.primaryLocationId!),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const SizedBox.shrink();
+                            }
+
+                            if (snapshot.hasData && snapshot.data is Success<LocationModel>) {
+                              final location = (snapshot.data! as Success<LocationModel>).data;
+                              return _buildSectionCard(
+                                context: context,
+                                icon: Icons.location_on_outlined,
+                                title: 'Address',
+                                children: [
+                                  _buildInfoTile(
+                                    context: context,
+                                    icon: Icons.home_outlined,
+                                    label: 'Street Address',
+                                    value: location.streetAddress,
+                                  ),
+                                  if (location.city != null || location.stateProvince != null)
+                                    _buildInfoTile(
+                                      context: context,
+                                      icon: Icons.location_city_outlined,
+                                      label: 'City, State',
+                                      value: [
+                                        if (location.city != null) location.city,
+                                        if (location.stateProvince != null) location.stateProvince,
+                                      ].join(', '),
+                                    ),
+                                  if (location.postalCode != null)
+                                    _buildInfoTile(
+                                      context: context,
+                                      icon: Icons.markunread_mailbox_outlined,
+                                      label: 'Postal Code',
+                                      value: location.postalCode!,
+                                    ),
+                                  _buildInfoTile(
+                                    context: context,
+                                    icon: Icons.flag_outlined,
+                                    label: 'Country',
+                                    value: location.country,
+                                  ),
+                                ],
+                              );
+                            }
+
+                            return const SizedBox.shrink();
+                          },
                         ),
-                      ],
 
                       const SizedBox(height: 24),
+
+                      // Change Password Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => const ChangePasswordDialog(),
+                            );
+                          },
+                          icon: Icon(Icons.lock_reset, color: colorScheme.primary),
+                          label: Text(
+                            'Change Password',
+                            style: TextStyle(color: colorScheme.primary),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
 
                       // Sign Out Button
                       SizedBox(

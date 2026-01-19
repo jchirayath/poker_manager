@@ -6,7 +6,7 @@ part 'profile_model.g.dart';
 @freezed
 abstract class ProfileModel with _$ProfileModel {
   const ProfileModel._();
-  
+
   const factory ProfileModel({
     required String id,
     required String email,
@@ -15,11 +15,7 @@ abstract class ProfileModel with _$ProfileModel {
     @JsonKey(name: 'last_name') String? lastName,
     @JsonKey(name: 'avatar_url') String? avatarUrl,
     @JsonKey(name: 'phone_number') String? phoneNumber,
-    @JsonKey(name: 'street_address') String? streetAddress,
-    String? city,
-    @JsonKey(name: 'state_province') String? stateProvince,
-    @JsonKey(name: 'postal_code') String? postalCode,
-    String? country,
+    @JsonKey(name: 'primary_location_id') String? primaryLocationId,
     @JsonKey(name: 'is_local_user') @Default(false) bool isLocalUser,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
@@ -27,21 +23,6 @@ abstract class ProfileModel with _$ProfileModel {
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) =>
       _$ProfileModelFromJson(json);
-  
+
   String get fullName => '${firstName ?? ""} ${lastName ?? ""}'.trim();
-
-  String get fullAddress {
-    final parts = [
-      streetAddress,
-      city,
-      stateProvince,
-      postalCode,
-      country,
-    ].where((part) => part != null && part.isNotEmpty);
-
-    return parts.join(', ');
-  }
-
-  bool get hasAddress =>
-      streetAddress != null && streetAddress!.isNotEmpty;
 }

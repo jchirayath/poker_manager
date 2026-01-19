@@ -1,14 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/services/error_logger_service.dart';
 import '../../../../core/constants/business_constants.dart';
 import '../../../../shared/models/result.dart';
 import '../../../games/data/models/game_model.dart';
 import '../../../games/data/models/game_participant_model.dart';
-import '../../../games/data/repositories/games_repository.dart';
 import '../../../games/presentation/providers/games_provider.dart';
 import '../../../groups/data/models/group_model.dart';
-import '../../../groups/data/repositories/groups_repository.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 
 const int _defaultPageSize = 10;
@@ -134,7 +130,7 @@ final recentGameStatsProvider = FutureProvider<RecentGameStats>((ref) async {
     completedGames.sort((a, b) => b.gameDate.compareTo(a.gameDate));
     final candidate = completedGames.first;
 
-    if (latestGame == null || candidate.gameDate.isAfter(latestGame!.gameDate)) {
+    if (latestGame == null || candidate.gameDate.isAfter(latestGame.gameDate)) {
       latestGame = candidate;
       latestGroup = group;
     }
@@ -144,20 +140,24 @@ final recentGameStatsProvider = FutureProvider<RecentGameStats>((ref) async {
     throw Exception('No recent games found');
   }
 
-  final participantsResult = await gamesRepo.getGameParticipants(latestGame.id);
+  // After null check, we know these are non-null
+  final game = latestGame;
+  final group = latestGroup;
+
+  final participantsResult = await gamesRepo.getGameParticipants(game.id);
   final participants = participantsResult is Success<List<GameParticipantModel>>
       ? participantsResult.data
       : <GameParticipantModel>[];
 
   final ranking = participants
-      .map((p) => _toRankingRow(p, latestGame!))
+      .map((p) => _toRankingRow(p, game))
       .toList()
     ..sort((a, b) => b.net.compareTo(a.net));
 
   return RecentGameStats(
-    game: latestGame!,
-    groupName: latestGroup.name,
-    groupAvatarUrl: latestGroup.avatarUrl,
+    game: game,
+    groupName: group.name,
+    groupAvatarUrl: group.avatarUrl,
     ranking: ranking,
   );
 });

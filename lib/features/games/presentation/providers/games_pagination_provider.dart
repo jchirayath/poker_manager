@@ -1,6 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/models/game_model.dart';
-import '../../data/repositories/games_repository.dart';
 import '../../../groups/data/models/group_model.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../../shared/models/result.dart';

@@ -56,9 +56,7 @@ class _GroupsListScreenState extends ConsumerState<GroupsListScreen>
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               errorBuilder: (context, error, stackTrace) {
-                debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
-                debugPrint('Error: $error');
-                return Text('?');
+                return const Text('?');
               },
             ),
       );
@@ -138,7 +136,7 @@ class _GroupsListScreenState extends ConsumerState<GroupsListScreen>
         );
       },
       loading: () => const SizedBox(width: 40),
-      error: (_, __) => IconButton(
+      error: (error, stackTrace) => IconButton(
         icon: const Icon(Icons.account_circle),
         onPressed: () => context.push(RouteConstants.profile),
       ),
@@ -227,45 +225,91 @@ class _GroupsListTab extends ConsumerWidget {
     required this.scrollController,
   });
 
+  Future<void> _refresh(WidgetRef ref) async {
+    // ignore: unused_result
+    await ref.refresh(groupsProvider.future);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupsAsync = ref.watch(groupsProvider);
 
-    return groupsAsync.when(
-      data: (groups) {
-        if (groups.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+    return RefreshIndicator(
+      onRefresh: () => _refresh(ref),
+      child: groupsAsync.when(
+        loading: () => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+          ],
+        ),
+        error: (error, stack) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Error: $error'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => ref.invalidate(groupsProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        data: (groups) {
+          if (groups.isEmpty) {
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Icon(
-                  isPublic ? Icons.public : Icons.group_outlined,
-                  size: 100,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  isPublic ? 'No public groups' : 'No groups yet',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isPublic
-                      ? 'Public groups will appear here'
-                      : 'Create your first poker group',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isPublic ? Icons.public : Icons.group_outlined,
+                          size: 100,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          isPublic ? 'No public groups' : 'No groups yet',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          isPublic
+                              ? 'Public groups will appear here'
+                              : 'Create your first poker group',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
-            ),
-          );
-        }
-        return RefreshIndicator(
-          onRefresh: () => ref.refresh(groupsProvider.future),
-          child: ListView.builder(
+            );
+          }
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             controller: scrollController,
             padding: const EdgeInsets.all(16),
             itemCount: groups.length,
@@ -315,24 +359,8 @@ class _GroupsListTab extends ConsumerWidget {
                 ),
               );
             },
-          ),
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Error: $error'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => ref.invalidate(groupsProvider),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

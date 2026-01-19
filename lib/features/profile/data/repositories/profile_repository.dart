@@ -49,14 +49,14 @@ class ProfileRepository {
           if (created == null) {
             return Failure('Failed to auto-create profile for user: $userId');
           }
-          final createdMap = created as Map<String, dynamic>;
+          final createdMap = created;
           _fixProfileAvatarUrl(createdMap);
           return Success(ProfileModel.fromJson(createdMap));
         } on PostgrestException catch (e) {
           return Failure('Profile missing and insert blocked: ${e.message}');
         }
       }
-      final responseMap = response as Map<String, dynamic>;
+      final responseMap = response;
       _fixProfileAvatarUrl(responseMap);
       return Success(ProfileModel.fromJson(responseMap));
     } catch (e) {
@@ -70,11 +70,6 @@ class ProfileRepository {
     String? firstName,
     String? lastName,
     String? phoneNumber,
-    String? streetAddress,
-    String? city,
-    String? stateProvince,
-    String? postalCode,
-    String? country,
   }) async {
     try {
       final updates = <String, dynamic>{};
@@ -84,41 +79,15 @@ class ProfileRepository {
       } else if (username != null && username.isEmpty) {
         updates['username'] = null;
       }
-      
+
       if (firstName != null && firstName.isNotEmpty) updates['first_name'] = firstName;
       if (lastName != null && lastName.isNotEmpty) updates['last_name'] = lastName;
-      
+
       if (phoneNumber != null && phoneNumber.isNotEmpty) {
         updates['phone_number'] = phoneNumber;
       } else if (phoneNumber != null && phoneNumber.isEmpty) {
         updates['phone_number'] = null;
       }
-      
-      if (streetAddress != null && streetAddress.isNotEmpty) {
-        updates['street_address'] = streetAddress;
-      } else if (streetAddress != null && streetAddress.isEmpty) {
-        updates['street_address'] = null;
-      }
-      
-      if (city != null && city.isNotEmpty) {
-        updates['city'] = city;
-      } else if (city != null && city.isEmpty) {
-        updates['city'] = null;
-      }
-      
-      if (stateProvince != null && stateProvince.isNotEmpty) {
-        updates['state_province'] = stateProvince;
-      } else if (stateProvince != null && stateProvince.isEmpty) {
-        updates['state_province'] = null;
-      }
-      
-      if (postalCode != null && postalCode.isNotEmpty) {
-        updates['postal_code'] = postalCode;
-      } else if (postalCode != null && postalCode.isEmpty) {
-        updates['postal_code'] = null;
-      }
-      
-      if (country != null && country.isNotEmpty) updates['country'] = country;
 
       // Skip update if no fields to update
       if (updates.isEmpty) {
@@ -131,13 +100,14 @@ class ProfileRepository {
         if (response == null) {
           return Failure('Profile not found for user: $userId');
         }
-        final responseMap = response as Map<String, dynamic>;
+        final responseMap = response;
         _fixProfileAvatarUrl(responseMap);
         return Success(ProfileModel.fromJson(responseMap));
       }
 
       debugPrint('🔵 Updating profile for user: $userId with updates: $updates');
 
+      // Update profiles table
       await _client
           .from('profiles')
           .update(updates)
@@ -155,7 +125,7 @@ class ProfileRepository {
         return Failure('Profile update affected 0 rows for user: $userId');
       }
       debugPrint('✅ Profile update successful');
-      final responseMap = response as Map<String, dynamic>;
+      final responseMap = response;
       _fixProfileAvatarUrl(responseMap);
       return Success(ProfileModel.fromJson(responseMap));
     } catch (e, stack) {
@@ -165,17 +135,14 @@ class ProfileRepository {
     }
   }
 
+
   Future<Result<ProfileModel>> createLocalProfile({
     required String userId,
     required String firstName,
     required String lastName,
+    String? username,
     String? email,
     String? phoneNumber,
-    String? streetAddress,
-    String? city,
-    String? stateProvince,
-    String? postalCode,
-    String? country,
   }) async {
     try {
       final effectiveEmail = (email != null && email.trim().isNotEmpty)
@@ -187,19 +154,11 @@ class ProfileRepository {
         'first_name': firstName,
         'last_name': lastName,
         'is_local_user': true,
-        'country': country?.isNotEmpty == true ? country : 'United States',
         'email': effectiveEmail,
       };
 
+      if (username != null && username.isNotEmpty) payload['username'] = username;
       if (phoneNumber != null && phoneNumber.isNotEmpty) payload['phone_number'] = phoneNumber;
-      if (streetAddress != null && streetAddress.isNotEmpty) {
-        payload['street_address'] = streetAddress;
-      }
-      if (city != null && city.isNotEmpty) payload['city'] = city;
-      if (stateProvince != null && stateProvince.isNotEmpty) {
-        payload['state_province'] = stateProvince;
-      }
-      if (postalCode != null && postalCode.isNotEmpty) payload['postal_code'] = postalCode;
 
       final response = await _client
           .from('profiles')
@@ -211,7 +170,7 @@ class ProfileRepository {
         return const Failure('Failed to create local profile');
       }
 
-      final responseMap = response as Map<String, dynamic>;
+      final responseMap = response;
       _fixProfileAvatarUrl(responseMap);
       return Success(ProfileModel.fromJson(responseMap));
     } catch (e) {
@@ -224,9 +183,11 @@ class ProfileRepository {
       final fileName = 'avatar_$userId.jpg';
       final path = '$userId/$fileName';
 
-        await _client.storage
+      debugPrint('🔵 Uploading avatar to storage: $path');
+      await _client.storage
           .from('avatars')
           .upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+      debugPrint('✅ Avatar uploaded to storage: $path');
 
       // Append a cache-busting query param so Flutter image cache fetches the new content
       final publicUrl = _client.storage
@@ -234,6 +195,7 @@ class ProfileRepository {
           .getPublicUrl(path);
       final avatarUrl = '$publicUrl?v=${DateTime.now().millisecondsSinceEpoch}';
 
+      debugPrint('🔵 Updating profile with avatar URL: $avatarUrl');
       final updateResponse = await _client
           .from('profiles')
           .update({'avatar_url': avatarUrl})
@@ -242,16 +204,49 @@ class ProfileRepository {
           .maybeSingle();
 
       if (updateResponse == null) {
+        debugPrint('🔴 Failed to update profile with avatar URL');
         return const Failure('Failed to update profile with avatar URL');
       }
 
+      debugPrint('✅ Avatar URL updated in profile: $avatarUrl');
       return Success(avatarUrl);
     } on StorageException catch (e) {
+      debugPrint('🔴 Storage error during avatar upload: ${e.message}');
       return Failure('Storage error: ${e.message}');
     } on PostgrestException catch (e) {
+      debugPrint('🔴 Database error during avatar upload: ${e.message}');
       return Failure('Database error: ${e.message}');
     } catch (e) {
+      debugPrint('🔴 Avatar upload failed: ${e.toString()}');
       return Failure('Upload failed: ${e.toString()}');
+    }
+  }
+
+  Future<Result<ProfileModel>> updatePrimaryLocation({
+    required String userId,
+    required String locationId,
+  }) async {
+    try {
+      debugPrint('🔵 Updating primary location for user: $userId to location: $locationId');
+      final response = await _client
+          .from('profiles')
+          .update({'primary_location_id': locationId})
+          .eq('id', userId)
+          .select()
+          .maybeSingle();
+
+      if (response == null) {
+        debugPrint('🔴 Failed to update primary location - no rows affected');
+        return const Failure('Failed to update primary location');
+      }
+
+      final responseMap = response;
+      _fixProfileAvatarUrl(responseMap);
+      debugPrint('✅ Primary location updated successfully');
+      return Success(ProfileModel.fromJson(responseMap));
+    } catch (e) {
+      debugPrint('🔴 Primary location update exception: $e');
+      return Failure('Failed to update primary location: ${e.toString()}');
     }
   }
 

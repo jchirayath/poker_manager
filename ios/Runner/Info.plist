@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera and Photo Library is used to populate user or Group photgraphs.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Access to contacts is used to invite friends to your poker group.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Camera and Photo Library is used to populate user or Group photgraphs.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

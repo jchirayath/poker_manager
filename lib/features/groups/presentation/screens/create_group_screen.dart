@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -39,6 +41,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   bool _isSearching = false;
   bool _showInviteSection = false;
   bool _showLocalUserSection = false;
+  bool _showContactsSection = false;
+  bool _isLoadingContacts = false;
+  List<Contact> _deviceContacts = [];
+  List<Contact> _filteredContacts = [];
+  final _contactSearchController = TextEditingController();
   final _inviteEmailController = TextEditingController();
   final _inviteNameController = TextEditingController();
   final List<Map<String, String>> _pendingInvites = [];
@@ -47,6 +54,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   bool _isAddingLocalUser = false;
   File? _selectedImage;
   final ImagePicker _imagePicker = ImagePicker();
+  late String _randomAvatarSeed;
 
   Widget _buildUserAvatar(String? url, String initials) {
     if ((url ?? '').isEmpty) {
@@ -85,6 +93,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     _buyinController.dispose();
     _additionalBuyinsController.dispose();
     _userSearchController.dispose();
+    _contactSearchController.dispose();
     _inviteEmailController.dispose();
     _inviteNameController.dispose();
     super.dispose();
@@ -94,6 +103,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   void initState() {
     super.initState();
     _buyinController.text = _defaultBuyin.toStringAsFixed(2);
+    _randomAvatarSeed = 'group-${Random().nextInt(1000000)}';
   }
 
   Future<void> _pickImage() async {
@@ -169,7 +179,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error picking image: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick image: $e')),
@@ -186,9 +195,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   Widget _buildAvatarPreview() {
     final colorScheme = Theme.of(context).colorScheme;
-    final letter = _nameController.text.isNotEmpty
-        ? _nameController.text[0].toUpperCase()
-        : '?';
 
     Widget avatarContent;
 
@@ -202,20 +208,26 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         ),
       );
     } else {
-      avatarContent = Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          color: colorScheme.primaryContainer,
-          shape: BoxShape.circle,
-        ),
-        child: Center(
-          child: Text(
-            letter,
-            style: TextStyle(
-              fontSize: 40,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onPrimaryContainer,
+      // Use DiceBear random avatar when no image is selected
+      final avatarUrl = generateGroupAvatarUrl(_randomAvatarSeed);
+      avatarContent = ClipOval(
+        child: SvgPicture.network(
+          avatarUrl,
+          width: 100,
+          height: 100,
+          fit: BoxFit.cover,
+          placeholderBuilder: (_) => Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
             ),
           ),
         ),
@@ -272,55 +284,57 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         additionalBuyinValues: additionalBuyins,
       );
 
-      // Handle avatar upload if an image was selected
-      if (createResult is Success<String> && _selectedImage != null) {
-        try {
-          final groupId = createResult.data;
-          final fileName = 'group_${groupId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          final bytes = await _selectedImage!.readAsBytes();
-
-          await ref.read(groupsRepositoryProvider).client
-              .storage
-              .from('group-avatars')
-              .uploadBinary(fileName, bytes);
-
-          final avatarUrl = ref.read(groupsRepositoryProvider).client
-              .storage
-              .from('group-avatars')
-              .getPublicUrl(fileName);
-
-          // Update group with avatar URL
-          await controller.updateGroup(
-            groupId: groupId,
-            name: _nameController.text.trim(),
-            description: _descriptionController.text.trim(),
-            avatarUrl: avatarUrl,
-            privacy: _privacy,
-            defaultCurrency: _currency,
-            defaultBuyin: _defaultBuyin,
-            additionalBuyinValues: additionalBuyins,
-          );
-
-          debugPrint('✅ Avatar uploaded: $avatarUrl');
-        } catch (storageError) {
-          debugPrint('⚠️ Storage upload failed: $storageError');
-          // Continue without avatar if storage fails
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Warning: Avatar upload failed. Group created successfully.'),
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-        }
-      }
-
       if (!mounted) return;
 
-      // Add selected users as members
+      // Handle success - avatar, members, invites, local users
       if (createResult is Success<String>) {
         final groupId = createResult.data;
+
+        // Handle avatar - either upload custom image or use random DiceBear
+        String? avatarUrl;
+        if (_selectedImage != null) {
+          // Upload custom image
+          try {
+            final fileName = 'group_${groupId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            final bytes = await _selectedImage!.readAsBytes();
+
+            await ref.read(groupsRepositoryProvider).client
+                .storage
+                .from('group-avatars')
+                .uploadBinary(fileName, bytes);
+
+            avatarUrl = ref.read(groupsRepositoryProvider).client
+                .storage
+                .from('group-avatars')
+                .getPublicUrl(fileName);
+          } catch (storageError) {
+            // Fall back to random DiceBear avatar
+            avatarUrl = generateGroupAvatarUrl(_randomAvatarSeed);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Warning: Avatar upload failed. Using generated avatar.'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          }
+        } else {
+          // Use the random DiceBear avatar that was shown in preview
+          avatarUrl = generateGroupAvatarUrl(_randomAvatarSeed);
+        }
+
+        // Update group with avatar URL
+        await controller.updateGroup(
+          groupId: groupId,
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          avatarUrl: avatarUrl,
+          privacy: _privacy,
+          defaultCurrency: _currency,
+          defaultBuyin: _defaultBuyin,
+          additionalBuyinValues: additionalBuyins,
+        );
         // Removed group debug info
 
         if (_selectedUsers.isNotEmpty) {
@@ -343,7 +357,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 'invited_name': invite['name'],
               });
             } catch (e) {
-              debugPrint('⚠️ Failed to send invite to ${invite['email']}: $e');
+              // Silently continue if invite fails
             }
           }
           // Removed group debug info
@@ -358,11 +372,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 groupId: groupId,
                 firstName: localUser['firstName'] ?? '',
                 lastName: localUser['lastName'] ?? '',
+                username: localUser['username'],
                 email: localUser['email'],
                 phoneNumber: localUser['phone'],
               );
             } catch (e) {
-              debugPrint('⚠️ Failed to create local user ${localUser['firstName']}: $e');
+              // Silently continue if local user creation fails
             }
           }
           // Removed group debug info
@@ -385,7 +400,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           SnackBar(content: Text('Failed to create group: ${createResult.message}')),
         );
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         setState(() => _isLoading = false);
@@ -421,7 +436,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           _isSearching = false;
         });
       }
-    } catch (e, stack) {
+    } catch (e) {
       // Removed group debug info
       if (mounted) {
         setState(() => _isSearching = false);
@@ -503,133 +518,253 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   void _addLocalUser() {
     setState(() => _isAddingLocalUser = true);
     final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (dialogContext) {
         final firstNameCtrl = TextEditingController();
         final lastNameCtrl = TextEditingController();
+        final usernameCtrl = TextEditingController();
         final emailCtrl = TextEditingController();
         final phoneCtrl = TextEditingController();
         final formKey = GlobalKey<FormState>();
 
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
+        return Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.outlineVariant,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(Icons.person_add, color: colorScheme.primary, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Add Local User',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'Add a member without an account',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    // Basic Info Section
+                    Text(
+                      'Basic Information',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: firstNameCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'First Name *',
+                              prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: lastNameCtrl,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: InputDecoration(
+                              labelText: 'Last Name *',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Contact Section
+                    Text(
+                      'Contact (Optional)',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email_outlined, color: colorScheme.primary),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      validator: (value) {
+                        if (value != null && value.isNotEmpty && !value.contains('@')) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Phone',
+                        prefixIcon: Icon(Icons.phone_outlined, color: colorScheme.primary),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Payment Section
+                    Text(
+                      'Payment (Optional)',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Used for PayPal, Venmo transactions',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: usernameCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Username',
+                        hintText: '@username',
+                        prefixIcon: Icon(Icons.alternate_email, color: colorScheme.primary),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogContext),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              if (!formKey.currentState!.validate()) return;
+
+                              final firstName = firstNameCtrl.text.trim();
+                              final lastName = lastNameCtrl.text.trim();
+                              final username = usernameCtrl.text.trim();
+                              final email = emailCtrl.text.trim();
+                              final phone = phoneCtrl.text.trim();
+
+                              setState(() {
+                                _pendingLocalUsers.add({
+                                  'firstName': firstName,
+                                  'lastName': lastName,
+                                  'username': username,
+                                  'email': email,
+                                  'phone': phone,
+                                });
+                              });
+
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('$firstName $lastName added to pending list')),
+                              );
+                            },
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Add User'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
-                child: Icon(Icons.person_add, color: colorScheme.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              const Flexible(child: Text('Add Local User')),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Add a user who doesn\'t have an account.',
-                    style: TextStyle(fontSize: 14, color: colorScheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: firstNameCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'First Name',
-                      prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a first name';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: lastNameCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Last Name',
-                      prefixIcon: Icon(Icons.person_outline, color: colorScheme.primary),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a last name';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'Email (Optional)',
-                      prefixIcon: Icon(Icons.email_outlined, color: colorScheme.primary),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    validator: (value) {
-                      if (value != null && value.isNotEmpty && !value.contains('@')) {
-                        return 'Please enter a valid email';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: phoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    decoration: InputDecoration(
-                      labelText: 'Phone (Optional)',
-                      prefixIcon: Icon(Icons.phone_outlined, color: colorScheme.primary),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-
-                final firstName = firstNameCtrl.text.trim();
-                final lastName = lastNameCtrl.text.trim();
-                final email = emailCtrl.text.trim();
-                final phone = phoneCtrl.text.trim();
-
-                setState(() {
-                  _pendingLocalUsers.add({
-                    'firstName': firstName,
-                    'lastName': lastName,
-                    'email': email,
-                    'phone': phone,
-                  });
-                });
-
-                Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$firstName $lastName added to pending list')),
-                );
-              },
-              child: const Text('Add'),
-            ),
-          ],
         );
       },
     ).then((_) {
@@ -642,6 +777,126 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       _pendingLocalUsers.removeWhere((user) => user['name'] == name);
     });
   }
+
+  Future<void> _loadContacts() async {
+    if (_deviceContacts.isNotEmpty) return;
+
+    setState(() => _isLoadingContacts = true);
+
+    try {
+      if (await FlutterContacts.requestPermission()) {
+        final contacts = await FlutterContacts.getContacts(
+          withProperties: true,
+          withPhoto: false,
+        );
+        if (mounted) {
+          setState(() {
+            _deviceContacts = contacts;
+            _filteredContacts = contacts;
+            _isLoadingContacts = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoadingContacts = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Contacts permission denied')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingContacts = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load contacts: $e')),
+        );
+      }
+    }
+  }
+
+  void _filterContacts(String query) {
+    if (query.trim().isEmpty) {
+      setState(() => _filteredContacts = _deviceContacts);
+      return;
+    }
+
+    final lowercaseQuery = query.toLowerCase();
+    setState(() {
+      _filteredContacts = _deviceContacts.where((contact) {
+        return contact.displayName.toLowerCase().contains(lowercaseQuery);
+      }).toList();
+    });
+  }
+
+  void _addContactAsLocalUser(Contact contact) {
+    String firstName = contact.name.first;
+    String lastName = contact.name.last;
+
+    // If both names are empty, use displayName as first name
+    if (firstName.isEmpty && lastName.isEmpty) {
+      firstName = contact.displayName;
+    }
+
+    final email = contact.emails.isNotEmpty ? contact.emails.first.address : '';
+    final phone = contact.phones.isNotEmpty ? contact.phones.first.number : '';
+
+    // Check if already added
+    final displayName = '$firstName $lastName'.trim();
+    if (_pendingLocalUsers.any((user) =>
+        '${user['firstName']} ${user['lastName']}'.trim() == displayName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$displayName is already added')),
+      );
+      return;
+    }
+
+    setState(() {
+      _pendingLocalUsers.add({
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'phone': phone,
+      });
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$displayName added to pending list')),
+    );
+  }
+
+  static const List<Map<String, String>> _wittyGroupSuggestions = [
+    {'name': 'The Royal Flush Club', 'description': 'Where every hand feels like a winning hand, even when it\'s not.'},
+    {'name': 'Chips & Giggles', 'description': 'Serious poker. Seriously fun people.'},
+    {'name': 'The Bluff Brothers', 'description': 'Trust no one. Especially Dave.'},
+    {'name': 'Pocket Rockets Society', 'description': 'We don\'t always get aces, but when we do, we slow-play them badly.'},
+    {'name': 'The River Rats', 'description': 'Catching miracles on the river since day one.'},
+    {'name': 'Full House Party', 'description': 'Three of a kind meets a pair of good times.'},
+    {'name': 'The Chip Whisperers', 'description': 'We speak fluent poker. Our chips? Not so much.'},
+    {'name': 'All-In Anonymous', 'description': 'Hi, my name is... and I have a shoving problem.'},
+    {'name': 'The Felt Philosophers', 'description': 'Deep thoughts, deeper stacks.'},
+    {'name': 'Aces & Spaces', 'description': 'Premium hands and even more premium banter.'},
+    {'name': 'The Calling Station', 'description': 'We call. It\'s what we do. Don\'t judge.'},
+    {'name': 'Fold \'Em & Hold \'Em', 'description': 'Sometimes you gotta know when to walk away.'},
+    {'name': 'The Suited Connectors', 'description': 'We\'re better together. Like 7-8 suited.'},
+    {'name': 'Bad Beat Buddies', 'description': 'Supporting each other through the worst hands imaginable.'},
+    {'name': 'The Poker Faces', 'description': 'Unreadable expressions. Questionable decisions.'},
+    {'name': 'Kings of the Felt', 'description': 'Royalty at the table, peasants at the ATM.'},
+    {'name': 'The Ante Up Crew', 'description': 'We came to play. And to eat all the snacks.'},
+    {'name': 'Deuces Wild', 'description': 'Even the worst cards have potential. Right?'},
+    {'name': 'The Nutty Professors', 'description': 'Calculating odds and cracking jokes.'},
+    {'name': 'Shuffle Up Society', 'description': 'Where friendships are tested and chips are shuffled.'},
+  ];
+
+  void _generateWittyName() {
+    final random = Random();
+    final suggestion = _wittyGroupSuggestions[random.nextInt(_wittyGroupSuggestions.length)];
+
+    setState(() {
+      _nameController.text = suggestion['name']!;
+      _descriptionController.text = suggestion['description']!;
+    });
+  }
+
   bool _validateBeforeCreate() {
     // Validate form fields (group name, buy-in, etc.)
     if (!_formKey.currentState!.validate()) {
@@ -875,9 +1130,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                           ),
                           maxLines: 3,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: _generateWittyName,
+                            icon: Icon(Icons.auto_awesome, size: 18, color: colorScheme.secondary),
+                            label: Text(
+                              'Generate witty name & description',
+                              style: TextStyle(color: colorScheme.secondary),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: _privacy,
+                          initialValue: _privacy,
                           decoration: InputDecoration(
                             labelText: 'Privacy',
                             prefixIcon: Icon(
@@ -905,7 +1172,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                       title: 'Game Settings',
                       children: [
                         DropdownButtonFormField<String>(
-                          value: _currency,
+                          initialValue: _currency,
                           decoration: InputDecoration(
                             labelText: 'Currency',
                             prefixIcon: Icon(Icons.attach_money, color: colorScheme.primary),
@@ -971,7 +1238,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     _buildSectionCard(
                       context: context,
                       icon: Icons.people_outline,
-                      title: 'Add Members',
+                      title: 'Add Registered Members',
                       children: [
                         TextField(
                           controller: _userSearchController,
@@ -1071,11 +1338,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                           child: Icon(Icons.email_outlined, size: 20, color: colorScheme.secondary),
                         ),
                         title: Text(
-                          'Invite by Email',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          'Invite by Email to Join',
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text(
-                          'Invite people to join (optional)',
+                          'Invite people to register and join the group',
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         initiallyExpanded: _showInviteSection,
@@ -1158,6 +1425,159 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     ),
                     const SizedBox(height: 16),
 
+                    // Add from Contacts Section
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                      child: ExpansionTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                        childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.contacts_outlined, size: 20, color: colorScheme.secondary),
+                        ),
+                        title: Text(
+                          'Add from Contacts (Local)',
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Import user from your device contacts without App registration',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        initiallyExpanded: _showContactsSection,
+                        onExpansionChanged: (expanded) {
+                          setState(() => _showContactsSection = expanded);
+                          if (expanded && _deviceContacts.isEmpty) {
+                            _loadContacts();
+                          }
+                        },
+                        children: [
+                          if (_isLoadingContacts)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          else if (_deviceContacts.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.contacts_outlined, size: 48, color: colorScheme.onSurfaceVariant),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'No contacts available',
+                                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    TextButton(
+                                      onPressed: _loadContacts,
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else ...[
+                            TextField(
+                              controller: _contactSearchController,
+                              decoration: InputDecoration(
+                                labelText: 'Search Contacts',
+                                hintText: 'Search by name',
+                                prefixIcon: Icon(Icons.search, color: colorScheme.primary),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onChanged: _filterContacts,
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              constraints: const BoxConstraints(maxHeight: 250),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: colorScheme.outlineVariant),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: _filteredContacts.isEmpty
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(20),
+                                      child: Center(
+                                        child: Text(
+                                          'No contacts found',
+                                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                                        ),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: _filteredContacts.length,
+                                      itemBuilder: (context, index) {
+                                        final contact = _filteredContacts[index];
+                                        final email = contact.emails.isNotEmpty
+                                            ? contact.emails.first.address
+                                            : null;
+                                        final phone = contact.phones.isNotEmpty
+                                            ? contact.phones.first.number
+                                            : null;
+                                        return ListTile(
+                                          dense: true,
+                                          visualDensity: VisualDensity.compact,
+                                          leading: CircleAvatar(
+                                            radius: 16,
+                                            backgroundColor: colorScheme.primaryContainer,
+                                            child: Text(
+                                              contact.displayName.isNotEmpty
+                                                  ? contact.displayName[0].toUpperCase()
+                                                  : '?',
+                                              style: TextStyle(
+                                                color: colorScheme.onPrimaryContainer,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                          title: Text(
+                                            contact.displayName,
+                                            style: const TextStyle(fontSize: 14),
+                                          ),
+                                          subtitle: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              if (phone != null)
+                                                Text(
+                                                  phone,
+                                                  style: const TextStyle(fontSize: 12),
+                                                ),
+                                              if (email != null)
+                                                Text(
+                                                  email,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: colorScheme.onSurfaceVariant,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          isThreeLine: phone != null && email != null,
+                                          trailing: IconButton(
+                                            icon: Icon(Icons.add_circle_outline, color: colorScheme.primary, size: 20),
+                                            onPressed: () => _addContactAsLocalUser(contact),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     // Add Local Users Section
                     Card(
                       elevation: 0,
@@ -1178,11 +1598,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                           child: Icon(Icons.person_add_outlined, size: 20, color: colorScheme.tertiary),
                         ),
                         title: Text(
-                          'Add Local Users',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          'Add Users to Group (Local)',
+                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Text(
-                          'Add members without accounts (optional)',
+                          'Add members directly to group without requiring them to register',
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         initiallyExpanded: _showLocalUserSection,
@@ -1236,10 +1656,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                                   subtitle: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      if (user['username']?.isNotEmpty == true)
+                                        Text('@${user['username']}', style: TextStyle(color: colorScheme.primary)),
                                       if (user['email']?.isNotEmpty == true)
-                                        Text('Email: ${user['email']}'),
+                                        Text(user['email']!, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                                       if (user['phone']?.isNotEmpty == true)
-                                        Text('Phone: ${user['phone']}'),
+                                        Text(user['phone']!, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                                     ],
                                   ),
                                   trailing: IconButton(

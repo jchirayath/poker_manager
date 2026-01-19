@@ -6,27 +6,29 @@ import '../../data/repositories/profile_repository.dart';
 import '../../data/models/profile_model.dart';
 import '../../../../shared/models/result.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../locations/data/repositories/locations_repository.dart';
+import '../../../locations/data/models/location_model.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 
 final profileRepositoryProvider = Provider((ref) => ProfileRepository());
 
+final authRepositoryProvider = Provider((ref) => AuthRepository());
+
 final currentProfileProvider = StreamProvider<ProfileModel?>((ref) async* {
-  final userId = SupabaseService.currentUserId;
-  if (userId == null) {
-    yield null;
-    return;
-  }
-
   final repository = ref.watch(profileRepositoryProvider);
+  final authRepository = ref.watch(authRepositoryProvider);
 
-  // Emit immediately
-  final initial = await repository.getProfile(userId);
-  yield initial is Success<ProfileModel> ? initial.data : null;
+  // Listen to auth state changes - this will automatically update when user logs in/out
+  await for (final user in authRepository.watchCurrentUser()) {
+    if (user == null) {
+      yield null;
+      continue;
+    }
 
-  // Then poll periodically for changes
-  yield* Stream.periodic(const Duration(seconds: 30)).asyncMap((_) async {
-    final result = await repository.getProfile(userId);
-    return result is Success<ProfileModel> ? result.data : null;
-  });
+    // Fetch the full profile for the current user
+    final result = await repository.getProfile(user.id);
+    yield result is Success<ProfileModel> ? result.data : null;
+  }
 });
 
 final profileControllerProvider = Provider((ref) {
@@ -47,11 +49,6 @@ class ProfileController {
     String? firstName,
     String? lastName,
     String? phoneNumber,
-    String? streetAddress,
-    String? city,
-    String? stateProvince,
-    String? postalCode,
-    String? country,
   }) async {
     final userId = SupabaseService.currentUserId;
     if (userId == null) return false;
@@ -62,11 +59,6 @@ class ProfileController {
       firstName: firstName,
       lastName: lastName,
       phoneNumber: phoneNumber,
-      streetAddress: streetAddress,
-      city: city,
-      stateProvince: stateProvince,
-      postalCode: postalCode,
-      country: country,
     );
 
     if (result is Success) {
@@ -114,5 +106,82 @@ class ProfileController {
       return true;
     }
     return false;
+  }
+
+  Future<bool> updateAddress({
+    String? locationId, // Null if creating new location
+    required String streetAddress,
+    String? city,
+    String? stateProvince,
+    String? postalCode,
+    required String country,
+  }) async {
+    final userId = SupabaseService.currentUserId;
+    if (userId == null) {
+      debugPrint('🔴 Cannot update address: user not logged in');
+      return false;
+    }
+
+    try {
+      final locationsRepo = LocationsRepository();
+
+      if (locationId != null) {
+        // Update existing location
+        debugPrint('🔵 Updating existing location: $locationId');
+        final result = await locationsRepo.updateLocation(
+          locationId,
+          streetAddress: streetAddress,
+          city: city,
+          stateProvince: stateProvince,
+          postalCode: postalCode,
+          country: country,
+        );
+
+        if (result is Failure<LocationModel>) {
+          debugPrint('🔴 Failed to update location: ${result.message}');
+          return false;
+        }
+
+        debugPrint('✅ Location updated successfully');
+      } else {
+        // Create new location
+        debugPrint('🔵 Creating new location for user: $userId');
+        final result = await locationsRepo.createLocation(
+          profileId: userId,
+          streetAddress: streetAddress,
+          city: city,
+          stateProvince: stateProvince,
+          postalCode: postalCode,
+          country: country,
+          label: null, // Auto-generated from profile name
+          isPrimary: true,
+        );
+
+        if (result is Success<LocationModel>) {
+          // Update profile to reference this location as primary
+          debugPrint('🔵 Linking location to profile as primary: ${result.data.id}');
+          final updateProfileResult = await _repository.updatePrimaryLocation(
+            userId: userId,
+            locationId: result.data.id,
+          );
+
+          if (updateProfileResult is Failure<ProfileModel>) {
+            debugPrint('🔴 Failed to link primary location: ${updateProfileResult.message}');
+            return false;
+          }
+
+          debugPrint('✅ Location created and linked successfully');
+        } else {
+          debugPrint('🔴 Failed to create location');
+          return false;
+        }
+      }
+
+      _ref.invalidate(currentProfileProvider);
+      return true;
+    } catch (e) {
+      debugPrint('🔴 Address update exception: $e');
+      return false;
+    }
   }
 }

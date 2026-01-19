@@ -132,12 +132,11 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(400, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final testUser = UserModel(
+      final testUser = const UserModel(
         id: 'test-id',
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
-        country: 'United States',
       );
 
       await tester.pumpWidget(
@@ -146,9 +145,9 @@ void main() {
             authStateProvider.overrideWith((ref) => Stream.value(testUser)),
           ],
           child: MaterialApp(
-            home: MediaQuery(
-              data: const MediaQueryData(size: Size(400, 800)),
-              child: const ProfileScreen(),
+            home: const MediaQuery(
+              data: MediaQueryData(size: Size(400, 800)),
+              child: ProfileScreen(),
             ),
             routes: {
               '/profile/edit': (_) => const EditProfileScreen(),
@@ -166,12 +165,11 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(400, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final testUser = UserModel(
+      final testUser = const UserModel(
         id: 'test-id',
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
-        country: 'United States',
       );
 
       await tester.pumpWidget(
@@ -194,12 +192,11 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(400, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final testUser = UserModel(
+      final testUser = const UserModel(
         id: 'test-id',
         email: 'test@example.com',
         firstName: 'John',
         lastName: 'Doe',
-        country: 'United States',
       );
 
       await tester.pumpWidget(
@@ -572,12 +569,12 @@ void main() {
       var tapped = false;
 
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: Center(
               child: FilledButton(
                 onPressed: null,
-                child: const Text('Disabled'),
+                child: Text('Disabled'),
               ),
             ),
           ),
@@ -1064,7 +1061,6 @@ void main() {
       expect(profile.lastName, 'Smith');
       expect(profile.email, 'jane@test.com');
       expect(profile.id, isNotEmpty);
-      expect(profile.country, 'United States');
     });
 
     test('creates group with all fields', () {

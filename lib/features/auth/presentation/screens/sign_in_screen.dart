@@ -356,7 +356,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              // Forgot Password Link
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => context.push(RouteConstants.forgotPassword),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                      color: colorScheme.primary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               // Sign In Button
               FilledButton(
                 onPressed: _isLoading ? null : _signIn,

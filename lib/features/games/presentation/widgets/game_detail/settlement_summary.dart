@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/currencies.dart';
 import '../../../../../core/utils/avatar_utils.dart';
 import '../../../../profile/data/models/profile_model.dart';
@@ -30,14 +31,14 @@ class PaymentMethod {
     id: 'cash',
     label: 'Cash',
     icon: Icons.money,
-    color: Colors.green,
+    color: AppColors.paymentCash,
   );
 
   static const venmo = PaymentMethod(
     id: 'venmo',
     label: 'Venmo',
     icon: Icons.mobile_friendly,
-    color: Color(0xFF3D95CE),
+    color: AppColors.paymentVenmo,
     supportsDeepLink: true,
   );
 
@@ -45,7 +46,7 @@ class PaymentMethod {
     id: 'paypal',
     label: 'PayPal',
     icon: Icons.account_balance_wallet,
-    color: Color(0xFF003087),
+    color: AppColors.paymentPayPal,
     supportsDeepLink: true,
   );
 
@@ -53,7 +54,7 @@ class PaymentMethod {
     id: 'zelle',
     label: 'Zelle',
     icon: Icons.send_to_mobile,
-    color: Color(0xFF6D1ED4),
+    color: AppColors.paymentZelle,
   );
 
   /// All available payment methods for settlement
@@ -77,6 +78,57 @@ class PaymentMethod {
 
 /// Identifier types for payment apps
 enum IdentifierType { email, phone, username }
+
+/// Utility functions for masking sensitive payment identifiers
+class IdentifierMasking {
+  /// Masks an email address, showing only first 2 chars and domain
+  /// e.g., "john.doe@example.com" -> "jo***@example.com"
+  static String maskEmail(String email) {
+    final parts = email.split('@');
+    if (parts.length != 2) return '***';
+
+    final localPart = parts[0];
+    final domain = parts[1];
+
+    if (localPart.length <= 2) {
+      return '${localPart[0]}***@$domain';
+    }
+    return '${localPart.substring(0, 2)}***@$domain';
+  }
+
+  /// Masks a phone number, showing only last 4 digits
+  /// e.g., "+1 (555) 123-4567" -> "***-4567"
+  static String maskPhone(String phone) {
+    // Remove all non-digit characters
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 4) return '***';
+
+    final lastFour = digits.substring(digits.length - 4);
+    return '***-$lastFour';
+  }
+
+  /// Masks a username, showing only first 2 and last char
+  /// e.g., "johndoe" -> "jo***e"
+  static String maskUsername(String username) {
+    if (username.isEmpty) return '***';
+    if (username.length <= 3) return '${username[0]}***';
+
+    return '${username.substring(0, 2)}***${username[username.length - 1]}';
+  }
+
+  /// Get masked value based on identifier type
+  static String mask(IdentifierType type, String value) {
+    if (value.isEmpty) return '';
+    switch (type) {
+      case IdentifierType.email:
+        return maskEmail(value);
+      case IdentifierType.phone:
+        return maskPhone(value);
+      case IdentifierType.username:
+        return maskUsername(value);
+    }
+  }
+}
 
 class SettlementSummary extends StatelessWidget {
   final GameModel game;
@@ -130,29 +182,12 @@ class SettlementSummary extends StatelessWidget {
       );
     }
 
-    final rankings = _calculateRankings();
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Player Rankings Section
-            Text(
-              'Player Rankings',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _PlayerRankings(
-              rankings: rankings,
-              participants: participants,
-              currency: currency,
-            ),
-            const SizedBox(height: 24),
-
             // Settlement Summary Section
             Text(
               'Settlement Summary',
@@ -267,264 +302,6 @@ class SettlementSummary extends StatelessWidget {
     }
 
     return settlements;
-  }
-
-  /// Calculate player rankings based on net results
-  List<Map<String, dynamic>> _calculateRankings() {
-    final balances = <String, double>{};
-
-    for (final txn in transactions) {
-      balances[txn.userId] = (balances[txn.userId] ?? 0) +
-          (txn.type == 'buyin' ? -txn.amount : txn.amount);
-    }
-
-    // Create ranking entries
-    final rankings = <Map<String, dynamic>>[];
-    for (final p in participants) {
-      final netResult = balances[p.userId] ?? 0.0;
-      rankings.add({
-        'userId': p.userId,
-        'netResult': netResult,
-      });
-    }
-
-    // Sort by net result (highest first)
-    rankings.sort((a, b) => (b['netResult'] as double).compareTo(a['netResult'] as double));
-
-    // Assign ranks (handling ties)
-    var currentRank = 1;
-    for (var i = 0; i < rankings.length; i++) {
-      if (i > 0 && (rankings[i]['netResult'] as double) < (rankings[i - 1]['netResult'] as double)) {
-        currentRank = i + 1;
-      }
-      rankings[i]['rank'] = currentRank;
-    }
-
-    return rankings;
-  }
-}
-
-/// Widget to display player rankings with medal icons
-class _PlayerRankings extends StatelessWidget {
-  final List<Map<String, dynamic>> rankings;
-  final List<GameParticipantModel> participants;
-  final String currency;
-
-  const _PlayerRankings({
-    required this.rankings,
-    required this.participants,
-    required this.currency,
-  });
-
-  Widget _buildRankIcon(int rank) {
-    switch (rank) {
-      case 1:
-        return Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFFFFD700), // Gold
-          ),
-          child: const Center(
-            child: Icon(Icons.emoji_events, size: 16, color: Colors.white),
-          ),
-        );
-      case 2:
-        return Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFFC0C0C0), // Silver
-          ),
-          child: const Center(
-            child: Icon(Icons.emoji_events, size: 16, color: Colors.white),
-          ),
-        );
-      case 3:
-        return Container(
-          width: 28,
-          height: 28,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: Color(0xFFCD7F32), // Bronze
-          ),
-          child: const Center(
-            child: Icon(Icons.emoji_events, size: 16, color: Colors.white),
-          ),
-        );
-      default:
-        return Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.grey.shade300,
-          ),
-          child: Center(
-            child: Text(
-              '$rank',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade700,
-              ),
-            ),
-          ),
-        );
-    }
-  }
-
-  String _getInitials(ProfileModel? profile, String name) {
-    if (profile != null) {
-      final first = profile.firstName?.isNotEmpty == true ? profile.firstName![0] : '';
-      final last = profile.lastName?.isNotEmpty == true ? profile.lastName![0] : '';
-      if (first.isNotEmpty || last.isNotEmpty) {
-        return '$first$last'.toUpperCase();
-      }
-    }
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return name.substring(0, name.length.clamp(0, 2)).toUpperCase();
-  }
-
-  Widget _buildAvatar(BuildContext context, ProfileModel? profile, String name) {
-    final theme = Theme.of(context);
-    final initials = _getInitials(profile, name);
-    final avatarUrl = profile?.avatarUrl;
-
-    if (avatarUrl == null || avatarUrl.isEmpty) {
-      return CircleAvatar(
-        radius: 16,
-        backgroundColor: theme.colorScheme.primaryContainer,
-        child: Text(
-          initials,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-        ),
-      );
-    }
-
-    if (avatarUrl.toLowerCase().contains('svg')) {
-      return CircleAvatar(
-        radius: 16,
-        backgroundColor: theme.colorScheme.primaryContainer,
-        child: ClipOval(
-          child: SvgPicture.network(
-            fixDiceBearUrl(avatarUrl)!,
-            width: 32,
-            height: 32,
-            fit: BoxFit.cover,
-            placeholderBuilder: (_) => Text(
-              initials,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: theme.colorScheme.primaryContainer,
-      backgroundImage: NetworkImage(avatarUrl),
-      onBackgroundImageError: (e, s) {},
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: theme.colorScheme.onPrimaryContainer,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      children: rankings.map((ranking) {
-        final participant = participants.firstWhere(
-          (p) => p.userId == ranking['userId'],
-          orElse: () => participants.first,
-        );
-        final rank = ranking['rank'] as int;
-        final netResult = ranking['netResult'] as double;
-        final name = participant.profile?.fullName ?? 'Unknown';
-        final isWinner = netResult > 0.01;
-        final isLoser = netResult < -0.01;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: rank == 1
-                ? const Color(0xFFFFD700).withValues(alpha: 0.1)
-                : rank == 2
-                    ? const Color(0xFFC0C0C0).withValues(alpha: 0.1)
-                    : rank == 3
-                        ? const Color(0xFFCD7F32).withValues(alpha: 0.1)
-                        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: rank <= 3
-                  ? (rank == 1
-                      ? const Color(0xFFFFD700)
-                      : rank == 2
-                          ? const Color(0xFFC0C0C0)
-                          : const Color(0xFFCD7F32))
-                      .withValues(alpha: 0.5)
-                  : theme.colorScheme.outline.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Row(
-            children: [
-              // Rank icon
-              _buildRankIcon(rank),
-              const SizedBox(width: 10),
-              // Avatar
-              _buildAvatar(context, participant.profile, name),
-              const SizedBox(width: 10),
-              // Name
-              Expanded(
-                child: Text(
-                  name,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: rank <= 3 ? FontWeight.bold : FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              // Net result
-              Text(
-                '${isWinner ? '+' : ''}$currency ${netResult.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: isWinner
-                      ? Colors.green
-                      : isLoser
-                          ? Colors.red
-                          : theme.colorScheme.outline,
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
   }
 }
 
@@ -913,6 +690,8 @@ class _PayNowSheetState extends State<_PayNowSheet> {
   PaymentMethod _selectedMethod = PaymentMethod.venmo;
   IdentifierType _selectedIdentifierType = IdentifierType.username;
   final Map<IdentifierType, TextEditingController> _controllers = {};
+  final Map<IdentifierType, String> _originalValues = {};
+  final Map<IdentifierType, bool> _isEditing = {};
   bool _isLaunching = false;
 
   @override
@@ -927,20 +706,26 @@ class _PayNowSheetState extends State<_PayNowSheet> {
     // Initialize controllers for each available identifier type
     for (final type in _availableIdentifierTypes) {
       _controllers[type] = TextEditingController();
+      _isEditing[type] = false;
 
+      String originalValue = '';
       if (profile != null) {
         switch (type) {
           case IdentifierType.username:
-            _controllers[type]!.text = profile.username ?? '';
+            originalValue = profile.username ?? '';
             break;
           case IdentifierType.email:
-            _controllers[type]!.text = profile.email;
+            originalValue = profile.email;
             break;
           case IdentifierType.phone:
-            _controllers[type]!.text = profile.phoneNumber ?? '';
+            originalValue = profile.phoneNumber ?? '';
             break;
         }
       }
+
+      // Store original value and show masked version
+      _originalValues[type] = originalValue;
+      _controllers[type]!.text = IdentifierMasking.mask(type, originalValue);
     }
 
     // Set initial selection based on available data
@@ -953,6 +738,30 @@ class _PayNowSheetState extends State<_PayNowSheet> {
         _selectedIdentifierType = IdentifierType.phone;
       }
     }
+  }
+
+  void _toggleEditing(IdentifierType type) {
+    setState(() {
+      _isEditing[type] = !(_isEditing[type] ?? false);
+      if (_isEditing[type]!) {
+        // Clear the masked value so user can enter fresh
+        _controllers[type]!.text = '';
+      } else {
+        // If user clears the field, restore masked original
+        if (_controllers[type]!.text.isEmpty) {
+          _controllers[type]!.text = IdentifierMasking.mask(type, _originalValues[type] ?? '');
+        }
+      }
+    });
+  }
+
+  /// Get the actual identifier to use for payment
+  /// If user has edited, use their input; otherwise use original value
+  String _getIdentifierForPayment(IdentifierType type) {
+    if (_isEditing[type] == true && _controllers[type]!.text.isNotEmpty) {
+      return _controllers[type]!.text.trim();
+    }
+    return _originalValues[type] ?? '';
   }
 
   @override
@@ -1024,7 +833,7 @@ class _PayNowSheetState extends State<_PayNowSheet> {
     setState(() => _isLaunching = true);
 
     final formattedAmount = widget.amount.toStringAsFixed(2);
-    final identifier = _controllers[_selectedIdentifierType]?.text.trim() ?? '';
+    final identifier = _getIdentifierForPayment(_selectedIdentifierType);
     final note = Uri.encodeComponent('Poker Settlement');
 
     String url;
@@ -1191,7 +1000,9 @@ class _PayNowSheetState extends State<_PayNowSheet> {
                   icon: _getIdentifierIcon(type),
                   controller: _controllers[type]!,
                   isSelected: _selectedIdentifierType == type,
+                  isEditing: _isEditing[type] ?? false,
                   onTap: () => setState(() => _selectedIdentifierType = type),
+                  onToggleEdit: () => _toggleEditing(type),
                 ),
               )),
               const SizedBox(height: 16),
@@ -1326,14 +1137,16 @@ class _PaymentAppButton extends StatelessWidget {
   }
 }
 
-/// Identifier selection card with radio-style selection
+/// Identifier selection card with radio-style selection and privacy masking
 class _IdentifierCard extends StatelessWidget {
   final IdentifierType type;
   final String label;
   final IconData icon;
   final TextEditingController controller;
   final bool isSelected;
+  final bool isEditing;
   final VoidCallback onTap;
+  final VoidCallback onToggleEdit;
 
   const _IdentifierCard({
     required this.type,
@@ -1341,7 +1154,9 @@ class _IdentifierCard extends StatelessWidget {
     required this.icon,
     required this.controller,
     required this.isSelected,
+    required this.isEditing,
     required this.onTap,
+    required this.onToggleEdit,
   });
 
   @override
@@ -1409,56 +1224,106 @@ class _IdentifierCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Editable text field
+              // Value display or editable text field
               Expanded(
-                child: TextField(
-                  controller: controller,
-                  enabled: isSelected,
-                  style: TextStyle(
-                    color: isSelected ? theme.colorScheme.onSurface : theme.colorScheme.outline,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                child: isEditing && isSelected
+                    ? TextField(
+                        controller: controller,
+                        autofocus: true,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          hintText: _getHintText(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.green),
+                          ),
+                          filled: true,
+                          fillColor: theme.colorScheme.surface,
+                        ),
+                        keyboardType: type == IdentifierType.phone
+                            ? TextInputType.phone
+                            : type == IdentifierType.email
+                                ? TextInputType.emailAddress
+                                : TextInputType.text,
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? theme.colorScheme.surface
+                              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected
+                                ? theme.colorScheme.outline.withValues(alpha: 0.3)
+                                : theme.colorScheme.outline.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Text(
+                          controller.text.isEmpty ? 'Not set' : controller.text,
+                          style: TextStyle(
+                            color: controller.text.isEmpty
+                                ? theme.colorScheme.outline
+                                : (isSelected ? theme.colorScheme.onSurface : theme.colorScheme.outline),
+                            fontStyle: controller.text.isEmpty ? FontStyle.italic : FontStyle.normal,
+                          ),
+                        ),
                       ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.green),
-                    ),
-                    disabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: isSelected
-                        ? theme.colorScheme.surface
-                        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                  ),
-                  keyboardType: type == IdentifierType.phone
-                      ? TextInputType.phone
-                      : type == IdentifierType.email
-                          ? TextInputType.emailAddress
-                          : TextInputType.text,
-                ),
               ),
+
+              // Edit button (only show when selected)
+              if (isSelected) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onToggleEdit,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isEditing
+                          ? Colors.green.withValues(alpha: 0.2)
+                          : theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      isEditing ? Icons.check : Icons.edit,
+                      size: 18,
+                      color: isEditing ? Colors.green : theme.colorScheme.outline,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _getHintText() {
+    switch (type) {
+      case IdentifierType.email:
+        return 'Enter email address';
+      case IdentifierType.phone:
+        return 'Enter phone number';
+      case IdentifierType.username:
+        return 'Enter username';
+    }
   }
 }
 

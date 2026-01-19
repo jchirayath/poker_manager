@@ -9,6 +9,8 @@ import '../providers/games_provider.dart';
 import '../../../groups/presentation/providers/groups_provider.dart';
 import '../../../locations/presentation/providers/locations_provider.dart';
 import '../../../locations/data/models/location_model.dart';
+import '../../domain/services/seating_chart_service.dart';
+import '../../data/models/game_participant_model.dart';
 
 class CreateGameScreen extends ConsumerStatefulWidget {
   final String groupId;
@@ -38,6 +40,12 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
   String _recurringFrequency = 'weekly'; // weekly, biweekly, monthly, bimonthly, yearly
   int _occurrences = 4;
 
+  // Seating chart option
+  bool _generateSeatingChart = false;
+
+  // Allow member transactions option
+  bool _allowMemberTransactions = false;
+
   // Cache date formatter to avoid recreation
   static final DateFormat _dateFormatter = DateFormat('MMM d, yyyy');
 
@@ -60,7 +68,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
           errorBuilder: (context, error, stackTrace) {
             debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
             debugPrint('Error: $error');
-            return Text('?');
+            return const Text('?');
           },
         );
     }
@@ -73,6 +81,65 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       errorBuilder: (context, error, stackTrace) {
         return Text(initials);
       },
+    );
+  }
+
+  Widget _buildGroupAvatar(String? url, String fallback, double radius) {
+    final letter = fallback.isNotEmpty ? fallback[0].toUpperCase() : '?';
+
+    if ((url ?? '').isEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: Text(
+          letter,
+          style: TextStyle(
+            fontSize: radius * 0.8,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ),
+      );
+    }
+
+    // Check if URL contains 'svg' - handles DiceBear URLs
+    if (url!.toLowerCase().contains('svg')) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        child: ClipOval(
+          child: SvgPicture.network(
+            fixDiceBearUrl(url)!,
+            width: radius * 2,
+            height: radius * 2,
+            fit: BoxFit.cover,
+            placeholderBuilder: (_) => SizedBox(
+              width: radius,
+              height: radius,
+              child: const CircularProgressIndicator(strokeWidth: 2),
+            ),
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('SVG load error for URL: ${fixDiceBearUrl(url)}');
+              return Text(
+                letter,
+                style: TextStyle(
+                  fontSize: radius * 0.8,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundImage: NetworkImage(url),
+      onBackgroundImageError: (exception, stackTrace) {
+        debugPrint('Image load error: $exception');
+      },
+      child: const SizedBox.shrink(),
     );
   }
 
@@ -119,6 +186,46 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     }
   }
 
+  void _generateWittyName() {
+    final wittyNames = [
+      'All-In Alley',
+      'Royal Flush Rush',
+      'Chip Chase Championship',
+      'Bluff Boulevard',
+      'Poker Face Palace',
+      'Full House Fiesta',
+      'The Flop Shop',
+      'River Rats Rendezvous',
+      'Ace High Hangout',
+      'Showdown Showtime',
+      'The Turn Table',
+      'Pocket Rockets Party',
+      'Straight Street Shuffle',
+      'Betting Bonanza',
+      'High Stakes Hideout',
+      'The Big Blind Bash',
+      'Dealer\'s Choice Duel',
+      'Card Shark Soiree',
+      'Nuts & Bolts Night',
+      'The Check-Raise Challenge',
+      'Pot Odds Playground',
+      'Felt Fury Friday',
+      'Texas Hold\'em Throwdown',
+      'Ante Up Arena',
+      'The Cooler Club',
+      'Bad Beat Boulevard',
+      'Rainbow Flop Fest',
+      'Set Mining Society',
+      'The Grind House',
+      'Fish Fry Friday',
+    ];
+
+    final random = DateTime.now().millisecondsSinceEpoch % wittyNames.length;
+    setState(() {
+      _nameController.text = wittyNames[random];
+    });
+  }
+
   void _showAddLocationDialog() {
     final streetController = TextEditingController();
     final cityController = TextEditingController();
@@ -130,115 +237,239 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Add New Location'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: streetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Street Address',
-                    border: OutlineInputBorder(),
+        final colorScheme = Theme.of(context).colorScheme;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.surface,
+                        colorScheme.surfaceContainerHighest.withAlpha((0.5 * 255).round()),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: cityController,
-                  decoration: const InputDecoration(
-                    labelText: 'City',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: stateController,
-                  decoration: const InputDecoration(
-                    labelText: 'State/Province',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: postalController,
-                  decoration: const InputDecoration(
-                    labelText: 'Postal Code',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: labelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Label (e.g., "John\'s House")',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                if (streetController.text.isEmpty) {
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter street address')),
-                  );
-                  return;
-                }
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.add_location_alt,
+                                color: colorScheme.onPrimaryContainer,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Add Location',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  Text(
+                                    'New game location',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
 
-                try {
-                  final context0 = context;
-                  
-                  // Create the location
-                  await ref.read(createLocationNotifierProvider.notifier).createLocation(
-                        groupId: widget.groupId,
-                        streetAddress: streetController.text,
-                        city: cityController.text.isEmpty ? null : cityController.text,
-                        stateProvince: stateController.text.isEmpty ? null : stateController.text,
-                        postalCode: postalController.text.isEmpty ? null : postalController.text,
-                        country: country,
-                        label: labelController.text.isEmpty ? null : labelController.text,
-                      );
+                        // Label Field
+                        TextFormField(
+                          controller: labelController,
+                          decoration: InputDecoration(
+                            labelText: 'Label (Optional)',
+                            hintText: 'John\'s House',
+                            prefixIcon: Icon(Icons.label_outline, color: colorScheme.primary, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                  // Wait a moment for the database to complete
-                  await Future.delayed(const Duration(milliseconds: 500));
+                        // Street Address
+                        TextFormField(
+                          controller: streetController,
+                          decoration: InputDecoration(
+                            labelText: 'Street Address *',
+                            hintText: '123 Main St',
+                            prefixIcon: Icon(Icons.home_outlined, color: colorScheme.primary, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                  if (mounted) {
-                    // Refresh the locations list to get the newly created location
-                    // ignore: unused_result
-                    ref.refresh(groupLocationsProvider(widget.groupId));
-                    
-                    // Close the dialog
-                    // ignore: use_build_context_synchronously
-                    Navigator.pop(context0);
-                    
-                    // Show success message
-                    if (mounted) {
-                      // ignore: use_build_context_synchronously
-                      ScaffoldMessenger.of(context0).showSnackBar(
-                        const SnackBar(content: Text('Location added successfully')),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    // ignore: use_build_context_synchronously
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error adding location: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
+                        // City
+                        TextFormField(
+                          controller: cityController,
+                          decoration: InputDecoration(
+                            labelText: 'City',
+                            hintText: 'San Francisco',
+                            prefixIcon: Icon(Icons.location_city, color: colorScheme.primary, size: 20),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surface,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // State and Postal Code Row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: stateController,
+                                decoration: InputDecoration(
+                                  labelText: 'State',
+                                  hintText: 'CA',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: postalController,
+                                decoration: InputDecoration(
+                                  labelText: 'Zip',
+                                  hintText: '94102',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Action Buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.icon(
+                              onPressed: () async {
+                                if (streetController.text.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Please enter street address'),
+                                      backgroundColor: colorScheme.error,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                try {
+                                  await ref.read(createLocationNotifierProvider.notifier).createLocation(
+                                        groupId: widget.groupId,
+                                        streetAddress: streetController.text,
+                                        city: cityController.text.isEmpty ? null : cityController.text,
+                                        stateProvince: stateController.text.isEmpty ? null : stateController.text,
+                                        postalCode: postalController.text.isEmpty ? null : postalController.text,
+                                        country: country,
+                                        label: labelController.text.isEmpty ? null : labelController.text,
+                                      );
+
+                                  await Future.delayed(const Duration(milliseconds: 500));
+
+                                  if (!mounted) return;
+                                  final context0 = context;
+                                  // ignore: unused_result
+                                  ref.refresh(groupLocationsProvider(widget.groupId));
+                                  Navigator.pop(context0);
+                                  ScaffoldMessenger.of(context0).showSnackBar(
+                                    const SnackBar(
+                                      content: Row(
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.white),
+                                          SizedBox(width: 12),
+                                          Text('Location added'),
+                                        ],
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  final context0 = context;
+                                  ScaffoldMessenger.of(context0).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error: $e'),
+                                      backgroundColor: colorScheme.error,
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.add_location, size: 18),
+                              label: const Text('Add'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -252,10 +483,6 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         _additionalBuyinController.clear();
       });
     }
-  }
-
-  void _removeAdditionalBuyin(int index) {
-    setState(() => _additionalBuyins.removeAt(index));
   }
 
   /// Calculate the next game date based on the recurring frequency
@@ -294,15 +521,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     }
   }
 
-  /// Filter locations to show only those from selected members' profiles
-  /// If no members selected, show all group locations
+  /// Get locations for selected members
+  /// Returns group locations and member locations from the locations table
   Future<List<LocationModel>> _getFilteredLocations(
     List<LocationModel> allLocations,
     List<dynamic> members,
   ) async {
-    // If no members selected, return all group locations
+    // If no members selected, return just group-level locations
     if (_selectedPlayerIds.isEmpty) {
-      return allLocations;
+      return allLocations.where((loc) => loc.profileId == null).toList();
     }
 
     // Get the selected members' profiles
@@ -310,32 +537,24 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         .where((m) => _selectedPlayerIds.contains(m.userId))
         .toList();
 
-    // Extract unique profile IDs and build a set for quick lookup
+    // Extract unique profile IDs for filtering
     final memberProfileIds = <String>{};
-
     for (final member in selectedMembers) {
       if (member.profile != null) {
         memberProfileIds.add(member.profile!.id);
       }
     }
 
-    // Filter locations: include group-level locations OR locations associated with selected members
-    final filteredLocations = allLocations
-        .where((location) {
-          // Include if location is associated with a selected member's profile
-          if (location.profileId != null &&
-              memberProfileIds.contains(location.profileId)) {
-            return true;
-          }
-          // Include all group-level locations (no profileId) to allow manual entry
-          if (location.profileId == null) {
-            return true;
-          }
-          return false;
-        })
-        .toList();
+    // Return group locations + member locations (no duplicates needed - locations table is source of truth)
+    return allLocations.where((location) {
+      // Include group-level locations
+      if (location.profileId == null) return true;
 
-    return filteredLocations;
+      // Include locations belonging to selected members
+      if (memberProfileIds.contains(location.profileId)) return true;
+
+      return false;
+    }).toList();
   }
 
 
@@ -377,6 +596,31 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       return;
     }
 
+    // Show confirmation dialog BEFORE creating the game
+    final shouldCreate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create Game?'),
+        content: Text(
+          'Create "${_nameController.text}" with ${_selectedPlayerIds.length} player${_selectedPlayerIds.length > 1 ? 's' : ''}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldCreate != true) {
+      return; // User cancelled
+    }
+
     final dateTime = DateTime(
       _selectedDate!.year,
       _selectedDate!.month,
@@ -391,11 +635,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       if (_selectedLocationId != null) {
         final locationsAsync = ref.read(groupLocationsProvider(widget.groupId));
         final locations = locationsAsync.value ?? [];
-        final selectedLocation = locations.firstWhere(
-          (loc) => loc.id == _selectedLocationId,
-          orElse: () => locations.first,
-        );
-        locationString = selectedLocation.label ?? selectedLocation.fullAddress;
+        try {
+          final selectedLocation = locations.firstWhere(
+            (loc) => loc.id == _selectedLocationId,
+          );
+          // Use label if available, otherwise full address
+          locationString = selectedLocation.label ?? selectedLocation.fullAddress;
+        } catch (e) {
+          // Location not found, locationString stays null
+        }
       }
 
       // Determine how many games to create
@@ -428,11 +676,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               buyinAmount: buyin,
               additionalBuyinValues: _additionalBuyins,
               participantUserIds: _selectedPlayerIds.toList(),
+              allowMemberTransactions: _allowMemberTransactions,
             );
             if (i < gamesToCreate - 1) {
               await Future.delayed(const Duration(milliseconds: 200));
             }
           }
+          // Invalidate games providers after all recurring games are created
+          ref.invalidate(groupGamesProvider(widget.groupId));
+          ref.invalidate(activeGamesProvider);
         });
         return;
       }
@@ -453,7 +705,7 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
         // Generate game name with sequence number if recurring
         String gameName = _nameController.text;
         if (_isRecurring && gamesToCreate > 1) {
-          gameName = '$gameName ${i + 1}/${gamesToCreate}';
+          gameName = '$gameName ${i + 1}/$gamesToCreate';
         }
 
         // Create the game
@@ -467,8 +719,38 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
               buyinAmount: buyin,
               additionalBuyinValues: _additionalBuyins,
               participantUserIds: _selectedPlayerIds.toList(),
+              allowMemberTransactions: _allowMemberTransactions,
             );
-        
+
+        // Generate seating chart if option is enabled
+        if (_generateSeatingChart) {
+          final createdGameState = ref.read(createGameProvider);
+          createdGameState.whenData((game) async {
+            if (game != null) {
+              // Create mock participants list for seating chart generation
+              final participants = _selectedPlayerIds.map((userId) {
+                return GameParticipantModel(
+                  id: '',
+                  gameId: game.id,
+                  userId: userId,
+                  rsvpStatus: 'maybe',
+                  totalBuyin: 0,
+                  totalCashout: 0,
+                  netResult: 0,
+                );
+              }).toList();
+
+              final seatingChart = SeatingChartService.generateSeatingChart(participants);
+              if (seatingChart.isNotEmpty) {
+                await ref.read(gamesRepositoryProvider).updateSeatingChart(
+                  gameId: game.id,
+                  seatingChart: seatingChart,
+                );
+              }
+            }
+          });
+        }
+
         // Small delay between creations to avoid overwhelming the database
         if (i < gamesToCreate - 1) {
           await Future.delayed(const Duration(milliseconds: 200));
@@ -476,41 +758,70 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
       }
 
       if (mounted) {
-        final successMessage = _isRecurring 
-            ? '$gamesToCreate games created successfully!'
-            : 'Game created successfully!';
-        
+        // Invalidate games providers to refresh the games list
+        ref.invalidate(groupGamesProvider(widget.groupId));
+        ref.invalidate(activeGamesProvider);
+
+        // Send RSVP emails if auto-send is enabled (for single games only)
+        if (!_isRecurring) {
+          final groupAsync = ref.read(groupProvider(widget.groupId));
+          groupAsync.whenData((group) async {
+            if (group != null && group.autoSendRsvpEmails) {
+              final createdGameState = ref.read(createGameProvider);
+              createdGameState.whenData((game) async {
+                if (game != null) {
+                  final repository = ref.read(gamesRepositoryProvider);
+                  await repository.sendRsvpEmails(gameId: game.id);
+                }
+              });
+            }
+          });
+        }
+
         // Show a dialog to confirm starting the game (only for single games)
         if (!_isRecurring) {
-          showDialog(
+          final shouldStart = await showDialog<bool>(
             context: context,
+            barrierDismissible: false,
             builder: (context) => AlertDialog(
               title: const Text('Game Created'),
-              content: const Text('Start the game now? All selected players are assumed to have paid their buy-in.'),
+              content: const Text('Start the game now? All selected players will be marked as having paid their buy-in.'),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Later'),
+                  onPressed: () => Navigator.pop(context, null), // null = just close and go back
+                  child: const Text('Done'),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    _startGame(
-                      groupId: widget.groupId,
-                      gameName: _nameController.text,
-                      playerIds: _selectedPlayerIds.toList(),
-                      buyinAmount: buyin,
-                      currency: _selectedCurrency,
-                    );
-                  },
+                  onPressed: () => Navigator.pop(context, true),
                   child: const Text('Start Game'),
                 ),
               ],
             ),
           );
+
+          if (mounted) {
+            if (shouldStart == true) {
+              // User chose to start the game
+              await _startGame(
+                groupId: widget.groupId,
+                gameName: _nameController.text,
+                playerIds: _selectedPlayerIds.toList(),
+                buyinAmount: buyin,
+                currency: _selectedCurrency,
+              );
+              if (!mounted) return;
+              // Navigate to Active games tab (index 0)
+              Navigator.pop(context, {'navigateToTab': 0});
+            } else {
+              if (!mounted) return;
+              // User chose "Done" - navigate to Scheduled games tab (index 1)
+              Navigator.pop(context, {'navigateToTab': 1});
+            }
+          }
         } else {
-          // For recurring games, just go back (no snackbar)
-          Navigator.pop(context);
+          if (!mounted) return;
+          // For recurring games, navigate to Scheduled games tab
+          Navigator.pop(context, {'navigateToTab': 1});
         }
       }
     } catch (e) {
@@ -575,64 +886,67 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
     final groupAsync = ref.watch(groupProvider(widget.groupId));
     final locationsAsync = ref.watch(groupLocationsProvider(widget.groupId));
     final membersAsync = ref.watch(groupMembersProvider(widget.groupId));
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_upward, size: 20),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text('Create Game'),
-            const SizedBox(width: 8),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      _scrollController.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeInOut,
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.arrow_downward, size: 20),
-                ),
-              ),
-            ),
-          ],
-        ),
+        elevation: 0,
+        title: Text('Create Game', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        // title: Row(
+        //   mainAxisAlignment: MainAxisAlignment.center,
+        //   mainAxisSize: MainAxisSize.min,
+        //   children: [
+        //     Material(
+        //       color: Colors.transparent,
+        //       child: InkWell(
+        //         borderRadius: BorderRadius.circular(20),
+        //         onTap: () {
+        //           if (_scrollController.hasClients) {
+        //             _scrollController.animateTo(
+        //               0,
+        //               duration: const Duration(milliseconds: 500),
+        //               curve: Curves.easeInOut,
+        //             );
+        //           }
+        //         },
+        //         child: Container(
+        //           padding: const EdgeInsets.all(8),
+        //           decoration: BoxDecoration(
+        //             color: colorScheme.primaryContainer,
+        //             shape: BoxShape.circle,
+        //           ),
+        //           child: Icon(Icons.arrow_upward, size: 18, color: colorScheme.onPrimaryContainer),
+        //         ),
+        //       ),
+        //     ),
+        //     const SizedBox(width: 12),
+        //     Text('Create Game', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        //     const SizedBox(width: 12),
+        //     Material(
+        //       color: Colors.transparent,
+        //       child: InkWell(
+        //         borderRadius: BorderRadius.circular(20),
+        //         onTap: () {
+        //           if (_scrollController.hasClients) {
+        //             _scrollController.animateTo(
+        //               _scrollController.position.maxScrollExtent,
+        //               duration: const Duration(milliseconds: 500),
+        //               curve: Curves.easeInOut,
+        //             );
+        //           }
+        //         },
+        //         child: Container(
+        //           padding: const EdgeInsets.all(8),
+        //           decoration: BoxDecoration(
+        //             color: colorScheme.primaryContainer,
+        //             shape: BoxShape.circle,
+        //           ),
+        //           child: Icon(Icons.arrow_downward, size: 18, color: colorScheme.onPrimaryContainer),
+        //         ),
+        //       ),
+        //     ),
+        //   ],
+        // ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -649,117 +963,214 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 if (group == null) {
                   return const SizedBox.shrink();
                 }
-                return Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              if (group.avatarUrl?.isNotEmpty == true)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: CircleAvatar(
-                                    radius: 16,
-                                    backgroundImage: NetworkImage(group.avatarUrl!),
-                                    onBackgroundImageError: (_, __) {},
-                                  ),
-                                )
-                              else
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Icon(
-                                    Icons.group,
-                                    size: 24,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                              Expanded(
-                                child: Text(
-                                  group.name,
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primaryContainer.withAlpha((0.3 * 255).round()),
+                        colorScheme.secondaryContainer.withAlpha((0.3 * 255).round()),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: colorScheme.outline.withAlpha((0.2 * 255).round()),
+                      width: 1,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colorScheme.primary,
+                                  width: 2,
                                 ),
                               ),
-                            ],
-                          ),
-                          if (group.description != null && group.description!.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              group.description!,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey[600],
+                              child: (group.avatarUrl?.isNotEmpty == true)
+                                  ? _buildGroupAvatar(group.avatarUrl, group.name, 24)
+                                  : CircleAvatar(
+                                      radius: 24,
+                                      backgroundColor: colorScheme.primaryContainer,
+                                      child: Icon(
+                                        Icons.group,
+                                        size: 28,
+                                        color: colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    group.name,
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.onSurface,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (group.description != null && group.description!.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      group.description!,
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ],
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
             ),
-            
+
             // Game Name
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Game Name',
-                hintText: 'e.g., Friday Night Game',
-                border: OutlineInputBorder(),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withAlpha((0.1 * 255).round()),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'Game Name',
+                  hintText: 'e.g., Friday Night Game',
+                  prefixIcon: Icon(Icons.casino, color: colorScheme.primary),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.auto_awesome, color: colorScheme.primary),
+                    tooltip: 'Generate witty name',
+                    onPressed: _generateWittyName,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: colorScheme.surface,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Date and Time
             Row(
               children: [
                 Expanded(
-                  child: InkWell(
-                    onTap: () => _selectDate(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Date',
-                        border: OutlineInputBorder(),
-                      ),
-                      child: Text(
-                        _selectedDate != null
-                            ? _dateFormatter.format(_selectedDate!)
-                            : 'Select date',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.primary.withAlpha((0.1 * 255).round()),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => _selectDate(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Date',
+                          prefixIcon: Icon(Icons.calendar_today, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
+                        ),
+                        child: Text(
+                          _selectedDate != null
+                              ? _dateFormatter.format(_selectedDate!)
+                              : 'Select date',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: InkWell(
-                    onTap: () => _selectTime(context),
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Time',
-                        border: OutlineInputBorder(),
-                      ),
-                      child: Text(
-                        _selectedTime != null
-                            ? _selectedTime!.format(context)
-                            : 'Select time',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.primary.withAlpha((0.1 * 255).round()),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => _selectTime(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Time',
+                          prefixIcon: Icon(Icons.access_time, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
+                        ),
+                        child: Text(
+                          _selectedTime != null
+                              ? _selectedTime!.format(context)
+                              : 'Select time',
+                          style: TextStyle(color: colorScheme.onSurface),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Recurring Games Section
-            Card(
-              elevation: 2,
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.tertiaryContainer.withAlpha((0.3 * 255).round()),
+                    colorScheme.primaryContainer.withAlpha((0.3 * 255).round()),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: colorScheme.outline.withAlpha((0.2 * 255).round()),
+                  width: 1,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -767,11 +1178,25 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   children: [
                     Row(
                       children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.repeat,
+                            size: 20,
+                            color: colorScheme.onTertiaryContainer,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             'Recurring Games',
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -788,15 +1213,20 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       Text(
                         'Create multiple games on a schedule',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
-                        value: _recurringFrequency,
-                        decoration: const InputDecoration(
+                        initialValue: _recurringFrequency,
+                        decoration: InputDecoration(
                           labelText: 'Frequency',
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.event_repeat, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
                         ),
                         items: const [
                           DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
@@ -839,10 +1269,15 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       TextFormField(
                         controller: _occurrencesController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Number of Games',
                           hintText: '4',
-                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.format_list_numbered, color: colorScheme.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surface,
                           helperText: 'How many games to create',
                         ),
                         onChanged: (value) {
@@ -855,22 +1290,163 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+
+            // Seating Chart Option
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceContainerHighest.withAlpha((0.3 * 255).round()),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: colorScheme.outline.withAlpha((0.2 * 255).round()),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.event_seat,
+                        size: 20,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Generate Seating Chart',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Randomly assign seats to players',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _generateSeatingChart,
+                      onChanged: (value) {
+                        setState(() => _generateSeatingChart = value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
+
+            // Allow Member Transactions Option
+            Card(
+              elevation: 0,
+              color: colorScheme.surfaceContainerHighest.withAlpha((0.3 * 255).round()),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: colorScheme.outline.withAlpha((0.2 * 255).round()),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.tertiaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.swap_horiz,
+                        size: 20,
+                        color: colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Allow Member Transactions',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Let all members add buy-ins and cash-outs',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _allowMemberTransactions,
+                      onChanged: (value) {
+                        setState(() => _allowMemberTransactions = value);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
 
             // Players Section (moved before location)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Select Players',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.people,
+                        size: 20,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Select Players',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
                 membersAsync.when(
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (error, stackTrace) => const SizedBox.shrink(),
                   data: (members) {
                     if (members.isEmpty) return const SizedBox.shrink();
-                    
+
                     final allSelected = members.every((m) => _selectedPlayerIds.contains(m.userId));
                     
                     return TextButton.icon(
@@ -910,36 +1486,93 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                     final initialsText = (member.profile?.firstName ?? 'U')[0].toUpperCase() +
                         (member.profile?.lastName ?? '')[0].toUpperCase();
 
-                    return CheckboxListTile(
-                      value: isSelected,
-                      onChanged: (checked) {
-                        setState(() {
-                          if (checked ?? false) {
-                            _selectedPlayerIds.add(member.userId);
-                          } else {
-                            _selectedPlayerIds.remove(member.userId);
-                          }
-                        });
-                      },
-                      secondary: CircleAvatar(
-                        child: _buildMemberAvatar(
-                          member.profile?.avatarUrl,
-                          initialsText,
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? colorScheme.primaryContainer.withAlpha((0.3 * 255).round()) : colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? colorScheme.primary : colorScheme.outline.withAlpha((0.3 * 255).round()),
+                          width: isSelected ? 2 : 1,
                         ),
                       ),
-                      title: Text(displayName),
-                      subtitle: member.role != 'member'
-                          ? Text('${member.role} of group')
-                          : null,
-                      contentPadding: EdgeInsets.zero,
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (checked) {
+                          setState(() {
+                            if (checked ?? false) {
+                              _selectedPlayerIds.add(member.userId);
+                            } else {
+                              _selectedPlayerIds.remove(member.userId);
+                            }
+                          });
+                        },
+                        secondary: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? colorScheme.primary : colorScheme.outline,
+                              width: 2,
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            backgroundColor: colorScheme.primaryContainer,
+                            child: _buildMemberAvatar(
+                              member.profile?.avatarUrl,
+                              initialsText,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          displayName,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        subtitle: member.role != 'member'
+                            ? Text(
+                                '${member.role} of group',
+                                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                              )
+                            : null,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     );
                   }).toList(),
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Location Dropdown
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.location_on,
+                    size: 20,
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Location',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             locationsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Text('Error loading locations: $error'),
@@ -952,51 +1585,81 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                       future: _getFilteredLocations(allLocations, members),
                       builder: (context, snapshot) {
                         final locations = snapshot.data ?? allLocations;
-                        
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            DropdownButtonFormField<String?>(
-                              // ignore: deprecated_member_use
-                              value: _selectedLocationId,
-                              decoration: InputDecoration(
-                                labelText: 'Location',
-                                hintText: 'Select a location',
-                                border: const OutlineInputBorder(),
-                                suffixIcon: locations.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.add),
-                                        onPressed: _showAddLocationDialog,
-                                      )
-                                    : null,
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colorScheme.primary.withAlpha((0.1 * 255).round()),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
+                              child: DropdownButtonFormField<String?>(
+                                // ignore: deprecated_member_use
+                                value: _selectedLocationId,
+                                decoration: InputDecoration(
+                                  labelText: 'Location',
+                                  hintText: 'Select a location',
+                                  prefixIcon: Icon(Icons.place, color: colorScheme.primary),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  filled: true,
+                                  fillColor: colorScheme.surface,
+                                  suffixIcon: locations.isNotEmpty
+                                      ? IconButton(
+                                          icon: Icon(Icons.add_circle, color: colorScheme.primary),
+                                          onPressed: _showAddLocationDialog,
+                                        )
+                                      : null,
+                                ),
+                              isExpanded: true,
                               items: [
                                 const DropdownMenuItem(
                                   value: null,
                                   child: Text('No Location'),
                                 ),
                                 ...locations.map((location) {
+                                  // Show label if available, otherwise show full address
+                                  final hasLabel = location.label != null && location.label!.isNotEmpty;
+                                  final fullAddr = location.fullAddress;
+                                  final displayText = hasLabel ? location.label! : (fullAddr.isNotEmpty ? fullAddr : 'Unknown Location');
+
                                   return DropdownMenuItem(
                                     value: location.id,
                                     child: Text(
-                                      location.label ?? location.fullAddress,
+                                      displayText,
                                       overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                   );
                                 }),
                               ],
-                              onChanged: (value) {
-                                setState(() => _selectedLocationId = value);
-                              },
+                                onChanged: (value) {
+                                  setState(() => _selectedLocationId = value);
+                                },
+                              ),
                             ),
                             if (locations.isEmpty)
                               Padding(
-                                padding: const EdgeInsets.only(top: 8),
+                                padding: const EdgeInsets.only(top: 12),
                                 child: SizedBox(
                                   width: double.infinity,
-                                  child: ElevatedButton.icon(
+                                  child: FilledButton.icon(
                                     onPressed: _showAddLocationDialog,
-                                    icon: const Icon(Icons.add),
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.all(16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    icon: const Icon(Icons.add_location),
                                     label: const Text('Add Location'),
                                   ),
                                 ),
@@ -1009,9 +1672,9 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Currency, Buy-in, and Additional Buy-ins on one line
+            // Buy-in Settings
             groupAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stack) => Text('Error loading group: $error'),
@@ -1035,67 +1698,134 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                   }
                 });
 
+                IconData getCurrencyIcon(String currency) {
+                  switch (currency) {
+                    case 'EUR':
+                      return Icons.euro;
+                    case 'GBP':
+                      return Icons.currency_pound;
+                    case 'JPY':
+                      return Icons.currency_yen;
+                    case 'INR':
+                      return Icons.currency_rupee;
+                    case 'USD':
+                    default:
+                      return Icons.attach_money;
+                  }
+                }
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Currency and Buy-in on one line
                     Row(
                       children: [
-                        // Currency
-                        Expanded(
-                          flex: 1,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _selectedCurrency,
-                            decoration: const InputDecoration(
-                              labelText: 'Currency',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
-                                .map((currency) => DropdownMenuItem(
-                                      value: currency,
-                                      child: Text('${Currencies.symbols[currency] ?? currency} ($currency)'),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _selectedCurrency = value);
-                              }
-                            },
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            getCurrencyIcon(group.defaultCurrency),
+                            size: 20,
+                            color: colorScheme.onTertiaryContainer,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Buy-in Settings',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            Currencies.symbols[group.defaultCurrency] ?? group.defaultCurrency,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Buy-in and Additional Buy-in on one line
+                    Row(
+                      children: [
                         // Buy-in Amount
                         Expanded(
                           flex: 1,
-                          child: TextFormField(
-                            controller: _buyinController,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(
-                              labelText: 'Buy-in',
-                              hintText: '100',
-                              border: OutlineInputBorder(),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.primary.withAlpha((0.1 * 255).round()),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: TextFormField(
+                              controller: _buyinController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(decimal: true),
+                              decoration: InputDecoration(
+                                labelText: 'Buy-in Amount',
+                                hintText: '100',
+                                prefixIcon: Icon(Icons.paid, color: colorScheme.primary),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: colorScheme.surface,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Additional Buy-in Input - Now Editable
+                        // Additional Buy-in Input
                         Expanded(
                           flex: 1,
-                          child: TextFormField(
-                            controller: _additionalBuyinController,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(decimal: true),
-                            decoration: InputDecoration(
-                              labelText: 'Add Buy-in',
-                              hintText: '50',
-                              border: const OutlineInputBorder(),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.add),
-                                onPressed: _addAdditionalBuyin,
-                              ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colorScheme.primary.withAlpha((0.1 * 255).round()),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
-                            onFieldSubmitted: (_) => _addAdditionalBuyin(),
+                            child: TextFormField(
+                              controller: _additionalBuyinController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(decimal: true),
+                              decoration: InputDecoration(
+                                labelText: 'Add Buy-in',
+                                hintText: '50',
+                                prefixIcon: Icon(Icons.add_card, color: colorScheme.primary),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: colorScheme.surface,
+                                suffixIcon: IconButton(
+                                  icon: Icon(Icons.add_circle, color: colorScheme.primary),
+                                  onPressed: _addAdditionalBuyin,
+                                ),
+                              ),
+                              onFieldSubmitted: (_) => _addAdditionalBuyin(),
+                            ),
                           ),
                         ),
                       ],
@@ -1104,19 +1834,58 @@ class _CreateGameScreenState extends ConsumerState<CreateGameScreen> {
                 );
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // Create and Start Game Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: createGameState.isLoading ? null : _createGame,
-                child: createGameState.isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Create Game'),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    colorScheme.primary,
+                    colorScheme.primary.withAlpha((0.8 * 255).round()),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.primary.withAlpha((0.3 * 255).round()),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: createGameState.isLoading ? null : _createGame,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: createGameState.isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.add_circle_outline, size: 24),
+                  label: Text(
+                    createGameState.isLoading ? 'Creating...' : 'Create Game',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
               ),
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../presentation/providers/games_provider.dart';
 import '../../presentation/providers/games_provider.dart'
-  show UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
+  show gamesRepositoryProvider, UserTransactionsKey, userTransactionsProvider, gameParticipantsProvider, gameTransactionsProvider;
+import '../../../../core/constants/currencies.dart';
+import '../../../stats/presentation/providers/stats_provider.dart';
 
 class CashOutDialog extends ConsumerStatefulWidget {
   final String gameId;
@@ -57,36 +58,52 @@ class _CashOutDialogState extends ConsumerState<CashOutDialog> {
     setState(() => _isLoading = true);
 
     try {
-      final repository = ref.read(gamesRepositoryProvider);
-      final result = await repository.addTransaction(
-        gameId: widget.gameId,
-        userId: widget.userId,
-        type: 'cashout',
-        amount: amount,
-        notes: 'Cash-out recorded',
-      );
+      // Check if cash-outs would exceed buy-ins
+      final transactionsAsync = ref.read(gameTransactionsProvider(widget.gameId));
+      await transactionsAsync.when(
+        data: (transactions) async {
+          // Calculate current totals
+          double totalBuyins = 0;
+          double totalCashouts = 0;
 
-      if (!mounted) return;
-      result.when(
-        success: (_) {
-          ref.invalidate(gameParticipantsProvider(widget.gameId));
-          ref.invalidate(
-            userTransactionsProvider(
-              UserTransactionsKey(gameId: widget.gameId, userId: widget.userId),
-            ),
-          );
-          ref.invalidate(gameTransactionsProvider(widget.gameId));
+          for (final txn in transactions) {
+            if (txn.type == 'buyin') {
+              totalBuyins += txn.amount;
+            } else if (txn.type == 'cashout') {
+              totalCashouts += txn.amount;
+            }
+          }
 
-          widget.onCashOut();
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cash-out saved')),
-          );
+          // Calculate new total with this cash-out
+          final newTotalCashouts = totalCashouts + amount;
+
+          // Warn if cash-outs exceed buy-ins
+          if (newTotalCashouts > totalBuyins) {
+            final difference = newTotalCashouts - totalBuyins;
+            final shouldContinue = await _showExcessWarning(
+              totalBuyins: totalBuyins,
+              totalCashouts: newTotalCashouts,
+              difference: difference,
+            );
+
+            if (!shouldContinue) {
+              if (mounted) {
+                setState(() => _isLoading = false);
+              }
+              return;
+            }
+          }
+
+          // Proceed with adding the cash-out
+          await _addCashOut(amount);
         },
-        failure: (message, _) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error saving cash-out: $message')),
-          );
+        loading: () async {
+          // If still loading transactions, proceed without check
+          await _addCashOut(amount);
+        },
+        error: (error, stackTrace) async {
+          // If error loading transactions, proceed without check
+          await _addCashOut(amount);
         },
       );
     } catch (e) {
@@ -94,10 +111,179 @@ class _CashOutDialogState extends ConsumerState<CashOutDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<bool> _showExcessWarning({
+    required double totalBuyins,
+    required double totalCashouts,
+    required double difference,
+  }) async {
+    final currencySymbol = Currencies.symbols[widget.currency] ?? widget.currency;
+
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange[700], size: 20),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Cash-outs Exceed Buy-ins',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'The total cash-outs will exceed total buy-ins by:',
+                style: TextStyle(color: Colors.grey[700], fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Total Buy-ins:',
+                            style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$currencySymbol${totalBuyins.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Total Cash-outs:',
+                            style: TextStyle(color: Colors.grey[800], fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$currencySymbol${totalCashouts.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Excess:',
+                            style: TextStyle(
+                              color: Colors.orange[900],
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$currencySymbol${difference.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.orange[900],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This might indicate a data entry error. Do you want to continue?',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[700],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  Future<void> _addCashOut(double amount) async {
+    final repository = ref.read(gamesRepositoryProvider);
+    final result = await repository.addTransaction(
+      gameId: widget.gameId,
+      userId: widget.userId,
+      type: 'cashout',
+      amount: amount,
+      notes: 'Cash-out recorded',
+    );
+
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        ref.invalidate(gameParticipantsProvider(widget.gameId));
+        ref.invalidate(
+          userTransactionsProvider(
+            UserTransactionsKey(gameId: widget.gameId, userId: widget.userId),
+          ),
+        );
+        ref.invalidate(gameTransactionsProvider(widget.gameId));
+
+        // Invalidate stats providers to refresh stats screen
+        ref.invalidate(recentGamesStatsProvider);
+        ref.invalidate(recentGameStatsProvider);
+
+        widget.onCashOut();
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cash-out saved')),
+        );
+      },
+      failure: (message, _) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving cash-out: $message')),
+        );
+      },
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 

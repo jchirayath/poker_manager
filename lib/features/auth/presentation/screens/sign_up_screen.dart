@@ -115,8 +115,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             ],
           ),
         );
-        if (context.mounted) {
-          context.go(RouteConstants.signIn);
+        final ctx0 = context;
+        if (ctx0.mounted) {
+          ctx0.go(RouteConstants.signIn);
         }
       },
       failure: (message, exception) {

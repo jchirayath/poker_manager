@@ -79,6 +79,7 @@ class GroupController {
     String? defaultCurrency,
     double? defaultBuyin,
     List<double>? additionalBuyinValues,
+    bool? autoSendRsvpEmails,
   }) async {
     final result = await _repository.updateGroup(
       groupId: groupId,
@@ -89,6 +90,7 @@ class GroupController {
       defaultCurrency: defaultCurrency,
       defaultBuyin: defaultBuyin,
       additionalBuyinValues: additionalBuyinValues,
+      autoSendRsvpEmails: autoSendRsvpEmails,
     );
 
     if (result is Success) {
@@ -106,7 +108,7 @@ class GroupController {
       _ref.invalidate(groupsListProvider);
       return (true, null);
     }
-    final errorMessage = result is Failure ? (result as Failure).message : 'Unknown error';
+    final errorMessage = result is Failure ? (result).message : 'Unknown error';
     return (false, errorMessage);
   }
 
